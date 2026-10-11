@@ -354,12 +354,20 @@ func (a *AV) Grep(f func(*SV) bool) *AV {
 // Sort is Perl's sort: a sorted copy of a. A nil cmp sorts by string
 // comparison, as bare sort does; pass NumCmp for sort { $a <=> $b }.
 func (a *AV) Sort(cmp func(x, y *SV) int) *AV {
-	if cmp == nil {
-		cmp = StrCmp
-	}
 	out := a.copy()
-	slices.SortStableFunc(out.items, cmp)
+	slices.SortStableFunc(out.items, orStrCmp(cmp))
 	return out
+}
+
+// SortInPlace is Perl's @a = sort @a: it sorts a itself, as Sort would, and
+// returns a. As in Perl, holes become undef elements that exist.
+func (a *AV) SortInPlace(cmp func(x, y *SV) int) *AV {
+	if a == nil {
+		return nil
+	}
+	a.fillHoles()
+	slices.SortStableFunc(a.items, orStrCmp(cmp))
+	return a
 }
 
 // Reverse is Perl's reverse: a reversed copy of a.
@@ -367,6 +375,34 @@ func (a *AV) Reverse() *AV {
 	out := a.copy()
 	slices.Reverse(out.items)
 	return out
+}
+
+// ReverseInPlace is Perl's @a = reverse @a: it reverses a itself and
+// returns a. As in Perl, holes become undef elements that exist.
+func (a *AV) ReverseInPlace() *AV {
+	if a == nil {
+		return nil
+	}
+	a.fillHoles()
+	slices.Reverse(a.items)
+	return a
+}
+
+func orStrCmp(cmp func(x, y *SV) int) func(x, y *SV) int {
+	if cmp == nil {
+		return StrCmp
+	}
+	return cmp
+}
+
+// fillHoles makes every hole an existing undef element, as assigning a list
+// back to an array does in Perl.
+func (a *AV) fillHoles() {
+	for i, s := range a.items {
+		if s == nil {
+			a.items[i] = &SV{}
+		}
+	}
 }
 
 func (a *AV) copy() *AV {

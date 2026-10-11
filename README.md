@@ -392,6 +392,8 @@ a.Join(", ")                   // join(", ", @a)
 a.Sort(nil)                    // sort @a                  (as strings)
 a.Sort(scalar.NumCmp)          // sort { $a <=> $b } @a    (as numbers)
 a.Reverse()                    // reverse @a
+a.SortInPlace(nil)             // @a = sort @a             (sorts a itself)
+a.ReverseInPlace()             // @a = reverse @a          (reverses a itself)
 a.Map(func(s *scalar.SV) any { return s.Int() * 2 })  // map  { $_ * 2 } @a
 a.Grep(func(s *scalar.SV) bool { return s.Int() > 2 }) // grep { $_ > 2 } @a
 
@@ -560,6 +562,11 @@ Some things to know:
   sort is in practice.
 - **The comparison must be consistent.** As in Perl, if it contradicts itself,
   the order you get is unspecified. It won't crash, though.
+- **`Sort` returns a sorted copy; `SortInPlace` sorts the array itself.**
+  `SortInPlace` is Perl's `@a = sort @a`: it takes the same comparison
+  function, returns the array so calls can chain, and saves copying a large
+  array. As with assigning a list back in Perl, any holes become undef
+  elements. `ReverseInPlace` is the same for `Reverse`.
 
 ### Negative indices
 
@@ -1053,7 +1060,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |

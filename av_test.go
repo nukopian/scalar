@@ -393,3 +393,64 @@ func TestSliceFastPaths(t *testing.T) {
 		t.Error("nil slices should add nothing to a list")
 	}
 }
+
+func TestInPlace(t *testing.T) {
+	a := Array("pear", "apple", "fig")
+	if got := a.SortInPlace(nil); got != a || show(a) != "apple,fig,pear" {
+		t.Errorf("SortInPlace(nil) = %s (should return a itself)", show(a))
+	}
+	n := Array(10, 9, 100)
+	n.SortInPlace(NumCmp)
+	if show(n) != "9,10,100" {
+		t.Errorf("SortInPlace(NumCmp) = %s", show(n))
+	}
+	// Descending, with a custom comparison.
+	n.SortInPlace(func(x, y *SV) int { return NumCmp(y, x) })
+	if show(n) != "100,10,9" {
+		t.Errorf("descending = %s", show(n))
+	}
+	if got := Array(1, 2, 3).ReverseInPlace().Join(","); got != "3,2,1" {
+		t.Errorf("ReverseInPlace = %s", got)
+	}
+
+	// Stable: equal elements keep their order.
+	rows := Array(Scalar(Hash("k", 1, "id", "a")), Scalar(Hash("k", 0, "id", "b")), Scalar(Hash("k", 1, "id", "c")))
+	rows.SortInPlace(func(x, y *SV) int { return NumCmp(x.Path("k"), y.Path("k")) })
+	if got := rows.Map(func(r *SV) any { return r.Path("id") }).Join(","); got != "b,a,c" {
+		t.Errorf("stable sort = %s", got)
+	}
+
+	// Elements are moved, not copied: the same values, now in order.
+	first := a.Get(0)
+	a.ReverseInPlace()
+	if a.Get(-1) != first {
+		t.Error("in-place operations should move the stored elements")
+	}
+
+	// Holes become existing undef elements, as with @a = sort @a.
+	holey := Array()
+	holey.Set(2, "b")
+	holey.SortInPlace(nil)
+	if holey.Length() != 3 || !holey.Exists(0) || holey.Get(0).Defined() || holey.Get(2).Str() != "b" {
+		t.Errorf("holes after SortInPlace = %s", show(holey))
+	}
+	holey = Array()
+	holey.Set(1, "x")
+	holey.ReverseInPlace()
+	if !holey.Exists(1) || holey.Get(0).Str() != "x" {
+		t.Errorf("holes after ReverseInPlace = %s", show(holey))
+	}
+
+	var nilAV *AV
+	if nilAV.SortInPlace(nil) != nil || nilAV.ReverseInPlace() != nil {
+		t.Error("nil arrays should stay nil")
+	}
+
+	// Sort and Reverse still leave the original alone.
+	orig := Array("b", "a")
+	orig.Sort(nil)
+	orig.Reverse()
+	if show(orig) != "b,a" {
+		t.Error("Sort and Reverse should copy")
+	}
+}
