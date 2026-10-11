@@ -64,6 +64,15 @@ func (s *SV) Set(x any) *SV {
 	return s
 }
 
+// Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
+// Elements returned by Get, Path, All and Values are the stored values
+// themselves; Copy gives you one you can change without affecting the
+// container. Like Perl's assignment, the copy is shallow: a copied
+// reference points at the same array or hash.
+func (s *SV) Copy() *SV {
+	return &SV{v: s.val()}
+}
+
 func (s *SV) vivify() {
 	if s.noCreate != "" {
 		panic("scalar: " + s.noCreate)

@@ -409,3 +409,45 @@ func TestKeysValuesArrays(t *testing.T) {
 		t.Error("nil *HV should give empty results")
 	}
 }
+
+func TestCopy(t *testing.T) {
+	h := Hash("k", 5)
+	x := h.Get("k").Copy()
+	x.Set(9)
+	if h.Get("k").Int() != 5 || x.Int() != 9 {
+		t.Error("changing a copy shouldn't change the hash")
+	}
+
+	a := Array(1, 2)
+	for _, v := range a.All() {
+		v.Copy().Inc()
+	}
+	if a.Join(",") != "1,2" {
+		t.Error("Copy inside All shouldn't change the array")
+	}
+
+	// Copying a missing element gives a plain undef that can be written,
+	// without creating the element.
+	m := h.Get("missing").Copy()
+	m.Set(1)
+	if h.Exists("missing") {
+		t.Error("Copy of a missing element shouldn't attach to the hash")
+	}
+	c := a.Get(-10).Copy()
+	c.Set(1) // would panic on the original
+	if c.Int() != 1 {
+		t.Error("Copy of a non-creatable element should be writable")
+	}
+
+	// Shallow, as in Perl: a copied reference shares the array.
+	ref := Scalar(a)
+	ref.Copy().AV().Push(3)
+	if a.Length() != 3 {
+		t.Error("a copied reference should point at the same array")
+	}
+
+	var nilSV *SV
+	if nilSV.Copy().Defined() {
+		t.Error("Copy of a nil *SV should be undef")
+	}
+}

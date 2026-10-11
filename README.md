@@ -125,7 +125,7 @@ with `Defined()`.
 
 `Length()` counts the characters in the string form of the value, like Perl's
 `length`. It counts characters, not bytes, so `"café"` has length 4, and a
-number is measured as it prints: `Scalar(12345).Length()` is 5. The one
+number is measured as it prints: `scalar.Scalar(12345).Length()` is 5. The one
 difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
 
 ### Other methods
@@ -134,6 +134,10 @@ difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
   `String`, `ArrayRef` or `HashRef`.
 - `Ref()` works like Perl's `ref()`: it returns `"ARRAY"`, `"HASH"` or `""`.
 - `Set(x)` assigns a new value and returns the scalar.
+- `Copy()` returns a copy of the scalar. See
+  [Copies, references and in-place changes](#copies-references-and-in-place-changes).
+- `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
+  scalar the way Perl's `print` would.
 
 ## Arrays
 
@@ -312,13 +316,15 @@ The rules are the same as Perl's:
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints).
 It follows the same rules.
 
-The same applies to an array element before the start of the array, such as
-`$a[-10]` on a short array: reading through it gives undef, and writing to it
-panics. If you try to use a non-reference, such as a string, as an array or
-hash:
+There are two things Perl refuses to create, and `scalar` refuses them too:
 
-- reading through it gives undef, and
-- writing through it panics, as `use strict` would make Perl die.
+- **An array element before the start of the array**, such as `$a[-10]` on a
+  three-element array.
+- **An element of something that isn't an array or hash**, such as using a
+  string as if it were a hash.
+
+For both, reading gives undef, even if you read further through them with
+`AV()`, `HV()` or `Path`. Writing panics, just as Perl dies.
 
 Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
 on, because a read that can't panic is what makes `Path` safe on messy data.
@@ -416,6 +422,9 @@ m.Get(1) // "45,000"              ($1)
 m.Get(2) // "55,000"              ($2)
 ```
 
+Unlike Perl's list of captures, which starts at `$1`, `Match` puts the whole
+match at index 0. That way `Get(n)` is always `$n`.
+
 `Match` returns `nil` if nothing matched. It's still safe to read:
 `s.Match(re).Get(1).Str()` is just `""`. A group that didn't take part in the
 match is undef.
@@ -441,8 +450,9 @@ the unnamed ones. In `(?<y>\d+)-(\d+)`, the unnamed group is `$1` and `y` is
 
 ### Substitution
 
-`Subst` changes `s` in place and returns how many substitutions it made.
-If nothing matched, `s` is left exactly as it was.
+`Subst` changes `s` in place and returns how many substitutions it made, as a
+scalar (so use `.Int()` to get a Go `int64`). If nothing matched, `s` is left
+exactly as it was.
 
 ```go
 s := scalar.Scalar("a  b   c")
@@ -487,15 +497,15 @@ and zero-width matches.
 ### Transliteration
 
 `Tr` works like Perl's `tr///`. It changes `s` in place and returns how many
-characters matched.
+characters matched, as a scalar.
 
 ```go
 s := scalar.Scalar("hello")
-s.Tr("a-z", "A-Z")                         // "HELLO"; returns 5
+s.Tr("a-z", "A-Z")                                 // "HELLO"; returns 5
 
-scalar.Scalar("banana").Tr("a", "")           // count only: returns 3
-scalar.Scalar("h-e-l-l-o").Tr("-", "", "d")   // delete: "hello"
-scalar.Scalar("a    b").Tr(" ", " ", "s")     // squeeze: "a b"
+scalar.Scalar("banana").Tr("a", "")                // count only: returns 3
+scalar.Scalar("h-e-l-l-o").Tr("-", "", "d")        // delete: "hello"
+scalar.Scalar("a    b").Tr(" ", " ", "s")          // squeeze: "a b"
 scalar.Scalar("hi, you!").Tr("a-zA-Z", " ", "cs")  // "hi you "
 ```
 
@@ -533,15 +543,80 @@ out, err := json.Marshal(s)      // encode
 - Whole numbers stay exact `int64` values. Other numbers become `float64`.
 - `SV`, `AV` and `HV` all work with `encoding/json`, so you can use them as
   fields in your own structs.
+- Hashes are encoded with their keys sorted, so the same data always produces
+  the same JSON, even though hash order is random.
 
-## Copies and references
+## Copies, references and in-place changes
 
-- Assigning a scalar copies its value: `scalar.Scalar(other)` or `s.Set(other)`.
+### Getting an element gives you the element itself
+
+`a.Get(i)`, `h.Get(k)`, `Path(...)`, `All()` and the elements of `Values()`
+give you the value that's actually stored, not a copy. Changing it changes
+the array or hash:
+
+```go
+a.Get(0).Set("x")      // changes $a[0]
+h.Get("count").Inc()   // changes $h{count}
+```
+
+**This is different from Perl's `my $x = $h{k}`**, which takes a copy. In Go,
+`x := h.Get("k")` is more like Perl's `for` loop variable: it's another name
+for the same value. To take a copy, call `Copy()`:
+
+```go
+x := h.Get("k").Copy()   // my $x = $h{k}
+x.Set(1)                 // doesn't change $h{k}
+
+for _, v := range a.All() {
+	v := v.Copy()        // work on a copy inside the loop
+	...
+}
+```
+
+Perl doesn't need a `copy`, because its assignment copies. Go's `:=` can't be
+made to copy, so `Copy()` makes it explicit. As with Perl's assignment, the
+copy is shallow: copying a reference to an array or hash gives you a second
+reference to the same data.
+
+### Copying values and references
+
+- Copying a scalar copies its value: `other.Copy()`, `scalar.Scalar(other)`
+  or `s.Set(other)` all do this.
 - Copying a reference doesn't copy the array or hash it points to. Both copies
   point at the same data, just as in Perl.
 
+### What changes in place
+
+Methods either change the value you call them on, or leave it alone and
+return something new:
+
+| Changes in place | Returns something new, original untouched |
+|---|---|
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys` |
+| `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
+| `Subst`, `Tr` | `Subst` and `Tr` with the `r` flag |
+
+`Delete`, `Pop`, `Shift` and `Splice` return the elements they removed. These
+are the actual values, no longer attached to the array or hash, so changing
+them afterwards has no effect on it.
+
+`Values()` sits between the two columns: the array is new, but its elements
+are the hash's own values, as described under [Hashes](#hashes).
+
 ## Caveats
 
+- **It panics where Perl would die.** Most Go code returns errors instead of
+  panicking, so be aware of these cases:
+  - writing to an array element before the start of the array, or through
+    something that isn't an array or hash (reads are always safe)
+  - `Div` or `Mod` by zero
+  - an invalid regex, an unknown flag, or a regex that runs past
+    `RegexTimeout`
+  - passing something other than a string or int to `Path`, or something
+    other than a string or function as a `Subst` replacement
+
+  If one bad record mustn't stop a batch, catch these with `recover` around
+  the code that processes each record.
 - **Not for concurrent use:** none of these types are safe to share between
   goroutines without your own locking.
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
