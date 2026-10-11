@@ -91,6 +91,15 @@ func (h *HV) Exists(key string) bool {
 	return ok
 }
 
+// Defined is Perl's defined $h{key}: whether key exists and its value isn't
+// undef. Unlike h.Get(key).Defined(), it never creates a placeholder.
+func (h *HV) Defined(key string) bool {
+	if h == nil {
+		return false
+	}
+	return h.m[key].Defined() // a missing key is a nil *SV, which isn't defined
+}
+
 // Delete is Perl's delete: removes key and returns its value, or undef.
 func (h *HV) Delete(key string) *SV {
 	if h == nil {

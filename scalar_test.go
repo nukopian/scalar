@@ -881,3 +881,46 @@ func TestHashFromMaps(t *testing.T) {
 		t.Error("a nil map should be undef")
 	}
 }
+
+// exists says the key or element is there; defined also needs a non-undef
+// value.
+func TestExistsVersusDefined(t *testing.T) {
+	h := Hash("name", "Ada", "middle", nil, "zero", 0, "empty", "")
+	tests := []struct {
+		key             string
+		exists, defined bool
+	}{
+		{"name", true, true},
+		{"middle", true, false}, // present, but undef
+		{"zero", true, true},    // false values are still defined
+		{"empty", true, true},
+		{"missing", false, false},
+	}
+	for _, tt := range tests {
+		if h.Exists(tt.key) != tt.exists || h.Defined(tt.key) != tt.defined {
+			t.Errorf("%q: exists %v defined %v, want %v %v",
+				tt.key, h.Exists(tt.key), h.Defined(tt.key), tt.exists, tt.defined)
+		}
+	}
+	h.Defined("missing")
+	if h.Exists("missing") {
+		t.Error("Defined shouldn't create the key")
+	}
+	if (*HV)(nil).Defined("k") {
+		t.Error("nil hash")
+	}
+
+	a := Array("a", nil)
+	a.Set(3, 0) // hole at 2
+	for i, want := range map[int]bool{0: true, 1: false, 2: false, 3: true, 4: false, -1: true, -4: true, -9: false} {
+		if a.Defined(i) != want {
+			t.Errorf("defined $a[%d] = %v, want %v", i, a.Defined(i), want)
+		}
+	}
+	if !a.Exists(1) || a.Exists(2) {
+		t.Error("undef element exists; hole doesn't")
+	}
+	if (*AV)(nil).Defined(0) {
+		t.Error("nil array")
+	}
+}

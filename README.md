@@ -383,6 +383,7 @@ a.Scalar()                     // scalar(@a), same as Length
 a.LastIndex()                  // $#a
 a.SetLastIndex(2)              // $#a = 2   (truncate or extend)
 a.Exists(3)                    // exists $a[3]
+a.Defined(3)                   // defined $a[3]
 a.Delete(3)                    // delete $a[3]
 a.Slice(0, -1)                 // @a[0, -1]
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
@@ -596,7 +597,8 @@ merged := scalar.Hash(defaults, "age", 37)   // %merged = (%defaults, age => 37)
 
 h.Get("name")       // $h{name}
 h.Set("lang", "Go") // $h{lang} = "Go"
-h.Exists("age")     // exists $h{age}
+h.Exists("age")     // exists $h{age}    (the key is there, even if its value is undef)
+h.Defined("age")    // defined $h{age}   (the key is there and its value isn't undef)
 h.Delete("age")     // delete $h{age}
 h.Length()          // scalar(keys %h)
 h.Scalar()          // scalar(%h), same as Length

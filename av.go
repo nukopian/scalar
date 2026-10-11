@@ -169,6 +169,13 @@ func (a *AV) Exists(i int) bool {
 	return ok && idx < a.Length() && a.items[idx] != nil
 }
 
+// Defined is Perl's defined $a[i]: whether element i exists and isn't
+// undef. Negative indices count from the end, as in Exists.
+func (a *AV) Defined(i int) bool {
+	idx, ok := a.index(i)
+	return ok && idx < a.Length() && a.items[idx].Defined() // a hole is nil
+}
+
 // Delete is Perl's delete $a[i]: it returns the element (undef if it
 // didn't exist) and leaves a hole. Deleting the last element shrinks the
 // array, along with any holes before it.
