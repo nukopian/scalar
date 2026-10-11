@@ -213,3 +213,54 @@ func TestIncDecFastPaths(t *testing.T) {
 		t.Error("$h{d}-- should create d")
 	}
 }
+
+func TestAssignmentOperators(t *testing.T) {
+	inPlace := func(start any, op func(*SV) *SV) *SV {
+		s := Scalar(start)
+		if got := op(s); got != s {
+			t.Errorf("should return the same scalar")
+		}
+		return s
+	}
+	checkOps(t, []opCase{
+		{"10 += 5", inPlace(10, func(s *SV) *SV { return s.AddInPlace(5) }), "15", Int},
+		{`"10" += "5"`, inPlace("10", func(s *SV) *SV { return s.AddInPlace("5") }), "15", Int},
+		{"10 -= 15", inPlace(10, func(s *SV) *SV { return s.SubInPlace(15) }), "-5", Int},
+		{"6 *= 7", inPlace(6, func(s *SV) *SV { return s.MulInPlace(7) }), "42", Int},
+		{"7 /= 2", inPlace(7, func(s *SV) *SV { return s.DivInPlace(2) }), "3.5", Float},
+		{"-7 %= 3", inPlace(-7, func(s *SV) *SV { return s.ModInPlace(3) }), "2", Int},
+		{"2 **= 10", inPlace(2, func(s *SV) *SV { return s.PowInPlace(10) }), "1024", Int},
+		{`"foo" .= "bar"`, inPlace("foo", func(s *SV) *SV { return s.ConcatInPlace("bar") }), "foobar", String},
+		{`"ab" x= 3`, inPlace("ab", func(s *SV) *SV { return s.RepeatInPlace(3) }), "ababab", String},
+		{"undef += 3", inPlace(nil, func(s *SV) *SV { return s.AddInPlace(3) }), "3", Int},
+		{`undef .= "x"`, inPlace(nil, func(s *SV) *SV { return s.ConcatInPlace("x") }), "x", String},
+		{"MaxInt64 += 1 overflows to float", inPlace(int64(math.MaxInt64), func(s *SV) *SV { return s.AddInPlace(1) }), "9.22337203685478e+18", Float},
+	})
+
+	// $total{$k} += $n creates the key, then accumulates.
+	totals := Hash()
+	for _, n := range []int{5, 10, 20} {
+		totals.Get("salary").AddInPlace(n)
+	}
+	totals.Get("log").ConcatInPlace("a").ConcatInPlace("b") // chains
+	if totals.Get("salary").Int() != 35 || totals.Get("log").Str() != "ab" {
+		t.Errorf("accumulating = %s", mustJSON(t, totals))
+	}
+
+	// The right-hand side is left alone.
+	y := Scalar(5)
+	Scalar(1).AddInPlace(y)
+	if y.Int() != 5 {
+		t.Error("the operand changed")
+	}
+
+	// A panicking operation leaves s unchanged.
+	s := Scalar(10)
+	expectPanic(t, "/= 0", "Illegal division by zero", func() { s.DivInPlace(0) })
+	if s.Int() != 10 {
+		t.Errorf("s changed to %s after a failed /=", s)
+	}
+
+	// Writes before the start of an array panic, as with Set.
+	expectPanic(t, "+= before the start", "non-creatable", func() { Array().Get(-1).AddInPlace(1) })
+}

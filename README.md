@@ -818,7 +818,32 @@ Things to know:
   }
   ```
 
-There is no `+=`. Use `s.Set(s.Add(x))` instead.
+### Assignment operators
+
+Perl's `+=` and friends change the scalar itself and return it, so they
+chain. Each follows the matching operator's rules, so integers stay integers
+and `/=` gives an integer only when it divides evenly.
+
+| Perl | Go |
+|------|-----|
+| `$x += $y`, `-=`, `*=`, `/=` | `x.AddInPlace(y)`, `SubInPlace`, `MulInPlace`, `DivInPlace` |
+| `$x %= $y`, `**=` | `x.ModInPlace(y)`, `PowInPlace` |
+| `$x .= $y` | `x.ConcatInPlace(y)` |
+| `$x x= 3` | `x.RepeatInPlace(3)` |
+| `$x //= $y` | `x.OrSet(y)` (see [Undef](#undef)) |
+
+Like `Set`, they write through to a missing hash or array element, so
+accumulating works the Perl way:
+
+```go
+totals := scalar.Hash()
+for _, job := range jobs {
+	totals.Get(job.Dept).AddInPlace(job.Salary)   // $totals{$dept} += $salary
+}
+```
+
+If the operation panics, as dividing by zero does, the scalar is left
+unchanged.
 
 ## Regular expressions
 
@@ -1064,7 +1089,7 @@ return something new:
 |---|---|
 | `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
-| `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
+| `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
 
 `Delete`, `Pop`, `Shift` and `Splice` return the elements they removed. These

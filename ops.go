@@ -205,6 +205,35 @@ func (s *SV) setInt(i int64) *SV {
 	return s
 }
 
+// Assignment operators. Each is s = s OP x, following OP's rules, and
+// returns s. Like Set, they write through to a missing array or hash
+// element, creating it, so $total{$k} += $n is total.Get(k).AddInPlace(n).
+// If OP panics (division by zero), s is left unchanged.
+
+// AddInPlace is Perl's +=.
+func (s *SV) AddInPlace(x any) *SV { return s.Set(s.Add(x)) }
+
+// SubInPlace is Perl's -=.
+func (s *SV) SubInPlace(x any) *SV { return s.Set(s.Sub(x)) }
+
+// MulInPlace is Perl's *=.
+func (s *SV) MulInPlace(x any) *SV { return s.Set(s.Mul(x)) }
+
+// DivInPlace is Perl's /=.
+func (s *SV) DivInPlace(x any) *SV { return s.Set(s.Div(x)) }
+
+// ModInPlace is Perl's %=.
+func (s *SV) ModInPlace(x any) *SV { return s.Set(s.Mod(x)) }
+
+// PowInPlace is Perl's **=.
+func (s *SV) PowInPlace(x any) *SV { return s.Set(s.Pow(x)) }
+
+// ConcatInPlace is Perl's .=.
+func (s *SV) ConcatInPlace(x any) *SV { return s.Set(s.Concat(x)) }
+
+// RepeatInPlace is Perl's x=.
+func (s *SV) RepeatInPlace(n any) *SV { return s.Set(s.Repeat(n)) }
+
 func magicInc(str string) string {
 	b := []byte(str)
 	for i := len(b) - 1; i >= 0; i-- {
