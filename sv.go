@@ -111,6 +111,26 @@ func (s *SV) Kind() Kind {
 // Defined is Perl's defined().
 func (s *SV) Defined() bool { return s.val() != nil }
 
+// Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s
+// is defined, otherwise def's. Unlike ||, a defined but false value such as
+// 0 or "" is kept.
+func (s *SV) Or(def any) *SV {
+	if s.Defined() {
+		return s.Copy()
+	}
+	return operand(def).Copy()
+}
+
+// OrSet is Perl's $s //= $def: if s is undef, it sets s to def. It returns
+// s. Like Set, it writes through to a missing array or hash element,
+// creating it.
+func (s *SV) OrSet(def any) *SV {
+	if !s.Defined() {
+		s.Set(def)
+	}
+	return s
+}
+
 // Ref is Perl's ref(): "ARRAY", "HASH", or "" for non-references.
 func (s *SV) Ref() string {
 	switch s.val().(type) {
@@ -279,6 +299,40 @@ func (s *SV) Path(keys ...any) *SV {
 		}
 	}
 	return cur
+}
+
+// PathOK is Path with Go's comma-ok: ok reports whether every step exists,
+// so a value that's present but null (undef) gives ok true, while a missing
+// key or index, or a step through something that isn't an array or hash,
+// gives ok false and an undef scalar. Unlike Path, it never creates
+// anything. When ok is true, v is the stored value itself, as with Path.
+func (s *SV) PathOK(keys ...any) (v *SV, ok bool) {
+	cur := s
+	if cur == nil {
+		return &SV{}, false
+	}
+	for _, k := range keys {
+		var next *SV
+		switch k := k.(type) {
+		case string:
+			if h, isHash := cur.v.(*HV); isHash {
+				next = h.m[k]
+			}
+		case int:
+			if a, isArray := cur.v.(*AV); isArray {
+				if i, inRange := a.index(k); inRange && i < len(a.items) {
+					next = a.items[i] // nil for a hole, which doesn't exist
+				}
+			}
+		default:
+			panic(fmt.Sprintf("scalar: Path key must be string or int, got %T", k))
+		}
+		if next == nil {
+			return &SV{}, false
+		}
+		cur = next
+	}
+	return cur, true
 }
 
 // StrCmp is Perl's cmp, for use with AV.Sort.

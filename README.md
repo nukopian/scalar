@@ -136,6 +136,23 @@ including `"0.0"`, `"00"` and `" "`.
 The zero value of `SV` is undef, and so is `scalar.Scalar(nil)`. Check for it
 with `Defined()`.
 
+Undef is how `scalar` says "nothing here". A read that finds nothing returns
+undef rather than failing, and undef passes along a chain of reads, so
+`resp.Path("usage", "output_tokens")` is undef if any step is missing. Two
+methods supply a default, using Perl's defined-or operators:
+
+```go
+tokens := resp.Path("usage", "output_tokens").Or(0).Int()   // ... // 0
+meta.Get("location").OrSet("Unknown")                       // $meta{location} //= "Unknown"
+```
+
+- **`Or(def)`** is Perl's `//`. It returns a new scalar holding the value, or
+  `def` if the value is undef. Unlike `||`, it keeps defined values that are
+  false, such as `0` or `""`.
+- **`OrSet(def)`** is Perl's `//=`. It sets the value to `def` if it's undef,
+  creating a missing hash or array element if necessary, and returns the
+  scalar.
+
 ### Length
 
 `Length()` counts the characters in the string form of the value, like Perl's
@@ -442,6 +459,28 @@ The rules are the same as Perl's:
 
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints).
 It follows the same rules.
+
+### Missing or null?
+
+Both a missing key and a JSON `null` read as undef. To tell them apart, use
+`PathOK`, which adds Go's comma-ok:
+
+```go
+v, ok := resp.PathOK("salary", "max")
+switch {
+case !ok:
+	// the model left the field out (or something on the way is missing)
+case !v.Defined():
+	// the field is there, but null
+default:
+	// a real value
+}
+```
+
+`ok` is false if any step doesn't exist, including stepping through something
+that isn't an array or hash. Unlike `Path`, `PathOK` never creates anything.
+When `ok` is true, `v` is the stored value itself, as with `Path`. For a
+single key, `h.Exists(k)` does the same job.
 
 There are two things Perl refuses to create, and `scalar` refuses them too:
 

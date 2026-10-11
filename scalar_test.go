@@ -708,3 +708,117 @@ func TestSubstrReplace(t *testing.T) {
 		t.Error("Substr changed s")
 	}
 }
+
+func TestOr(t *testing.T) {
+	tests := []struct {
+		name string
+		s    *SV
+		def  any
+		want string
+	}{
+		{"undef takes the default", Scalar(nil), "n/a", "n/a"},
+		{"defined keeps its value", Scalar("x"), "n/a", "x"},
+		{"0 is defined", Scalar(0), 42, "0"},
+		{`"" is defined`, Scalar(""), "n/a", ""},
+		{"nil *SV", nil, 7, "7"},
+		{"scalar default", Scalar(nil), Scalar("d"), "d"},
+	}
+	for _, tt := range tests {
+		if got := tt.s.Or(tt.def).Str(); got != tt.want {
+			t.Errorf("%s: Or = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+
+	// Reading a missing path with a default.
+	resp := mustFromJSON(t, `{"usage": {"input_tokens": 10}}`)
+	if resp.Path("usage", "output_tokens").Or(0).Int() != 0 || resp.Path("usage", "input_tokens").Or(0).Int() != 10 {
+		t.Error("Or on a path")
+	}
+
+	// Or returns a new scalar, so changing it can't change the original.
+	h := Hash("k", "v")
+	h.Get("k").Or("x").Set("changed")
+	def := Scalar("d")
+	Scalar(nil).Or(def).Set("changed")
+	if h.Get("k").Str() != "v" || def.Str() != "d" {
+		t.Error("Or should return a new scalar")
+	}
+}
+
+func TestOrSet(t *testing.T) {
+	h := Hash("present", 0)
+	h.Get("present").OrSet(99)
+	h.Get("missing").OrSet("Unknown")
+	if h.Get("present").Int() != 0 {
+		t.Error("OrSet shouldn't replace a defined value, even 0")
+	}
+	if !h.Exists("missing") || h.Get("missing").Str() != "Unknown" {
+		t.Error("OrSet should create a missing element")
+	}
+	// It returns s, for chaining: $h{n} //= 0; $h{n}++
+	if h.Get("n").OrSet(0).Inc().Int() != 1 {
+		t.Error("OrSet should return s")
+	}
+	expectPanic(t, "write before the start", "non-creatable", func() { Array().Get(-1).OrSet(1) })
+}
+
+func TestPathOK(t *testing.T) {
+	doc := mustFromJSON(t, `{"usage": {"output_tokens": 12, "stop": null}, "content": [{"text": "hi"}], "s": "str"}`)
+	tests := []struct {
+		name    string
+		keys    []any
+		want    string
+		defined bool
+		ok      bool
+	}{
+		{"present", []any{"usage", "output_tokens"}, "12", true, true},
+		{"present but null", []any{"usage", "stop"}, "", false, true},
+		{"missing key", []any{"usage", "nope"}, "", false, false},
+		{"missing parent", []any{"nope", "deeper"}, "", false, false},
+		{"array index", []any{"content", 0, "text"}, "hi", true, true},
+		{"negative index", []any{"content", -1, "text"}, "hi", true, true},
+		{"index out of range", []any{"content", 5}, "", false, false},
+		{"index before the start", []any{"content", -5}, "", false, false},
+		{"through a string", []any{"s", "x"}, "", false, false},
+		{"key on an array", []any{"content", "x"}, "", false, false},
+		{"index on a hash", []any{"usage", 0}, "", false, false},
+		{"no keys", nil, "HASH", true, true},
+	}
+	for _, tt := range tests {
+		v, ok := doc.PathOK(tt.keys...)
+		got := v.Str()
+		if v.Ref() != "" {
+			got = v.Ref()
+		}
+		if got != tt.want || v.Defined() != tt.defined || ok != tt.ok {
+			t.Errorf("%s: PathOK = (%q, defined %v, %v), want (%q, %v, %v)", tt.name, got, v.Defined(), ok, tt.want, tt.defined, tt.ok)
+		}
+	}
+
+	// It never creates anything, unlike Path.
+	h := Scalar(Hash())
+	h.PathOK("a", "b", 0)
+	if h.HV().Length() != 0 {
+		t.Error("PathOK shouldn't autovivify")
+	}
+
+	// Holes don't exist.
+	a := Array()
+	a.Set(2, "c")
+	if _, ok := Scalar(a).PathOK(0); ok {
+		t.Error("a hole doesn't exist")
+	}
+
+	// The value is the stored one.
+	v, _ := doc.PathOK("usage", "output_tokens")
+	v.Inc()
+	if doc.Path("usage", "output_tokens").Int() != 13 {
+		t.Error("PathOK should return the stored value")
+	}
+
+	var nilSV *SV
+	if v, ok := nilSV.PathOK(); ok || v == nil {
+		t.Error("nil *SV: not ok, but a usable undef")
+	}
+	expectPanic(t, "bad key type", "Path key must be string or int", func() { doc.PathOK(1.5) })
+}
