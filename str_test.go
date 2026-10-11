@@ -2,7 +2,7 @@ package scalar
 
 import "testing"
 
-func TestIndexRindex(t *testing.T) {
+func TestIndexRIndex(t *testing.T) {
 	tests := []struct {
 		name      string
 		s, sub    any
@@ -30,7 +30,7 @@ func TestIndexRindex(t *testing.T) {
 		if got := s.Index(tt.sub, tt.pos...); got != tt.index {
 			t.Errorf("%s: index = %d, want %d", tt.name, got, tt.index)
 		}
-		if got := s.Rindex(tt.sub, tt.rindexPos...); got != tt.rindex {
+		if got := s.RIndex(tt.sub, tt.rindexPos...); got != tt.rindex {
 			t.Errorf("%s: rindex = %d, want %d", tt.name, got, tt.rindex)
 		}
 	}
@@ -40,8 +40,8 @@ func TestIndexRindex(t *testing.T) {
 	if got := salary.Substr(salary.Index("£"), 7).Str(); got != "£45,000" {
 		t.Errorf("Substr at Index = %q", got)
 	}
-	if got := salary.Substr(salary.Rindex("£")).Str(); got != "£55,000" {
-		t.Errorf("Substr at Rindex = %q", got)
+	if got := salary.Substr(salary.RIndex("£")).Str(); got != "£55,000" {
+		t.Errorf("Substr at RIndex = %q", got)
 	}
 }
 
@@ -56,12 +56,12 @@ func TestCase(t *testing.T) {
 		{"uc", Scalar("node.js").Uc(), "NODE.JS"},
 		{"uc full mapping", Scalar("straße").Uc(), "STRASSE"},
 		{"fc", Scalar("Straße").Fc(), "strasse"},
-		{"ucfirst", Scalar("go developer").Ucfirst(), "Go developer"},
-		{"ucfirst keeps the rest", Scalar("eBay").Ucfirst(), "EBay"},
-		{"ucfirst titlecase", Scalar("ǆemal").Ucfirst(), "ǅemal"},
-		{"lcfirst", Scalar("HELLO").Lcfirst(), "hELLO"},
-		{"lcfirst unicode", Scalar("Élan").Lcfirst(), "élan"},
-		{"empty", Scalar("").Ucfirst(), ""},
+		{"ucfirst", Scalar("go developer").UcFirst(), "Go developer"},
+		{"ucfirst keeps the rest", Scalar("eBay").UcFirst(), "EBay"},
+		{"ucfirst titlecase", Scalar("ǆemal").UcFirst(), "ǅemal"},
+		{"lcfirst", Scalar("HELLO").LcFirst(), "hELLO"},
+		{"lcfirst unicode", Scalar("Élan").LcFirst(), "élan"},
+		{"empty", Scalar("").UcFirst(), ""},
 		{"undef", Scalar(nil).Uc(), ""},
 		{"number", Scalar(1e21).Lc(), "1e+21"},
 	}
@@ -82,7 +82,7 @@ func TestCase(t *testing.T) {
 	orig := Scalar("Mixed")
 	orig.Lc()
 	orig.Uc()
-	orig.Ucfirst()
+	orig.UcFirst()
 	if orig.Str() != "Mixed" {
 		t.Error("case functions shouldn't change s")
 	}
@@ -120,8 +120,8 @@ func TestQuotemeta(t *testing.T) {
 		{"no break", "no\\ break"},
 	}
 	for _, tt := range tests {
-		if got := Quotemeta(tt.in); got != tt.want {
-			t.Errorf("Quotemeta(%q) = %q, want %q", tt.in, got, tt.want)
+		if got := QuoteMeta(tt.in); got != tt.want {
+			t.Errorf("QuoteMeta(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 
@@ -131,7 +131,7 @@ func TestQuotemeta(t *testing.T) {
 	for c := 0; c < 128; c++ {
 		lit := string(rune(c))
 		for _, flags := range []string{"", "x"} {
-			pattern := "^" + Quotemeta(lit) + "$"
+			pattern := "^" + QuoteMeta(lit) + "$"
 			if Scalar(lit).M(pattern, flags) == nil {
 				t.Errorf("quoted %q doesn't match itself (flags %q)", lit, flags)
 			}
@@ -144,14 +144,14 @@ func TestQuotemeta(t *testing.T) {
 	// The point of it: patterns built from skill names.
 	posting := Scalar("Experience with C++ and .NET; Node.js a plus")
 	for _, skill := range []string{"C++", ".NET", "Node.js"} {
-		if posting.M(Quotemeta(skill)) == nil {
+		if posting.M(QuoteMeta(skill)) == nil {
 			t.Errorf("%s not found", skill)
 		}
 	}
-	if Scalar("xNET").M(Quotemeta(".NET")) != nil {
+	if Scalar("xNET").M(QuoteMeta(".NET")) != nil {
 		t.Error(`".NET" shouldn't match "xNET"`)
 	}
-	if Quotemeta(Scalar("a.b")) != `a\.b` {
-		t.Error("Quotemeta should accept a scalar")
+	if QuoteMeta(Scalar("a.b")) != `a\.b` {
+		t.Error("QuoteMeta should accept a scalar")
 	}
 }

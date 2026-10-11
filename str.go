@@ -102,10 +102,10 @@ func (s *SV) Index(substr any, position ...int) int {
 	return pos + utf8.RuneCountInString(str[start:start+i])
 }
 
-// Rindex is Perl's rindex($s, substr[, position]): the character position
+// RIndex is Perl's rindex($s, substr[, position]): the character position
 // of the last occurrence of substr starting at or before position (default
 // the end of the string), or -1.
-func (s *SV) Rindex(substr any, position ...int) int {
+func (s *SV) RIndex(substr any, position ...int) int {
 	str, sub := s.Str(), operand(substr).Str()
 	n := utf8.RuneCountInString(str)
 	pos := clampPosition(position, n, n)
@@ -117,7 +117,7 @@ func (s *SV) Rindex(substr any, position ...int) int {
 	return utf8.RuneCountInString(str[:i])
 }
 
-// clampPosition is the optional position argument of Index and Rindex,
+// clampPosition is the optional position argument of Index and RIndex,
 // or def, kept within 0..n as Perl does.
 func clampPosition(position []int, def, n int) int {
 	if len(position) == 0 {
@@ -149,13 +149,13 @@ func (s *SV) Uc() *SV { return &SV{v: cases.Upper(language.Und).String(s.Str())}
 // but their Lc forms aren't.
 func (s *SV) Fc() *SV { return &SV{v: cases.Fold().String(s.Str())} }
 
-// Ucfirst is Perl's ucfirst: s with its first character in title case.
-func (s *SV) Ucfirst() *SV {
+// UcFirst is Perl's ucfirst: s with its first character in title case.
+func (s *SV) UcFirst() *SV {
 	return s.mapFirst(cases.Title(language.Und, cases.NoLower))
 }
 
-// Lcfirst is Perl's lcfirst: s with its first character in lower case.
-func (s *SV) Lcfirst() *SV {
+// LcFirst is Perl's lcfirst: s with its first character in lower case.
+func (s *SV) LcFirst() *SV {
 	return s.mapFirst(cases.Lower(language.Und))
 }
 
@@ -169,16 +169,16 @@ func (s *SV) mapFirst(c cases.Caser) *SV {
 // trailing whitespace, including Unicode spaces such as no-break space.
 func (s *SV) Trim() *SV { return &SV{v: strings.TrimSpace(s.Str())} }
 
-// Quotemeta is Perl's quotemeta: x in string context with every character
+// QuoteMeta is Perl's quotemeta: x in string context with every character
 // that could mean something in a pattern backslash-escaped, so that it
 // matches literally. Use it to build patterns from data:
 //
-//	s.M(`(?i)\b` + scalar.Quotemeta(skill))   // safe for "C++" or ".NET"
+//	s.M(`(?i)\b` + scalar.QuoteMeta(skill))   // safe for "C++" or ".NET"
 //
 // Like Perl, it escapes every ASCII character other than letters, digits
 // and underscore. It also escapes Unicode whitespace, so that patterns
 // using the "x" flag don't ignore it.
-func Quotemeta(x any) string {
+func QuoteMeta(x any) string {
 	str := operand(x).Str()
 	var b strings.Builder
 	b.Grow(len(str) + len(str)/4)
