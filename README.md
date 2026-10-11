@@ -100,6 +100,125 @@ tokens := resp.Path("usage", "output_tokens").Int()
 If any step along the path is missing, you get undef back instead of a panic.
 `Str()` on undef is `""` and `Int()` is `0`.
 
+## Recipes
+
+Five short examples from this project's work, each combining several parts of
+the package. The sections after this one explain each part in detail.
+
+These recipes are also runnable examples in `example_test.go`, so `go test`
+checks they still work. Keep the two in step when changing them.
+
+### Reading a model's tool_use response
+
+Find the `tool_use` block, then read its fields with defaults, telling a
+missing field from a null one.
+
+```go
+resp, err := scalar.FromJSON(body)
+if err != nil {
+	return err
+}
+
+input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
+	return b.Path("type").Eq("tool_use")
+}).Path("input")
+
+fmt.Println(input.Path("title"))                         // Senior Go Developer
+fmt.Println(resp.Path("usage", "output_tokens").Or(0))   // 0, if the model didn't say
+
+if v, ok := input.PathOK("salaryMax"); ok && !v.Defined() {
+	fmt.Println("salaryMax: null")                         // present, but null
+}
+if _, ok := input.PathOK("location"); !ok {
+	fmt.Println("location: missing")                       // left out entirely
+}
+input.HV().Get("location").OrSet("Unknown")              // $input->{location} //= "Unknown"
+```
+
+### Cleaning a list of skills
+
+Trim each skill where it's stored, then drop duplicates regardless of case,
+keeping the first spelling of each.
+
+```go
+skills := resp.Find("$..requiredSkills").Get(0).AV()   // [" Go ", "PostgreSQL", "go", "Docker "]
+
+for _, s := range skills.All() {
+	s.Set(s.Trim())                                      // changes the skills inside resp
+}
+
+// grep { !$seen{fc $_}++ } @skills
+seen := scalar.Hash()
+unique := skills.Grep(func(s *scalar.SV) bool {
+	return seen.Get(s.Fc().Str()).Inc().Int() == 1
+})
+fmt.Println(unique.Join(", "))                         // Go, PostgreSQL, Docker
+```
+
+### Pulling salary figures out of text
+
+```go
+text := scalar.Scalar("Salary: £45,000 - £55,000 per annum")
+
+figures := scalar.Array()
+for _, m := range text.M(`£([\d,]+)`, "g").All() {
+	figures.Push(m.AV().Get(1).S(`,`, "", "gr"))   // "45,000" → "45000"
+}
+fmt.Println(figures.MinNum(), figures.MaxNum())    // 45000 55000
+```
+
+### Counting skills across postings
+
+Count each skill ignoring case, then list the most common first.
+
+```go
+postings := [][]string{
+	{"Go", "Docker"},
+	{"go", "Kubernetes"},
+	{"GO", "Docker", "Perl"},
+}
+
+counts := scalar.Hash()
+for _, skills := range postings {
+	for _, skill := range scalar.Array(skills).All() {
+		counts.Get(skill.Fc().Str()).Inc()             // $counts{fc $skill}++
+	}
+}
+
+top := counts.Keys().Sort(func(x, y *scalar.SV) int {
+	return cmp.Or(
+		scalar.NumCmp(counts.Get(y.Str()), counts.Get(x.Str())),   // most common first,
+		scalar.StrCmp(x, y),                                       // then alphabetically
+	)
+})
+for _, skill := range top.Slice(0, 1, 2).All() {
+	fmt.Println(skill, counts.Get(skill.Str()))        // go 3, docker 2, kubernetes 1
+}
+```
+
+### Building records and writing JSON
+
+Start each record from shared defaults, collect them in an array, and encode
+the result.
+
+```go
+defaults := scalar.Hash("location", "Unknown", "remote", false)
+
+rows := scalar.Array()
+for _, title := range []string{"Go Developer", "Perl Developer"} {
+	row := scalar.Hash(defaults, "title", title)   // %row = (%defaults, title => $title)
+	rows.Push(scalar.Scalar(row))                  // push @rows, \%row
+}
+rows.Get(1).Path("remote").Set(true)             // changes only the second row
+
+out, _ := json.Marshal(rows)
+// [{"location":"Unknown","remote":false,"title":"Go Developer"},
+//  {"location":"Unknown","remote":true,"title":"Perl Developer"}]
+```
+
+Each row is a separate copy of `defaults`, so changing one row changes neither
+the others nor `defaults`.
+
 ## Scalars
 
 Create a scalar with `Scalar`:
