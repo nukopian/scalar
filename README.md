@@ -40,10 +40,25 @@ lookbehind and backreferences. `scalar` uses an engine that has them, with a
 timeout so a bad pattern can't hang the program. It also wraps them in short
 helpers modelled on Perl's `s///`, `split` and `tr///`.
 
-Perl's data model is a well-tested design for exactly this kind of work, so
-`scalar` copies it rather than inventing a new one. You don't need to know
-Perl to use it. The comparisons with Perl in this README are just there to
-help readers who do.
+### Borrowing from Perl, not switching to it
+
+Perl is better than Go at some jobs, and messy text and loosely shaped data
+are among them. But for a whole program, Perl usually isn't the answer. Go's
+types, concurrency, tooling and single-binary deployment are worth keeping.
+
+Borrowing from Perl can be the answer. Go programmers write the same tedious
+patterns over and over: a chain of type assertions to read one field, a
+hand-written loop to find a substring by character, a fresh regex for every
+small clean-up. Perl solved these problems decades ago. `scalar` borrows its
+solutions and leaves the rest of the program as ordinary Go.
+
+Go has done this itself. `slices.Sort`, `cmp.Or` and range-over-func
+iterators arrived after years of every codebase writing the same loops by
+hand. `scalar` takes the same approach to Perl's data model, which is a
+well-tested design for exactly this kind of work.
+
+You don't need to know Perl to use it. The comparisons with Perl in this
+README are there to help readers who do.
 
 ### What it costs
 
