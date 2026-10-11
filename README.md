@@ -581,6 +581,19 @@ for k, v := range h.All() {
 }
 ```
 
+`Hash(...)` takes a list, so you can also build a hash from Go maps, from a
+list of maps, or from other hashes. Later keys win, as in Perl:
+
+```go
+scalar.Hash(goMap)                      // %h = %$goMap
+scalar.Hash([]map[string]any{m1, m2})   // m1 and m2 merged
+scalar.Hash(defaults, overrides)        // %h = (%defaults, %overrides)
+scalar.Hash(map[int]string{1: "one"})   // keys become strings: {"1": "one"}
+```
+
+Only the top level is merged. A value that is itself a slice or map is
+stored as a reference, so it stays nested.
+
 `Keys` and `Values` return arrays, so you can sort, map, filter or join them
 straight away:
 

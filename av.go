@@ -31,7 +31,7 @@ func Array(vals ...any) *AV {
 }
 
 // flatten expands vals as Perl expands a list. Arrays and Go slices add
-// their elements, and hashes and string-keyed Go maps add their key/value
+// their elements, and hashes and Go maps add their key/value
 // pairs, so (@a, %h) is flatten(a, h). Anything else adds one element,
 // including a scalar holding a reference: that's how a list holds a nested
 // array or hash, as \@a and \%h do in Perl. Every value is copied.
@@ -60,12 +60,8 @@ func flatten(vals []any) []*SV {
 				add(rv.Index(i).Interface())
 			}
 		case reflect.Map:
-			if rv.Type().Key().Kind() != reflect.String {
-				out = append(out, Scalar(v))
-				return
-			}
 			for it := rv.MapRange(); it.Next(); {
-				out = append(out, &SV{v: it.Key().String()}, Scalar(it.Value().Interface()))
+				out = append(out, &SV{v: mapKey(it.Key())}, Scalar(it.Value().Interface()))
 			}
 		default:
 			out = append(out, Scalar(v))
@@ -184,7 +180,7 @@ func (a *AV) Delete(i int) *SV {
 
 // Push is Perl's push: it appends vals and returns a. As in Perl, an
 // array among vals adds its elements, and a hash adds its key/value pairs,
-// so a.Push(b) is push @a, @b. Go slices and string-keyed maps flatten the
+// so a.Push(b) is push @a, @b. Go slices and maps flatten the
 // same way. To add a nested array or hash, push a scalar holding a
 // reference to it: a.Push(Scalar(b)) is push @a, \@b. Values are copied.
 func (a *AV) Push(vals ...any) *AV {

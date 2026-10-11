@@ -466,7 +466,7 @@ func TestConversions(t *testing.T) {
 		{"nil slice", nilSlice, Undef, "null"},
 		{"map[string]int", map[string]int{"a": 1}, HashRef, `{"a":1}`},
 		{"nil map", nilMap, Undef, "null"},
-		{"map with int keys", map[int]string{1: "x"}, String, `"map[1:x]"`},
+		{"map with int keys", map[int]string{1: "x"}, HashRef, `{"1":"x"}`},
 		{"struct", struct{ A int }{1}, String, `"{1}"`},
 		{"nested", map[string]any{"xs": []any{1, map[string]any{"y": true}}}, HashRef, `{"xs":[1,{"y":true}]}`},
 	}
@@ -849,5 +849,35 @@ func TestHashFlattening(t *testing.T) {
 	// Odd lists still give the last key undef.
 	if odd := Hash(Array("k")); !odd.Exists("k") || odd.Get("k").Defined() {
 		t.Error("odd list")
+	}
+}
+
+func TestHashFromMaps(t *testing.T) {
+	m1 := map[string]any{"a": 1, "b": 2}
+	tests := []struct {
+		name string
+		got  *HV
+		want string
+	}{
+		{"Go map", Hash(m1), `{"a":1,"b":2}`},
+		{"list of maps, later keys win", Hash([]map[string]any{m1, {"b": 99}}), `{"a":1,"b":99}`},
+		{"several maps", Hash(m1, map[string]int{"c": 3}), `{"a":1,"b":2,"c":3}`},
+		{"map plus pairs", Hash(m1, "k", "v"), `{"a":1,"b":2,"k":"v"}`},
+		{"array of hashes", Hash(Array(Hash("x", 1), Hash("y", 2))), `{"x":1,"y":2}`},
+		{"int keys", Hash(map[int]string{1: "one", 2: "two"}), `{"1":"one","2":"two"}`},
+		{"float and bool keys", Hash(map[float64]int{1.5: 1}, map[bool]int{true: 2}), `{"1":2,"1.5":1}`},
+		{"nested values stay nested", Hash(map[string]any{"list": []any{1, 2}}), `{"list":[1,2]}`},
+		{"nil map adds nothing", Hash(map[string]int(nil), "k", 1), `{"k":1}`},
+	}
+	for _, tt := range tests {
+		if got := mustJSON(t, tt.got); got != tt.want {
+			t.Errorf("%s: %s, want %s", tt.name, got, tt.want)
+		}
+	}
+	if got := mustJSON(t, Scalar(map[int]string{7: "x"})); got != `{"7":"x"}` {
+		t.Errorf("Scalar(map[int]string) = %s", got)
+	}
+	if Scalar(map[int]string(nil)).Defined() {
+		t.Error("a nil map should be undef")
 	}
 }

@@ -53,9 +53,10 @@ func Scalar(x any) *SV {
 
 // Set assigns x to s and returns s. Go values are converted as follows:
 // integers become IVs, floats become NVs, slices become array references,
-// string-keyed maps become hash references, and *SV is copied by value (a
-// copied reference still points at the same AV/HV, as in Perl). Anything
-// else is stringified with fmt.Sprint.
+// maps become hash references (with their keys in string context, as Perl
+// stores them), and *SV is copied by value (a copied reference still points
+// at the same AV/HV, as in Perl). Anything else is stringified with
+// fmt.Sprint.
 func (s *SV) Set(x any) *SV {
 	s.vivify()
 	s.v = normalize(x)
@@ -431,16 +432,14 @@ func normalize(x any) any {
 		}
 		return a
 	case reflect.Map:
-		if rv.Type().Key().Kind() == reflect.String {
-			if rv.IsNil() {
-				return nil
-			}
-			h := newHV(rv.Len())
-			for it := rv.MapRange(); it.Next(); {
-				h.m[it.Key().String()] = Scalar(it.Value().Interface())
-			}
-			return h
+		if rv.IsNil() {
+			return nil
 		}
+		h := newHV(rv.Len())
+		for it := rv.MapRange(); it.Next(); {
+			h.m[mapKey(it.Key())] = Scalar(it.Value().Interface())
+		}
+		return h
 	case reflect.Pointer:
 		if rv.IsNil() {
 			return nil
@@ -448,6 +447,12 @@ func normalize(x any) any {
 		return normalize(rv.Elem().Interface())
 	}
 	return fmt.Sprint(x)
+}
+
+// mapKey turns a Go map key into a hash key. As in Perl, hash keys are
+// strings, so other keys are used in string context: 1 becomes "1".
+func mapKey(k reflect.Value) string {
+	return Scalar(k.Interface()).Str()
 }
 
 func uintToNum(u uint64) any {
