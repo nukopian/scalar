@@ -17,8 +17,9 @@ import (
 // they can be written inline as in Perl.
 //
 // Flags are passed as an optional trailing string, as in Perl: "i", "m",
-// "s" and "x" work everywhere; Subst also takes "g" and "r". Invalid
-// patterns, unknown flags and timeouts panic, as Perl would die.
+// "s" and "x" work everywhere; Match and Subst also take "g", and Subst
+// takes "r". Invalid patterns, unknown flags and timeouts panic, as Perl
+// would die.
 //
 // One difference from Perl: named groups are numbered after all unnamed
 // groups, so in (?<y>\d+)-(\d+) the unnamed group is $1 and y is $2. Use
@@ -141,21 +142,24 @@ func (s *SV) Matches(re string, flags ...string) bool {
 // Match is $s =~ /re/ with captures. It returns nil if there is no match;
 // otherwise Get(0) is the whole match and Get(n) is $n. A nil *AV is safe
 // to read, so s.Match(re).Get(1).Str() is "" when nothing matched.
+//
+// With the "g" flag it is $s =~ /re/g: it returns one array reference per
+// match, each laid out as above, or nil if nothing matched.
 func (s *SV) Match(re string, flags ...string) *AV {
-	rx := compile(re, parseFlags("Match", "imsx", flags))
-	if m := firstMatch(rx, s.Str()); m != nil {
-		return matchAV(m)
+	f := parseFlags("Match", "imsxg", flags)
+	rx := compile(re, f)
+	if !f.has('g') {
+		if m := firstMatch(rx, s.Str()); m != nil {
+			return matchAV(m)
+		}
+		return nil
 	}
-	return nil
-}
-
-// MatchAll is $s =~ /re/g. It returns one array reference per match, each
-// laid out as Match returns it, or an empty array if nothing matched.
-func (s *SV) MatchAll(re string, flags ...string) *AV {
-	rx := compile(re, parseFlags("MatchAll", "imsx", flags))
-	out := &AV{}
+	var out *AV
 	for m := range matches(rx, []rune(s.Str())) {
-		out.Push(matchAV(m))
+		if out == nil {
+			out = &AV{}
+		}
+		out.items = append(out.items, &SV{v: matchAV(m)})
 	}
 	return out
 }

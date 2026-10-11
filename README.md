@@ -389,7 +389,7 @@ it's used and then reused.
 |------|-----|
 | `$s =~ /re/` | `s.Matches(re)` |
 | `my @m = $s =~ /re/` | `s.Match(re)` |
-| `$s =~ /re/g` | `s.MatchAll(re)` |
+| `$s =~ /re/g` | `s.Match(re, "g")` |
 | `%+` | `s.MatchNamed(re)` |
 | `$s =~ s/re/x/` | `s.Subst(re, "x")` |
 | `$s =~ s/re/x/g` | `s.Subst(re, "x", "g")` |
@@ -398,13 +398,18 @@ it's used and then reused.
 | `split /re/, $s` | `s.Split(re)` |
 | `$s =~ tr/a-z/A-Z/` | `s.Tr("a-z", "A-Z")` |
 
-Flags go in an optional last argument, as one string: `s.Subst(re, "x", "gi")`.
+Every method here takes Perl's flags as an optional last argument, written as
+one string: `s.Match(re, "gi")`, `s.Subst(re, "x", "gi")`.
 
 - **Everywhere:** `i` (ignore case), `m` (multi-line `^`/`$`), `s` (`.` matches
   newline), `x` (allow spaces and comments in the pattern).
-- **`Subst` only:** `g` (replace every match) and `r` (return a new string
-  instead of changing `s`).
+- **`Match` and `Subst`:** `g` (every match, not just the first).
+- **`Subst` only:** `r` (return a new string instead of changing `s`).
 - **`Tr` has its own flags:** `c`, `d`, `s` and `r`, the same as Perl's `tr///`.
+
+`Matches` and `MatchNamed` don't take `g`. In Perl, `if ($s =~ /re/g)` steps
+through the matches one call at a time, which depends on hidden state that
+`scalar` doesn't keep.
 
 Use Go raw strings (backquotes) for patterns, so backslashes don't need
 escaping.
@@ -429,11 +434,13 @@ match at index 0. That way `Get(n)` is always `$n`.
 `s.Match(re).Get(1).Str()` is just `""`. A group that didn't take part in the
 match is undef.
 
-`MatchAll` returns one array per match:
+With `g`, `Match` finds every match and returns one array per match, each
+laid out the same way. If nothing matches, it also returns `nil`, so
+`m != nil` means "matched" either way:
 
 ```go
-for _, m := range s.MatchAll(`£([\d,]+)`).All() {
-	fmt.Println(m.AV().Get(1))
+for _, m := range s.Match(`£([\d,]+)`, "g").All() {
+	fmt.Println(m.AV().Get(1))   // 45,000 then 55,000
 }
 ```
 

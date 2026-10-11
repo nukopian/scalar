@@ -49,18 +49,38 @@ func TestMatch(t *testing.T) {
 	}
 }
 
-func TestMatchAll(t *testing.T) {
-	all := Scalar("Go 1.27, Perl 5.40, Python 3.13").MatchAll(`(\w+) (\d+)\.(\d+)`)
+func TestMatchGlobal(t *testing.T) {
+	all := Scalar("Go 1.27, Perl 5.40, Python 3.13").Match(`(\w+) (\d+)\.(\d+)`, "g")
 	var got []string
 	for _, m := range all.All() {
 		got = append(got, m.AV().Get(1).Str()+"="+m.AV().Get(2).Str())
 	}
 	if strings.Join(got, ",") != "Go=1,Perl=5,Python=3" {
-		t.Errorf("MatchAll = %v", got)
+		t.Errorf(`Match(re, "g") = %v`, got)
 	}
-	if Scalar("none").MatchAll(`\d`).Length() != 0 {
-		t.Error("MatchAll with no matches should be empty")
+
+	// Each match is laid out as Match lays out one: $& at 0, then groups.
+	first := all.Get(0).AV()
+	if first.Get(0).Str() != "Go 1.27" || first.Get(3).Str() != "27" {
+		t.Errorf("first match = %s", show(first))
 	}
+
+	// Flags combine.
+	if got := Scalar("a A a").Match(`a`, "gi").Length(); got != 3 {
+		t.Errorf(`Match(re, "gi") found %d matches, want 3`, got)
+	}
+
+	// No match is nil either way, so m != nil means "matched".
+	if Scalar("none").Match(`\d`, "g") != nil || Scalar("none").Match(`\d`) != nil {
+		t.Error("no match should be nil, with or without g")
+	}
+	if Scalar("none").Match(`\d`, "g").Length() != 0 {
+		t.Error("a nil result should still be safe to read")
+	}
+
+	// g doesn't make sense for these, as in Perl.
+	expectPanic(t, "Matches with g", `doesn't support flag 'g'`, func() { Scalar("x").Matches(`x`, "g") })
+	expectPanic(t, "MatchNamed with g", `doesn't support flag 'g'`, func() { Scalar("x").MatchNamed(`(?<n>x)`, "g") })
 }
 
 func TestMatchNamed(t *testing.T) {
