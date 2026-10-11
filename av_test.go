@@ -1,6 +1,10 @@
 package scalar
 
-import "testing"
+import (
+	"reflect"
+	"slices"
+	"testing"
+)
 
 func TestNegativeIndexReads(t *testing.T) {
 	a := Array("a", "b", "c")
@@ -298,5 +302,94 @@ func TestScalarAndJSONKeepNesting(t *testing.T) {
 	}
 	if got := mustJSON(t, doc); got != `{"h":[{"a":1}],"m":[[1,2],[3]]}` {
 		t.Errorf("JSON round trip = %s", got)
+	}
+}
+
+func TestTypedSlices(t *testing.T) {
+	a := Array("10", 2.5, nil, true, "x")
+	a.Set(6, 7) // leaves a hole at 5
+
+	if got := a.StrSlice(); !slices.Equal(got, []string{"10", "2.5", "", "1", "x", "", "7"}) {
+		t.Errorf("StrSlice = %q", got)
+	}
+	if got := a.IntSlice(); !slices.Equal(got, []int64{10, 2, 0, 1, 0, 0, 7}) {
+		t.Errorf("IntSlice = %v", got)
+	}
+	if got := a.NumSlice(); !slices.Equal(got, []float64{10, 2.5, 0, 1, 0, 0, 7}) {
+		t.Errorf("NumSlice = %v", got)
+	}
+
+	// Empty and nil arrays give empty, non-nil slices (JSON []).
+	for _, empty := range []*AV{Array(), nil} {
+		if s := empty.StrSlice(); s == nil || len(s) != 0 {
+			t.Errorf("StrSlice of an empty array = %#v", s)
+		}
+	}
+
+	// The result is a copy.
+	strs := Array("a").StrSlice()
+	strs[0] = "changed"
+	if Array("a").Get(0).Str() != "a" {
+		t.Error("StrSlice should copy")
+	}
+}
+
+func TestAny(t *testing.T) {
+	doc, err := FromJSON([]byte(`{"n": 1, "f": 1.5, "s": "x", "b": true, "u": null,
+		"list": [1, [2, 3], {"k": "v"}], "h": {"inner": [true]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := doc.Any().(map[string]any)
+	want := map[string]any{
+		"n": int64(1), "f": 1.5, "s": "x", "b": true, "u": nil,
+		"list": []any{int64(1), []any{int64(2), int64(3)}, map[string]any{"k": "v"}},
+		"h":    map[string]any{"inner": []any{true}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Any =\n %#v\nwant\n %#v", got, want)
+	}
+
+	// It shares nothing with the original.
+	got["list"].([]any)[0] = "changed"
+	if doc.Path("list", 0).Int() != 1 {
+		t.Error("Any should copy")
+	}
+
+	// AnySlice converts all the way down; holes are nil.
+	a := Array(1, Scalar(Hash("k", "v")))
+	a.Set(3, "z")
+	if got := a.AnySlice(); !reflect.DeepEqual(got, []any{int64(1), map[string]any{"k": "v"}, nil, "z"}) {
+		t.Errorf("AnySlice = %#v", got)
+	}
+
+	// The same array twice (not a cycle) is fine; a cycle panics.
+	shared := Array(1)
+	twice := Array(Scalar(shared), Scalar(shared))
+	if got := twice.AnySlice(); !reflect.DeepEqual(got, []any{[]any{int64(1)}, []any{int64(1)}}) {
+		t.Errorf("shared = %#v", got)
+	}
+	loop := Hash("name", "x")
+	loop.Set("self", loop)
+	expectPanic(t, "cycle", "self-referencing HASH", func() { Scalar(loop).Any() })
+
+	var nilSV *SV
+	if nilSV.Any() != nil || Scalar(nil).Any() != nil {
+		t.Error("undef should be nil")
+	}
+}
+
+func TestSliceFastPaths(t *testing.T) {
+	if got := show(Array([]string{"a", "b"}, []any{1, []any{2, Array(3)}})); got != "a,b,1,2,3" {
+		t.Errorf("flattening []string and nested []any = %s", got)
+	}
+	if got := mustJSON(t, Scalar([]string{"a", "b"})); got != `["a","b"]` {
+		t.Errorf("Scalar([]string) = %s", got)
+	}
+	if Scalar([]any(nil)).Defined() || Scalar([]string(nil)).Defined() {
+		t.Error("nil slices should be undef")
+	}
+	if Array([]string(nil), []any(nil)).Length() != 0 {
+		t.Error("nil slices should add nothing to a list")
 	}
 }

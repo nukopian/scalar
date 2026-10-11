@@ -359,6 +359,9 @@ for _, skill := range skills.All() {
 - `Set(x)` assigns a new value and returns the scalar.
 - `Copy()` returns a copy of the scalar. See
   [Copies, references and in-place changes](#copies-references-and-in-place-changes).
+- `Any()` returns the scalar as a plain Go value (`nil`, `bool`, `int64`,
+  `float64`, `string`, `[]any` or `map[string]any`), for code that doesn't use
+  `scalar`. See [Back to plain Go](#back-to-plain-go).
 - `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
   scalar the way Perl's `print` would.
 
@@ -422,6 +425,26 @@ As with Perl's list assignment:
 - **Everything is a copy,** and the original array isn't changed. To remove
   the elements as well, use `Shift` or `Splice(0, n)`.
 - **A negative count panics,** as `make` does in Go.
+
+### Back to plain Go
+
+When an array's contents need to go to code that doesn't use `scalar`, convert
+it to a Go slice:
+
+| Method | Returns | Each element |
+|---|---|---|
+| `a.StrSlice()` | `[]string` | as a string: undef and holes become `""` |
+| `a.IntSlice()` | `[]int64` | as an integer: anything that isn't a number becomes `0` |
+| `a.NumSlice()` | `[]float64` | as a number |
+| `a.AnySlice()` | `[]any` | as a plain Go value, nested arrays and hashes included |
+
+`AnySlice` uses the same shapes as `encoding/json`: `nil`, `bool`, `int64`,
+`float64`, `string`, `[]any` and `map[string]any`. For a single value, use
+`s.Any()`. The results are copies, so changing them doesn't change the array.
+
+```go
+skills := scalar.Array(raw).Grep(notBlank).StrSlice()   // back to a []string
+```
 
 ### Lists flatten, as in Perl
 

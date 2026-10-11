@@ -53,6 +53,17 @@ func flatten(vals []any) []*SV {
 		case nil, *SV, string, bool, int, int64, float64:
 			out = append(out, Scalar(v))
 			return
+		// The most common slices skip reflection.
+		case []string:
+			for _, e := range v {
+				out = append(out, &SV{v: e})
+			}
+			return
+		case []any:
+			for _, e := range v {
+				add(e)
+			}
+			return
 		}
 		switch rv := reflect.ValueOf(v); rv.Kind() {
 		case reflect.Slice, reflect.Array:
@@ -268,6 +279,32 @@ func (a *AV) Items() []*SV {
 	out := make([]*SV, len(a.items))
 	for i := range out {
 		out[i] = a.Get(i)
+	}
+	return out
+}
+
+// StrSlice returns the elements as a Go []string, each in string context
+// (see SV.Str), so undef and holes become "".
+func (a *AV) StrSlice() []string { return convertSlice(a, (*SV).Str) }
+
+// IntSlice returns the elements as a Go []int64, each in integer context
+// (see SV.Int), so values that aren't numbers become 0.
+func (a *AV) IntSlice() []int64 { return convertSlice(a, (*SV).Int) }
+
+// NumSlice returns the elements as a Go []float64, each in numeric context
+// (see SV.Num).
+func (a *AV) NumSlice() []float64 { return convertSlice(a, (*SV).Num) }
+
+// AnySlice returns the elements as plain Go values (see SV.Any), for code
+// that doesn't use this package.
+func (a *AV) AnySlice() []any { return convertSlice(a, (*SV).Any) }
+
+// convertSlice applies f to every element of a, holes included. The result
+// is never nil, so it encodes as [] in JSON.
+func convertSlice[T any](a *AV, f func(*SV) T) []T {
+	out := make([]T, a.Length())
+	for i := range out {
+		out[i] = f(a.items[i]) // a hole is a nil *SV, which reads as undef
 	}
 	return out
 }

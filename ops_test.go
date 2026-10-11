@@ -187,3 +187,29 @@ func TestOperandsUnchanged(t *testing.T) {
 		t.Error("operators modified their operands")
 	}
 }
+
+// The integer fast paths of Inc and Dec behave exactly like the general ones.
+func TestIncDecFastPaths(t *testing.T) {
+	checkOps(t, []opCase{
+		{"0++", Scalar(0).Inc(), "1", Int},
+		{"-1++", Scalar(-1).Inc(), "0", Int},
+		{"MaxInt64-1 ++", Scalar(int64(math.MaxInt64 - 1)).Inc(), "9223372036854775807", Int},
+		{"MaxInt64++ overflows to float", Scalar(int64(math.MaxInt64)).Inc(), "9.22337203685478e+18", Float},
+		{"MinInt64-- overflows to float", Scalar(int64(math.MinInt64)).Dec(), "-9.22337203685478e+18", Float},
+		{"MinInt64+1 --", Scalar(int64(math.MinInt64 + 1)).Dec(), "-9223372036854775808", Int},
+		{"undef--", Scalar(nil).Dec(), "-1", Int},
+	})
+
+	// $h{$k}++ still writes through to a missing key, and counts.
+	h := Hash()
+	for range 3 {
+		h.Get("k").Inc()
+	}
+	if h.Get("k").Int() != 3 {
+		t.Errorf("$h{k}++ x3 = %s", h.Get("k"))
+	}
+	h.Get("d").Dec()
+	if !h.Exists("d") || h.Get("d").Int() != -1 {
+		t.Error("$h{d}-- should create d")
+	}
+}

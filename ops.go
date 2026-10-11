@@ -166,9 +166,18 @@ var magicIncRE = regexp.MustCompile(`^[a-zA-Z]*[0-9]*$`)
 // within each character class: "aa" → "ab", "Az" → "Ba", "zz" → "aaa",
 // "a9" → "b0", "Zz99" → "AAa00". Anything else increments as a number.
 func (s *SV) Inc() *SV {
-	if str, ok := s.val().(string); ok && str != "" && magicIncRE.MatchString(str) {
-		if _, _, _, numeric := parseNumber(str); !numeric {
-			return s.Set(magicInc(str))
+	switch v := s.val().(type) {
+	case nil:
+		return s.setInt(1) // undef++ is 1
+	case int64:
+		if v < math.MaxInt64 {
+			return s.setInt(v + 1)
+		}
+	case string:
+		if v != "" && magicIncRE.MatchString(v) {
+			if _, _, _, numeric := parseNumber(v); !numeric {
+				return s.Set(magicInc(v))
+			}
 		}
 	}
 	return s.Set(s.Add(1))
@@ -177,7 +186,23 @@ func (s *SV) Inc() *SV {
 // Dec is Perl's --: it modifies s in place and returns it. Unlike Inc it is
 // never magical, so "aa" decrements to -1.
 func (s *SV) Dec() *SV {
+	switch v := s.val().(type) {
+	case nil:
+		return s.setInt(-1)
+	case int64:
+		if v > math.MinInt64 {
+			return s.setInt(v - 1)
+		}
+	}
 	return s.Set(s.Sub(1))
+}
+
+// setInt is Set for the integer fast paths of Inc and Dec, which avoid
+// building a temporary result. Like Set, it writes through autovivification.
+func (s *SV) setInt(i int64) *SV {
+	s.vivify()
+	s.v = i
+	return s
 }
 
 func magicInc(str string) string {

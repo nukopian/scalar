@@ -112,6 +112,43 @@ func (s *SV) Kind() Kind {
 // Defined is Perl's defined().
 func (s *SV) Defined() bool { return s.val() != nil }
 
+// Any returns s as a plain Go value, in the shapes encoding/json uses:
+// undef is nil; booleans, integers, floats and strings are bool, int64,
+// float64 and string; array references become []any and hash references
+// map[string]any, converted all the way down. The result shares nothing
+// with s. It panics if a reference leads back to itself, which plain Go
+// values can't represent.
+func (s *SV) Any() any {
+	return s.toAny(map[any]bool{})
+}
+
+func (s *SV) toAny(inProgress map[any]bool) any {
+	switch v := s.val().(type) {
+	case *AV, *HV:
+		if inProgress[v] {
+			panic("scalar: Any on a self-referencing " + s.Ref())
+		}
+		inProgress[v] = true
+		defer delete(inProgress, v)
+	}
+
+	switch v := s.val().(type) {
+	case *AV:
+		out := make([]any, v.Length())
+		for i, e := range v.items {
+			out[i] = e.toAny(inProgress)
+		}
+		return out
+	case *HV:
+		out := make(map[string]any, v.Length())
+		for k, e := range v.m {
+			out[k] = e.toAny(inProgress)
+		}
+		return out
+	}
+	return s.val()
+}
+
 // Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s
 // is defined, otherwise def's. Unlike ||, a defined but false value such as
 // 0 or "" is kept.
@@ -407,9 +444,21 @@ func normalize(x any) any {
 	case json.Number:
 		return normalizeJSONNumber(v)
 	case []any:
+		if v == nil {
+			return nil // a nil slice is undef, not an empty array
+		}
 		a := &AV{items: make([]*SV, len(v))}
 		for i, e := range v {
 			a.items[i] = Scalar(e) // nested arrays stay nested
+		}
+		return a
+	case []string:
+		if v == nil {
+			return nil
+		}
+		a := &AV{items: make([]*SV, len(v))}
+		for i, e := range v {
+			a.items[i] = &SV{v: e}
 		}
 		return a
 	case map[string]any:
