@@ -128,6 +128,37 @@ with `Defined()`.
 number is measured as it prints: `scalar.Scalar(12345).Length()` is 5. The one
 difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
 
+### Substrings
+
+`Substr` and `SubstrReplace` are Perl's `substr`. Like `Length`, they count
+characters, not bytes.
+
+```go
+s := scalar.Scalar("The black cat climbed the green tree")
+
+s.Substr(4, 5)     // "black"                    substr($s, 4, 5)
+s.Substr(14)       // "climbed the green tree"   substr($s, 14)
+s.Substr(-4)       // "tree"                     substr($s, -4)
+s.Substr(4, -11)   // "black cat climbed the"    substr($s, 4, -11)
+
+s.SubstrReplace(14, 7, "jumped from")            // substr($s, 14, 7, "jumped from")
+// returns "climbed"; s is now "The black cat jumped from the green tree"
+```
+
+The rules are Perl's:
+
+- A negative offset counts from the end.
+- Leaving out the length means "to the end". A negative length leaves that
+  many characters off the end.
+- If the substring is partly outside the string, you get the part that's
+  inside. If it's entirely outside, `Substr` returns undef and
+  `SubstrReplace` panics, just as Perl warns or dies.
+
+`Substr` returns a new scalar and never changes the original.
+`SubstrReplace` changes the scalar in place and returns the part it replaced,
+like Perl's four-argument `substr`. It also does the job of assigning to
+`substr`: Perl's `substr($s, 0, 1) = "X"` is `s.SubstrReplace(0, 1, "X")`.
+
 ### Other methods
 
 - `Kind()` tells you what a scalar holds: `Undef`, `Bool`, `Int`, `Float`,
@@ -602,6 +633,7 @@ return something new:
 | Changes in place | Returns something new, original untouched |
 |---|---|
 | `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys` |
+| `SubstrReplace` | `Substr` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
 
@@ -618,6 +650,7 @@ are the hash's own values, as described under [Hashes](#hashes).
   panicking, so be aware of these cases:
   - writing to an array element before the start of the array, or through
     something that isn't an array or hash (reads are always safe)
+  - `SubstrReplace` on a substring entirely outside the string
   - `Div` or `Mod` by zero
   - an invalid regex, an unknown flag, or a regex that runs past
     `RegexTimeout`

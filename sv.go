@@ -153,6 +153,75 @@ func (s *SV) String() string { return s.Str() }
 // returns undef for undef; this returns 0.
 func (s *SV) Length() int { return utf8.RuneCountInString(s.Str()) }
 
+// Substr is Perl's substr($s, offset) or substr($s, offset, length): a new
+// scalar holding part of s in string context, counted in characters.
+//
+// As in Perl, a negative offset counts from the end, an omitted length
+// means "to the end", and a negative length leaves that many characters
+// off the end. A substring partly outside the string gives the part that's
+// inside; one entirely outside gives undef.
+func (s *SV) Substr(offset int, length ...int) *SV {
+	runes := []rune(s.Str())
+	start, end, ok := substrBounds(len(runes), offset, length)
+	if !ok {
+		return &SV{}
+	}
+	return &SV{v: string(runes[start:end])}
+}
+
+// SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement),
+// or assigning to substr: it replaces that part of s with replacement (in
+// string context), changing s in place, and returns the part it replaced.
+// Offset and length work as in Substr. A substring entirely outside the
+// string panics, as Perl dies with "substr outside of string".
+func (s *SV) SubstrReplace(offset, length int, replacement any) *SV {
+	runes := []rune(s.Str())
+	start, end, ok := substrBounds(len(runes), offset, []int{length})
+	if !ok {
+		panic("scalar: substr outside of string")
+	}
+	removed := string(runes[start:end])
+	s.Set(string(runes[:start]) + operand(replacement).Str() + string(runes[end:]))
+	return &SV{v: removed}
+}
+
+// substrBounds turns Perl's substr offset and optional length into rune
+// indexes 0 <= start <= end <= n, following Perl's
+// translate_substr_offsets. ok is false if the substring lies entirely
+// outside the string.
+func substrBounds(n, offset int, length []int) (start, end int, ok bool) {
+	start = offset
+	if start < 0 && n > 0 {
+		start += n
+	}
+	if start > n {
+		return 0, 0, false
+	}
+
+	end = n
+	if len(length) > 0 {
+		switch l := length[0]; {
+		case l < 0:
+			end = n + l
+		case start < 0:
+			end = start + l
+		default:
+			end = min(start+l, n)
+		}
+	}
+
+	switch {
+	case end < 0 && start < 0:
+		return 0, 0, false
+	case end < 0:
+		end = 0
+	case start < 0:
+		start = 0
+	}
+	end = min(max(end, start), n)
+	return start, end, true
+}
+
 // Num returns s in numeric context. Values that don't look like numbers
 // numify as Perl does ("42abc" is 42, "abc" is 0); use NumOK to detect that.
 func (s *SV) Num() float64 {

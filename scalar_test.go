@@ -601,3 +601,110 @@ func TestIteration(t *testing.T) {
 		t.Error("breaking out of HV.All")
 	}
 }
+
+func TestSubstr(t *testing.T) {
+	const cat = "The black cat climbed the green tree"
+	undef := "<undef>"
+	tests := []struct {
+		name   string
+		s      any
+		offset int
+		length []int
+		want   string
+	}{
+		// The examples from perlfunc's substr.
+		{"perlfunc color", cat, 4, []int{5}, "black"},
+		{"perlfunc middle", cat, 4, []int{-11}, "black cat climbed the"},
+		{"perlfunc end", cat, 14, nil, "climbed the green tree"},
+		{"perlfunc tail", cat, -4, nil, "tree"},
+		{"perlfunc z", cat, -4, []int{2}, "tr"},
+		{"perlfunc null: start at the end", "freddy", 6, []int{2}, ""},
+		{"perlfunc oops: start past the end", "freddy", 7, nil, undef},
+
+		// Partly outside: the part that's inside.
+		{"length past the end", "abc", 1, []int{10}, "bc"},
+		{"offset before the start", "abc", -5, nil, "abc"},
+		{"offset before the start, length reaching in", "abc", -5, []int{3}, "a"},
+		{"length leaves nothing", "abc", 2, []int{-5}, ""},
+		{"zero length", "abc", 1, []int{0}, ""},
+
+		// Entirely outside: undef.
+		{"entirely before the start", "abc", -5, []int{1}, undef},
+
+		// Characters, not bytes, and string context.
+		{"unicode", "naïve café", 6, []int{4}, "café"},
+		{"number in string context", 12345, 1, []int{3}, "234"},
+		{"undef is empty", nil, 0, nil, ""},
+		{"empty string, negative offset", "", -1, nil, ""},
+	}
+	for _, tt := range tests {
+		got := Scalar(tt.s).Substr(tt.offset, tt.length...)
+		gotStr := got.Str()
+		if !got.Defined() {
+			gotStr = undef
+		}
+		if gotStr != tt.want {
+			t.Errorf("%s: substr(%q, %d, %v) = %q, want %q", tt.name, Scalar(tt.s).Str(), tt.offset, tt.length, gotStr, tt.want)
+		}
+	}
+}
+
+func TestSubstrReplace(t *testing.T) {
+	// perlfunc: my $z = substr $s, 14, 7, "jumped from";
+	s := Scalar("The black cat climbed the green tree")
+	if got := s.SubstrReplace(14, 7, "jumped from").Str(); got != "climbed" {
+		t.Errorf("returned %q, want the replaced part", got)
+	}
+	if want := "The black cat jumped from the green tree"; s.Str() != want {
+		t.Errorf("s = %q, want %q", s, want)
+	}
+
+	// perlfunc: substr($name, 4) = 'dy'; and substr($name, 7) = 'gap' dies.
+	name := Scalar("fred")
+	name.SubstrReplace(4, 0, "dy")
+	if name.Str() != "freddy" {
+		t.Errorf("appending at the end: %q", name)
+	}
+	expectPanic(t, "start past the end", "substr outside of string", func() { name.SubstrReplace(7, 0, "gap") })
+	expectPanic(t, "entirely before the start", "substr outside of string", func() { name.SubstrReplace(-10, 1, "x") })
+	if name.Str() != "freddy" {
+		t.Errorf("a failed replace changed s to %q", name)
+	}
+
+	tests := []struct {
+		s              string
+		offset, length int
+		repl           any
+		want, removed  string
+	}{
+		{"abcdef", 0, 1, "X", "Xbcdef", "a"},
+		{"abcdef", -2, 2, "YZ", "abcdYZ", "ef"},
+		{"abcdef", 1, -1, "-", "a-f", "bcde"},
+		{"abcdef", 2, 0, "+++", "ab+++cdef", ""},
+		{"abcdef", 1, 2, "", "adef", "bc"},
+		{"naïve", 2, 1, "i", "naive", "ï"},
+		{"price: 0", -1, 1, 42, "price: 42", "0"},
+	}
+	for _, tt := range tests {
+		s := Scalar(tt.s)
+		removed := s.SubstrReplace(tt.offset, tt.length, tt.repl)
+		if s.Str() != tt.want || removed.Str() != tt.removed {
+			t.Errorf("substr(%q, %d, %d, %v): s = %q, returned %q; want %q, %q",
+				tt.s, tt.offset, tt.length, tt.repl, s, removed, tt.want, tt.removed)
+		}
+	}
+
+	// Writing through a missing hash element creates it, as in Perl.
+	h := Hash()
+	h.Get("k").SubstrReplace(0, 0, "new")
+	if h.Get("k").Str() != "new" {
+		t.Error("SubstrReplace should write through to a missing element")
+	}
+
+	// Substr itself never changes s.
+	orig := Scalar("abc")
+	orig.Substr(0, 1)
+	if orig.Str() != "abc" {
+		t.Error("Substr changed s")
+	}
+}
