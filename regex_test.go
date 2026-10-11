@@ -101,52 +101,52 @@ func TestMatchNamed(t *testing.T) {
 
 func TestSubst(t *testing.T) {
 	s := Scalar("a  b   c")
-	if n := s.Subst(`\s+`, " ", "g"); n.Int() != 2 || s.Str() != "a b c" {
+	if n := s.S(`\s+`, " ", "g"); n.Int() != 2 || s.Str() != "a b c" {
 		t.Errorf("s/\\s+/ /g: n=%s s=%q", n, s.Str())
 	}
 
 	s = Scalar("a  b   c")
-	if n := s.Subst(`\s+`, " "); n.Int() != 1 || s.Str() != "a b   c" {
+	if n := s.S(`\s+`, " "); n.Int() != 1 || s.Str() != "a b   c" {
 		t.Errorf("s/\\s+/ /: n=%s s=%q", n, s.Str())
 	}
 
 	// Captures in the replacement string.
 	s = Scalar("Smith, John")
-	s.Subst(`(\w+), (\w+)`, "$2 $1")
+	s.S(`(\w+), (\w+)`, "$2 $1")
 	if s.Str() != "John Smith" {
 		t.Errorf("swap = %q", s.Str())
 	}
 	s = Scalar("2026-10-11")
-	s.Subst(`(?<y>\d+)-(?<m>\d+)-(?<d>\d+)`, "${d}/${m}/${y}")
+	s.S(`(?<y>\d+)-(?<m>\d+)-(?<d>\d+)`, "${d}/${m}/${y}")
 	if s.Str() != "11/10/2026" {
 		t.Errorf("named swap = %q", s.Str())
 	}
 
 	// s///r leaves the original alone.
 	orig := Scalar("Hello")
-	if got := orig.Subst(`l`, "L", "gr").Str(); got != "HeLLo" || orig.Str() != "Hello" {
+	if got := orig.S(`l`, "L", "gr").Str(); got != "HeLLo" || orig.Str() != "Hello" {
 		t.Errorf("s///gr = %q, original now %q", got, orig.Str())
 	}
 
 	// s///e with a function.
 	s = Scalar("10 apples and 3 pears")
-	n := s.Subst(`(\d+)`, func(m *AV) any { return m.Get(1).Mul(2) }, "g")
+	n := s.S(`(\d+)`, func(m *AV) any { return m.Get(1).Mul(2) }, "g")
 	if n.Int() != 2 || s.Str() != "20 apples and 6 pears" {
 		t.Errorf("s///ge: n=%s s=%q", n, s.Str())
 	}
-	upper := Scalar("go and perl").Subst(`\b(\w)`, func(m *AV) string { return strings.ToUpper(m.Get(1).Str()) }, "gr")
+	upper := Scalar("go and perl").S(`\b(\w)`, func(m *AV) string { return strings.ToUpper(m.Get(1).Str()) }, "gr")
 	if upper.Str() != "Go And Perl" {
 		t.Errorf("ucfirst each word = %q", upper)
 	}
 
 	// No match: count 0, untouched, and an undef isn't vivified.
 	h := Hash()
-	if n := h.Get("missing").Subst(`x`, "y"); n.Int() != 0 || h.Exists("missing") {
-		t.Error("failed Subst should not write")
+	if n := h.Get("missing").S(`x`, "y"); n.Int() != 0 || h.Exists("missing") {
+		t.Error("failed S should not write")
 	}
 
-	if got := Scalar("ABC").Subst(`b`, "x", "ir").Str(); got != "AxC" {
-		t.Errorf("case-insensitive Subst = %q", got)
+	if got := Scalar("ABC").S(`b`, "x", "ir").Str(); got != "AxC" {
+		t.Errorf("case-insensitive S = %q", got)
 	}
 }
 
@@ -216,7 +216,7 @@ func TestRegexPanics(t *testing.T) {
 	expectPanic(t, "bad pattern", "bad regex", func() { Scalar("x").Matches(`(`) })
 	expectPanic(t, "bad flag", `doesn't support flag 'g'`, func() { Scalar("x").Matches(`x`, "g") })
 	expectPanic(t, "bad tr flag", `doesn't support flag 'g'`, func() { Scalar("x").Tr("x", "y", "g") })
-	expectPanic(t, "bad repl type", "Subst replacement", func() { Scalar("x").Subst(`x`, 42) })
+	expectPanic(t, "bad repl type", "S replacement", func() { Scalar("x").S(`x`, 42) })
 	expectPanic(t, "bad Path key", "Path key must be string or int", func() { Scalar(nil).Path(1.5) })
 }
 

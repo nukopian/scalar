@@ -391,20 +391,20 @@ it's used and then reused.
 | `my @m = $s =~ /re/` | `s.Match(re)` |
 | `$s =~ /re/g` | `s.Match(re, "g")` |
 | `%+` | `s.MatchNamed(re)` |
-| `$s =~ s/re/x/` | `s.Subst(re, "x")` |
-| `$s =~ s/re/x/g` | `s.Subst(re, "x", "g")` |
-| `$s =~ s/re/x/r` | `s.Subst(re, "x", "r")` |
-| `$s =~ s/re/f($1)/e` | `s.Subst(re, func(m *scalar.AV) any { ... })` |
+| `$s =~ s/re/x/` | `s.S(re, "x")` |
+| `$s =~ s/re/x/g` | `s.S(re, "x", "g")` |
+| `$s =~ s/re/x/r` | `s.S(re, "x", "r")` |
+| `$s =~ s/re/f($1)/e` | `s.S(re, func(m *scalar.AV) any { ... })` |
 | `split /re/, $s` | `s.Split(re)` |
 | `$s =~ tr/a-z/A-Z/` | `s.Tr("a-z", "A-Z")` |
 
 Every method here takes Perl's flags as an optional last argument, written as
-one string: `s.Match(re, "gi")`, `s.Subst(re, "x", "gi")`.
+one string: `s.Match(re, "gi")`, `s.S(re, "x", "gi")`.
 
 - **Everywhere:** `i` (ignore case), `m` (multi-line `^`/`$`), `s` (`.` matches
   newline), `x` (allow spaces and comments in the pattern).
-- **`Match` and `Subst`:** `g` (every match, not just the first).
-- **`Subst` only:** `r` (return a new string instead of changing `s`).
+- **`Match` and `S`:** `g` (every match, not just the first).
+- **`S` only:** `r` (return a new string instead of changing `s`).
 - **`Tr` has its own flags:** `c`, `d`, `s` and `r`, the same as Perl's `tr///`.
 
 `Matches` and `MatchNamed` don't take `g`. In Perl, `if ($s =~ /re/g)` steps
@@ -457,16 +457,16 @@ the unnamed ones. In `(?<y>\d+)-(\d+)`, the unnamed group is `$1` and `y` is
 
 ### Substitution
 
-`Subst` changes `s` in place and returns how many substitutions it made, as a
-scalar (so use `.Int()` to get a Go `int64`). If nothing matched, `s` is left
-exactly as it was.
+`S` is Perl's `s///`. It changes the scalar you call it on and returns how
+many substitutions it made, as a scalar (so use `.Int()` to get a Go `int64`).
+If nothing matched, the scalar is left exactly as it was.
 
 ```go
 s := scalar.Scalar("a  b   c")
-s.Subst(`\s+`, " ", "g")       // s is now "a b c"; returns 2
+s.S(`\s+`, " ", "g")       // s is now "a b c"; returns 2
 
 name := scalar.Scalar("Smith, John")
-name.Subst(`(\w+), (\w+)`, "$2 $1")   // "John Smith"
+name.S(`(\w+), (\w+)`, "$2 $1")   // "John Smith"
 ```
 
 In a replacement string you can use `$1`, `${name}`, `$&` (the whole match)
@@ -475,7 +475,7 @@ and `$$` (a literal `$`).
 With `r`, `s` isn't changed and you get the new string back:
 
 ```go
-clean := s.Subst(`\s+`, " ", "gr").Str()
+clean := s.S(`\s+`, " ", "gr").Str()
 ```
 
 For computed replacements, as in `s///e`, pass a function. It gets the match
@@ -483,7 +483,7 @@ in the same layout as `Match` returns:
 
 ```go
 s := scalar.Scalar("10 apples and 3 pears")
-s.Subst(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g")
+s.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g")
 // "20 apples and 6 pears"
 ```
 
@@ -601,7 +601,7 @@ return something new:
 |---|---|
 | `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
-| `Subst`, `Tr` | `Subst` and `Tr` with the `r` flag |
+| `S`, `Tr` | `S` and `Tr` with the `r` flag |
 
 `Delete`, `Pop`, `Shift` and `Splice` return the elements they removed. These
 are the actual values, no longer attached to the array or hash, so changing
@@ -620,7 +620,7 @@ are the hash's own values, as described under [Hashes](#hashes).
   - an invalid regex, an unknown flag, or a regex that runs past
     `RegexTimeout`
   - passing something other than a string or int to `Path`, or something
-    other than a string or function as a `Subst` replacement
+    other than a string or function as an `S` replacement
 
   If one bad record mustn't stop a batch, catch these with `recover` around
   the code that processes each record.

@@ -17,7 +17,7 @@ import (
 // they can be written inline as in Perl.
 //
 // Flags are passed as an optional trailing string, as in Perl: "i", "m",
-// "s" and "x" work everywhere; Match and Subst also take "g", and Subst
+// "s" and "x" work everywhere; Match and S also take "g", and S
 // takes "r". Invalid patterns, unknown flags and timeouts panic, as Perl
 // would die.
 //
@@ -188,15 +188,15 @@ func (s *SV) MatchNamed(re string, flags ...string) *HV {
 	return h
 }
 
-// Subst is Perl's s///. repl is either a replacement string, in which $1,
+// S is Perl's s///. repl is either a replacement string, in which $1,
 // ${name}, $& and $$ are expanded, or a func(*AV) any (or func(*AV) string)
 // that receives the match as Match lays it out, like s///e.
 //
 // Flags: "g" replaces every match; "r" leaves s alone and returns the new
 // string. Without "r", s is modified in place (only if something matched)
 // and the number of substitutions is returned.
-func (s *SV) Subst(re string, repl any, flags ...string) *SV {
-	f := parseFlags("Subst", "imsxgr", flags)
+func (s *SV) S(re string, repl any, flags ...string) *SV {
+	f := parseFlags("S", "imsxgr", flags)
 	rx := compile(re, f)
 	str := s.Str()
 	limit := 1
@@ -234,7 +234,7 @@ func (s *SV) Subst(re string, repl any, flags ...string) *SV {
 		}, -1, limit)
 		check(rx, err)
 	default:
-		panic(fmt.Sprintf("scalar: Subst replacement must be a string or func(*AV) any, got %T", repl))
+		panic(fmt.Sprintf("scalar: S replacement must be a string or func(*AV) any, got %T", repl))
 	}
 	if n == 0 {
 		out = str
