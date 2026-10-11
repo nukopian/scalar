@@ -172,6 +172,49 @@ for i, s := range a.All() {
 `Sort`, `Reverse`, `Map`, `Grep` and `Slice` return a new array and leave the
 original alone. `Splice` returns the elements it removed.
 
+### Sorting
+
+`Sort` takes any function of the form `func(x, y *scalar.SV) int`. Closures
+work too. The function returns a negative number, zero or a positive number,
+just as Perl's `<=>` and `cmp` do, and `x` and `y` play the parts of `$a` and
+`$b`. `scalar.StrCmp` is `cmp` and `scalar.NumCmp` is `<=>`, so you can build
+on them:
+
+```go
+// sort { $b <=> $a } @a   (descending: swap the arguments)
+a.Sort(func(x, y *scalar.SV) int { return scalar.NumCmp(y, x) })
+
+// sort { $scores{$b} <=> $scores{$a} } keys %scores   (highest score first)
+scores := scalar.Hash("ann", 72, "bob", 95, "cat", 81)
+byScore := scores.Keys().Sort(func(x, y *scalar.SV) int {
+	return scalar.NumCmp(scores.Get(y.Str()), scores.Get(x.Str()))
+})
+// bob, cat, ann
+```
+
+To sort on more than one key, use `cmp.Or` from Go's standard library. It
+returns the first comparison that isn't zero, just like chaining comparisons
+with `or` in Perl:
+
+```go
+// sort { $a->{dept} cmp $b->{dept} or $b->{salary} <=> $a->{salary} } @people
+sorted := people.AV().Sort(func(x, y *scalar.SV) int {
+	return cmp.Or(
+		scalar.StrCmp(x.Path("dept"), y.Path("dept")),     // by department,
+		scalar.NumCmp(y.Path("salary"), x.Path("salary")), // then highest salary
+	)
+})
+```
+
+Some things to know:
+
+- **A Go-style "less than" function won't compile.** One that returns `bool`
+  doesn't fit. The function must return an `int`.
+- **Equal elements keep their order.** The sort is stable, as Perl's default
+  sort is in practice.
+- **The comparison must be consistent.** As in Perl, if it contradicts itself,
+  the order you get is unspecified. It won't crash, though.
+
 ### Negative indices
 
 Negative indices count from the end, everywhere an index is accepted:
@@ -206,14 +249,40 @@ h.Scalar()          // scalar(%h), same as Length
 
 h.Keys()            // keys %h
 h.Values()          // values %h
+h.KeysSlice()       // keys %h,   as a Go []string
+h.ValuesSlice()     // values %h, as a Go []*scalar.SV
 
 for k, v := range h.All() {
 	fmt.Println(k, v)
 }
 ```
 
-As in Perl, the order of keys is not fixed. `Keys`, `Values` and `All` always
-use the same order as each other, until you add or delete a key.
+`Keys` and `Values` return arrays, so you can sort, map, filter or join them
+straight away:
+
+```go
+h.Keys().Sort(nil).Join(", ")   // join ", ", sort keys %h
+```
+
+`KeysSlice` and `ValuesSlice` return ordinary Go slices instead, for passing to
+code that doesn't use `scalar`.
+
+As in Perl, the order of keys is not fixed. `Keys`, `Values`, `KeysSlice`,
+`ValuesSlice` and `All` always use the same order as each other, until you add
+or delete a key.
+
+Also as in Perl, keys are copies but values are not. Changing an element of
+`Keys()` has no effect on the hash. Changing an element of `Values()` changes
+the value in the hash, because it *is* that value:
+
+```go
+for _, v := range h.Values().All() {   // $_ *= 2 for values %h
+	v.Set(v.Mul(2))
+}
+```
+
+Adding or removing elements of the `Values()` array (with `Push`, `Pop` and so
+on) doesn't add or remove anything in the hash.
 
 ## Nesting and autovivification
 

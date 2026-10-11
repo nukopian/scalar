@@ -246,7 +246,7 @@ func TestHashOrder(t *testing.T) {
 
 	check := func() {
 		t.Helper()
-		keys, vals := h.Keys(), h.Values()
+		keys, vals := h.KeysSlice(), h.ValuesSlice()
 		var iterKeys []string
 		for k, v := range h.All() {
 			iterKeys = append(iterKeys, k)
@@ -262,7 +262,7 @@ func TestHashOrder(t *testing.T) {
 				t.Errorf("Values[%d] doesn't belong to key %q", i, k)
 			}
 		}
-		if !slices.Equal(keys, h.Keys()) {
+		if !slices.Equal(keys, h.KeysSlice()) {
 			t.Error("Keys order changed without modification")
 		}
 	}
@@ -361,5 +361,51 @@ func TestLengthAndScalar(t *testing.T) {
 	var nilHV *HV
 	if nilHV.Scalar() != 0 {
 		t.Error("nil *HV should have scalar 0")
+	}
+}
+
+func TestKeysValuesArrays(t *testing.T) {
+	h := Hash("ann", 72, "bob", 95, "cat", 81)
+	keys, vals := h.Keys(), h.Values()
+	if keys.Length() != 3 || vals.Length() != 3 {
+		t.Fatalf("lengths %d, %d", keys.Length(), vals.Length())
+	}
+	for i, k := range h.KeysSlice() {
+		if keys.Get(i).Str() != k || vals.Get(i) != h.Get(k) {
+			t.Errorf("index %d: Keys/Values disagree with KeysSlice", i)
+		}
+	}
+
+	byScore := h.Keys().Sort(func(x, y *SV) int {
+		return NumCmp(h.Get(y.Str()), h.Get(x.Str()))
+	})
+	if got := byScore.Join(","); got != "bob,cat,ann" {
+		t.Errorf("sorted keys = %s", got)
+	}
+
+	// keys are copies: changing them doesn't rename anything.
+	keys.Set(0, "changed")
+	if h.Exists("changed") || h.Length() != 3 {
+		t.Error("changing Keys shouldn't change the hash")
+	}
+
+	// values are aliases, as in Perl: $_ *= 2 for values %h
+	for _, v := range h.Values().All() {
+		v.Set(v.Mul(2))
+	}
+	if h.Get("ann").Int() != 144 || h.Get("bob").Int() != 190 {
+		t.Errorf("changing Values should change the hash: %s", mustJSON(t, h))
+	}
+	// ...but reshaping the array doesn't touch the hash.
+	vals = h.Values()
+	vals.Pop()
+	vals.Push(1)
+	if h.Length() != 3 {
+		t.Error("Pop/Push on Values shouldn't change the hash")
+	}
+
+	var nilHV *HV
+	if nilHV.Keys().Length() != 0 || nilHV.Values().Length() != 0 || nilHV.KeysSlice() != nil {
+		t.Error("nil *HV should give empty results")
 	}
 }

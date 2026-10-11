@@ -109,13 +109,33 @@ func (h *HV) keys() []string {
 	return h.order
 }
 
-// Keys is Perl's keys.
-func (h *HV) Keys() []string {
+// Keys is Perl's keys %h: a new array of the keys. Changing it doesn't
+// change h.
+func (h *HV) Keys() *AV {
+	ks := h.keys()
+	out := &AV{items: make([]*SV, len(ks))}
+	for i, k := range ks {
+		out.items[i] = &SV{v: k}
+	}
+	return out
+}
+
+// Values is Perl's values %h, in the same order as Keys. As in Perl, the
+// elements are the hash's own values, not copies: changing one (with Set,
+// Inc and so on) changes h. Adding or removing elements of the array
+// doesn't change h.
+func (h *HV) Values() *AV {
+	return &AV{items: h.ValuesSlice()}
+}
+
+// KeysSlice is Keys as a Go []string.
+func (h *HV) KeysSlice() []string {
 	return slices.Clone(h.keys())
 }
 
-// Values is Perl's values, in the same order as Keys.
-func (h *HV) Values() []*SV {
+// ValuesSlice is Values as a Go []*SV. Like Values, the elements are the
+// hash's own values.
+func (h *HV) ValuesSlice() []*SV {
 	ks := h.keys()
 	vs := make([]*SV, len(ks))
 	for i, k := range ks {
