@@ -456,6 +456,63 @@ For both, reading gives undef, even if you read further through them with
 Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
 on, because a read that can't panic is what makes `Path` safe on messy data.
 
+## Finding values with JSONPath
+
+`Path` reads one value at a location you know. `Find` searches with a
+JSONPath query ([RFC 9535](https://www.rfc-editor.org/rfc/rfc9535)) and
+returns every match as an array, or `nil` if nothing matched:
+
+```go
+resp.Find("$.content[*].text")    // the text of every content block
+meta.Find("$..skills[*]")         // every skill, at any depth
+doc.Find("$.items[-1].name")      // the last item's name
+doc.Find("$.items[0:3]")          // the first three items
+doc.Find("$['salary-min']")       // keys that aren't plain words need brackets
+```
+
+| JSONPath | Selects |
+|----------|---------|
+| `$` | the value you call `Find` on |
+| `.name` or `['name']` | a key in a hash |
+| `[0]`, `[-1]` | an element of an array (negative counts from the end) |
+| `[start:end:step]` | a slice of an array, as in Python |
+| `.*` or `[*]` | every element of an array or hash |
+| `..name`, `..*`, `..[0]` | the same, at any depth |
+| `[0,2]`, `['a','b']` | several at once |
+
+Each match is a scalar. Strings, numbers, booleans and nulls come back as plain
+values. Objects and arrays come back as references, so you can continue from
+them with `HV()`, `AV()`, `Path` or `Find`.
+
+Like `Get` and `Path`, the matches are the stored values themselves, so you
+can change data where it sits:
+
+```go
+for _, s := range meta.Find("$.requiredSkills[*]").All() {
+	s.Set(s.Trim())   // trims each skill inside meta
+}
+```
+
+`Find` doesn't support JSONPath's filter expressions (`[?...]`). Use the list
+utilities on the result instead, which are plain Go:
+
+```go
+// The tool_use block in a Bedrock/Claude response.
+input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
+	return b.Path("type").Eq("tool_use")
+}).Path("input")
+```
+
+Things to know:
+
+- **`Find` never creates anything.** Unlike `Path`, a missing key or index
+  simply matches nothing.
+- **Hash order is unspecified,** as in JSONPath and Perl. Matches from `[*]`
+  or `..` on a hash come back in the hash's own order.
+- **A malformed path panics,** like a bad regex.
+- **References that loop back on themselves are visited once,** so `..`
+  can't get stuck.
+
 ## Operators
 
 Operators return a new scalar and don't change either side. The right-hand side
