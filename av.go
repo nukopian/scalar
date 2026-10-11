@@ -3,6 +3,7 @@ package scalar
 import (
 	"fmt"
 	"iter"
+	"reflect"
 	"slices"
 	"strings"
 )
@@ -22,9 +23,58 @@ func nonCreatable(i int) string {
 	return fmt.Sprintf("Modification of non-creatable array value attempted, subscript %d", i)
 }
 
-// Array returns an array holding vals, converted as by SV.Set.
+// Array returns an array of vals, as Perl's (...) list does: arrays and
+// hashes among vals are flattened into it (see Push), and other values are
+// converted as by SV.Set.
 func Array(vals ...any) *AV {
-	return (&AV{}).Push(vals...)
+	return &AV{items: flatten(vals)}
+}
+
+// flatten expands vals as Perl expands a list. Arrays and Go slices add
+// their elements, and hashes and string-keyed Go maps add their key/value
+// pairs, so (@a, %h) is flatten(a, h). Anything else adds one element,
+// including a scalar holding a reference: that's how a list holds a nested
+// array or hash, as \@a and \%h do in Perl. Every value is copied.
+func flatten(vals []any) []*SV {
+	out := make([]*SV, 0, len(vals))
+	var add func(v any)
+	add = func(v any) {
+		switch v := v.(type) {
+		case *AV:
+			for _, s := range v.All() {
+				out = append(out, s.Copy())
+			}
+			return
+		case *HV:
+			for k, s := range v.All() {
+				out = append(out, &SV{v: k}, s.Copy())
+			}
+			return
+		case nil, *SV, string, bool, int, int64, float64:
+			out = append(out, Scalar(v))
+			return
+		}
+		switch rv := reflect.ValueOf(v); rv.Kind() {
+		case reflect.Slice, reflect.Array:
+			for i := range rv.Len() {
+				add(rv.Index(i).Interface())
+			}
+		case reflect.Map:
+			if rv.Type().Key().Kind() != reflect.String {
+				out = append(out, Scalar(v))
+				return
+			}
+			for it := rv.MapRange(); it.Next(); {
+				out = append(out, &SV{v: it.Key().String()}, Scalar(it.Value().Interface()))
+			}
+		default:
+			out = append(out, Scalar(v))
+		}
+	}
+	for _, v := range vals {
+		add(v)
+	}
+	return out
 }
 
 // Length is Perl's scalar(@a).
@@ -132,23 +182,22 @@ func (a *AV) Delete(i int) *SV {
 	return s
 }
 
-// Push appends vals and returns a.
+// Push is Perl's push: it appends vals and returns a. As in Perl, an
+// array among vals adds its elements, and a hash adds its key/value pairs,
+// so a.Push(b) is push @a, @b. Go slices and string-keyed maps flatten the
+// same way. To add a nested array or hash, push a scalar holding a
+// reference to it: a.Push(Scalar(b)) is push @a, \@b. Values are copied.
 func (a *AV) Push(vals ...any) *AV {
 	a.mustExist()
-	for _, v := range vals {
-		a.items = append(a.items, Scalar(v))
-	}
+	a.items = append(a.items, flatten(vals)...)
 	return a
 }
 
-// Unshift prepends vals, keeping their order, and returns a.
+// Unshift is Perl's unshift: it prepends vals, keeping their order, and
+// returns a. vals are flattened as by Push.
 func (a *AV) Unshift(vals ...any) *AV {
 	a.mustExist()
-	front := make([]*SV, len(vals))
-	for i, v := range vals {
-		front[i] = Scalar(v)
-	}
-	a.items = append(front, a.items...)
+	a.items = append(flatten(vals), a.items...)
 	return a
 }
 
@@ -200,11 +249,7 @@ func (a *AV) Splice(offset, length int, list ...any) *AV {
 	for i, s := range a.items[start:end] {
 		removed.items[i] = orUndef(s)
 	}
-	insert := make([]*SV, len(list))
-	for i, v := range list {
-		insert[i] = Scalar(v)
-	}
-	a.items = slices.Replace(a.items, start, end, insert...)
+	a.items = slices.Replace(a.items, start, end, flatten(list)...)
 	return removed
 }
 
@@ -251,7 +296,9 @@ func (a *AV) Join(sep string) string {
 	return strings.Join(parts, sep)
 }
 
-// Map is Perl's map: a new array of f applied to each element.
+// Map is Perl's map: a new array of f applied to each element. As in Perl,
+// if f returns an array or hash it is flattened into the result (see Push),
+// so f can return several values, or none.
 func (a *AV) Map(f func(*SV) any) *AV {
 	out := &AV{}
 	for _, s := range a.All() {

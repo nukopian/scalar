@@ -193,3 +193,110 @@ func TestHolesInJSON(t *testing.T) {
 		t.Errorf("JSON with holes = %s", got)
 	}
 }
+
+func TestListFlattening(t *testing.T) {
+	b := Array("b1", "b2")
+
+	// push @a, @b
+	a := Array("a").Push(b)
+	if show(a) != "a,b1,b2" {
+		t.Errorf("Push(array) = %s", show(a))
+	}
+	// push @a, \@b: a scalar holding a reference stays one element.
+	nested := Array("a").Push(Scalar(b))
+	if nested.Length() != 2 || nested.Get(1).AV() != b {
+		t.Errorf("Push(Scalar(array)) should nest: %s", mustJSON(t, nested))
+	}
+
+	// Hashes add key/value pairs (in the hash's order).
+	h := Hash("k1", "v1", "k2", "v2")
+	pairs := Array().Push(h)
+	if pairs.Length() != 4 {
+		t.Fatalf("Push(hash) = %s", show(pairs))
+	}
+	for i := 0; i < 4; i += 2 {
+		if h.Get(pairs.Get(i).Str()).Str() != pairs.Get(i+1).Str() {
+			t.Errorf("pair %d doesn't match the hash: %s", i/2, show(pairs))
+		}
+	}
+
+	// Go slices flatten too, so no ...any is needed.
+	if got := show(Array().Push([]string{"x", "y"}, []int{1, 2})); got != "x,y,1,2" {
+		t.Errorf("Push(go slices) = %s", got)
+	}
+	// So do slices of slices, as nested lists do in Perl.
+	if got := show(Array([]any{1, []any{2, Array(3, 4)}})); got != "1,2,3,4" {
+		t.Errorf("nested lists = %s", got)
+	}
+	// Go maps add pairs.
+	if got := show(Array(map[string]int{"k": 1})); got != "k,1" {
+		t.Errorf("Array(go map) = %s", got)
+	}
+
+	// Unshift and Splice flatten the same way, keeping order.
+	if got := show(Array("z").Unshift(b, "c")); got != "b1,b2,c,z" {
+		t.Errorf("Unshift = %s", got)
+	}
+	sp := Array(1, 2, 3)
+	sp.Splice(1, 1, b)
+	if show(sp) != "1,b1,b2,3" {
+		t.Errorf("Splice = %s", show(sp))
+	}
+
+	// (@a, @b)
+	if got := show(Array(Array(1, 2), Array(3))); got != "1,2,3" {
+		t.Errorf("Array(a, b) = %s", got)
+	}
+
+	// Values are copied, as in Perl.
+	c := Array().Push(b)
+	c.Get(0).Set("changed")
+	if b.Get(0).Str() != "b1" {
+		t.Error("Push should copy values")
+	}
+
+	// Holes flatten to undef; nil arrays and hashes add nothing.
+	holey := Array()
+	holey.Set(1, "x")
+	if got := show(Array(holey, (*AV)(nil), (*HV)(nil))); got != "-,x" {
+		t.Errorf("holes and nils = %s", got)
+	}
+
+	// Map flattens what f returns, so it can return several values or none.
+	doubled := Array(1, 2).Map(func(s *SV) any { return Array(s, s.Mul(10)) })
+	if show(doubled) != "1,10,2,20" {
+		t.Errorf("Map returning arrays = %s", show(doubled))
+	}
+	evens := Array(1, 2, 3, 4).Map(func(s *SV) any {
+		if s.Int()%2 == 0 {
+			return s
+		}
+		return Array()
+	})
+	if show(evens) != "2,4" {
+		t.Errorf("Map returning empty arrays = %s", show(evens))
+	}
+
+	// A list of records: push @rows, \%row
+	rows := Array()
+	rows.Push(Scalar(Hash("name", "Ann")), Scalar(Hash("name", "Bob")))
+	if rows.Length() != 2 || rows.Get(1).Path("name").Str() != "Bob" {
+		t.Errorf("records = %s", mustJSON(t, rows))
+	}
+}
+
+func TestScalarAndJSONKeepNesting(t *testing.T) {
+	// Scalar of a slice is an array reference, as before.
+	s := Scalar([]any{1, []any{2, 3}})
+	if s.AV().Length() != 2 || s.Path(1).AV().Length() != 2 {
+		t.Errorf("Scalar(nested slice) = %s", mustJSON(t, s))
+	}
+	// JSON arrays stay nested.
+	doc, err := FromJSON([]byte(`{"m": [[1, 2], [3]], "h": [{"a": 1}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mustJSON(t, doc); got != `{"h":[{"a":1}],"m":[[1,2],[3]]}` {
+		t.Errorf("JSON round trip = %s", got)
+	}
+}

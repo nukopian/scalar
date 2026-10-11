@@ -822,3 +822,32 @@ func TestPathOK(t *testing.T) {
 	}
 	expectPanic(t, "bad key type", "Path key must be string or int", func() { doc.PathOK(1.5) })
 }
+
+func TestHashFlattening(t *testing.T) {
+	defaults := Hash("location", "Remote", "type", "Permanent")
+
+	// %h = (%defaults, location => "London"): later keys win.
+	h := Hash(defaults, "location", "London")
+	if h.Get("location").Str() != "London" || h.Get("type").Str() != "Permanent" || h.Length() != 2 {
+		t.Errorf("merge = %s", mustJSON(t, h))
+	}
+	// Copying a hash: %copy = %h
+	cp := Hash(h)
+	cp.Set("type", "Contract")
+	if h.Get("type").Str() != "Permanent" {
+		t.Error("Hash(h) should copy")
+	}
+	// A hash from an array of pairs.
+	if got := mustJSON(t, Hash(Array("a", 1, "b", 2))); got != `{"a":1,"b":2}` {
+		t.Errorf("Hash(array of pairs) = %s", got)
+	}
+	// Values that are references stay references.
+	nested := Hash("list", Scalar(Array(1, 2)))
+	if nested.Get("list").AV().Length() != 2 {
+		t.Error("a reference value should stay a reference")
+	}
+	// Odd lists still give the last key undef.
+	if odd := Hash(Array("k")); !odd.Exists("k") || odd.Get("k").Defined() {
+		t.Error("odd list")
+	}
+}

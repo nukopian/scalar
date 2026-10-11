@@ -280,6 +280,38 @@ for i, s := range a.All() {
 `Sort`, `Reverse`, `Map`, `Grep` and `Slice` return a new array and leave the
 original alone. `Splice` returns the elements it removed.
 
+### Lists flatten, as in Perl
+
+Wherever Perl takes a list, arrays and hashes passed in are flattened:
+arrays add their elements, and hashes add their key/value pairs. This applies
+to `Push`, `Unshift`, the values inserted by `Splice`, and the `Array(...)`
+and `Hash(...)` constructors. Go slices and maps flatten the same way, so you
+don't need `...` to pass one.
+
+```go
+a.Push(b)                       // push @a, @b
+a.Push(h)                       // push @a, %h        (key/value pairs)
+a.Push(h.KeysSlice())           // push @a, keys %h
+all := scalar.Array(a, b)       // my @all = (@a, @b)
+```
+
+A scalar always adds one element, even when it holds a reference. That's how
+you nest an array or hash, as with Perl's `\@b` and `\%h`:
+
+```go
+a.Push(scalar.Scalar(b))        // push @a, \@b      (one element: a reference)
+rows.Push(scalar.Scalar(row))   // push @rows, \%row (a list of records)
+```
+
+`Map` flattens too, as Perl's `map` does, so the function can return several
+values for each element, or none:
+
+```go
+a.Map(func(s *scalar.SV) any { return scalar.Array(s, s.Mul(10)) })   // map { ($_, $_ * 10) } @a
+```
+
+Values are always copied in, as Perl copies list values.
+
 ### List utilities
 
 These follow Perl's `List::Util`. The ones that test elements take a function,
@@ -387,6 +419,7 @@ stops at the end, so `a.Splice(2, a.Length())` removes everything from index 2.
 
 ```go
 h := scalar.Hash("name", "Ada", "age", 36)  // %h = (name => "Ada", age => 36)
+merged := scalar.Hash(defaults, "age", 37)   // %merged = (%defaults, age => 37)
 
 h.Get("name")       // $h{name}
 h.Set("lang", "Go") // $h{lang} = "Go"
@@ -829,7 +862,8 @@ reference to the same data.
 ### Copying values and references
 
 - Copying a scalar copies its value: `other.Copy()`, `scalar.Scalar(other)`
-  or `s.Set(other)` all do this.
+  or `s.Set(other)` all do this. So do `Push` and the other methods that take
+  lists, for every value they add.
 - Copying a reference doesn't copy the array or hash it points to. Both copies
   point at the same data, just as in Perl.
 

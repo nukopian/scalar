@@ -406,7 +406,11 @@ func normalize(x any) any {
 	case json.Number:
 		return normalizeJSONNumber(v)
 	case []any:
-		return Array(v...)
+		a := &AV{items: make([]*SV, len(v))}
+		for i, e := range v {
+			a.items[i] = Scalar(e) // nested arrays stay nested
+		}
+		return a
 	case map[string]any:
 		h := newHV(len(v))
 		for k, e := range v {
@@ -421,9 +425,9 @@ func normalize(x any) any {
 		if rv.Kind() == reflect.Slice && rv.IsNil() {
 			return nil
 		}
-		a := &AV{}
+		a := &AV{items: make([]*SV, rv.Len())}
 		for i := range rv.Len() {
-			a.Push(rv.Index(i).Interface())
+			a.items[i] = Scalar(rv.Index(i).Interface())
 		}
 		return a
 	case reflect.Map:

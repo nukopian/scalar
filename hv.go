@@ -14,16 +14,19 @@ type HV struct {
 	order []string // cached iteration order; nil when stale
 }
 
-// Hash builds a hash from a flat key/value list, as %h = (k1 => v1, ...)
-// does. Keys are stringified; a trailing key without a value maps to undef.
+// Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
+// The list is flattened first, as by AV.Push, so Hash(defaults, "k", "v")
+// merges like %h = (%defaults, k => "v"), with later keys winning. Keys are
+// stringified; a trailing key without a value maps to undef.
 func Hash(kv ...any) *HV {
-	h := newHV((len(kv) + 1) / 2)
-	for i := 0; i < len(kv); i += 2 {
-		var v any
-		if i+1 < len(kv) {
-			v = kv[i+1]
+	flat := flatten(kv)
+	h := newHV((len(flat) + 1) / 2)
+	for i := 0; i < len(flat); i += 2 {
+		v := &SV{}
+		if i+1 < len(flat) {
+			v = flat[i+1]
 		}
-		h.m[Scalar(kv[i]).Str()] = Scalar(v)
+		h.m[flat[i].Str()] = v
 	}
 	return h
 }
