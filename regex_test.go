@@ -131,17 +131,6 @@ func TestSubst(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	join := func(a *AV) string {
-		parts := make([]string, a.Length())
-		for i, s := range a.All() {
-			if s.Defined() {
-				parts[i] = s.Str()
-			} else {
-				parts[i] = "<undef>"
-			}
-		}
-		return strings.Join(parts, "|")
-	}
 	tests := []struct {
 		name, s, re string
 		limit       []int
@@ -153,7 +142,7 @@ func TestSplit(t *testing.T) {
 		{"negative limit keeps trailing", "a,b,,", `,`, []int{-1}, "a|b||"},
 		{"positive limit", "a,b,c,d", `,`, []int{2}, "a|b,c,d"},
 		{"captures included", "a1b2c", `(\d)`, nil, "a|1|b|2|c"},
-		{"unmatched capture is undef", "a-b", `(,)?-`, nil, "a|<undef>|b"},
+		{"unmatched capture is undef", "a-b", `(,)?-`, nil, "a|-|b"},
 		{"empty pattern splits chars", "abc", ``, nil, "a|b|c"},
 		{"empty pattern, negative limit", "abc", ``, []int{-1}, "a|b|c|"},
 		{"zero-width after match", "a,b", `,*`, nil, "a|b"},
@@ -162,7 +151,7 @@ func TestSplit(t *testing.T) {
 		{"empty string", "", `,`, nil, ""},
 	}
 	for _, tt := range tests {
-		if got := join(Scalar(tt.s).Split(tt.re, tt.limit...)); got != tt.want {
+		if got := showSep(Scalar(tt.s).Split(tt.re, tt.limit...), "|"); got != tt.want {
 			t.Errorf("%s: split /%s/, %q = %q, want %q", tt.name, tt.re, tt.s, got, tt.want)
 		}
 	}
@@ -204,21 +193,11 @@ func TestTr(t *testing.T) {
 }
 
 func TestRegexPanics(t *testing.T) {
-	for name, f := range map[string]func(){
-		"bad pattern":   func() { Scalar("x").Matches(`(`) },
-		"bad flag":      func() { Scalar("x").Matches(`x`, "g") },
-		"bad tr flag":   func() { Scalar("x").Tr("x", "y", "g") },
-		"bad repl type": func() { Scalar("x").Subst(`x`, 42) },
-	} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("%s didn't panic", name)
-				}
-			}()
-			f()
-		}()
-	}
+	expectPanic(t, "bad pattern", "bad regex", func() { Scalar("x").Matches(`(`) })
+	expectPanic(t, "bad flag", `doesn't support flag 'g'`, func() { Scalar("x").Matches(`x`, "g") })
+	expectPanic(t, "bad tr flag", `doesn't support flag 'g'`, func() { Scalar("x").Tr("x", "y", "g") })
+	expectPanic(t, "bad repl type", "Subst replacement", func() { Scalar("x").Subst(`x`, 42) })
+	expectPanic(t, "bad Path key", "Path key must be string or int", func() { Scalar(nil).Path(1.5) })
 }
 
 func TestRegexTimeout(t *testing.T) {

@@ -1,37 +1,6 @@
 package scalar
 
-import (
-	"strings"
-	"testing"
-)
-
-// expectPanic fails unless f panics with a message containing want.
-func expectPanic(t *testing.T, name, want string, f func()) {
-	t.Helper()
-	defer func() {
-		t.Helper()
-		r := recover()
-		if r == nil {
-			t.Errorf("%s: didn't panic", name)
-		} else if !strings.Contains(r.(string), want) {
-			t.Errorf("%s: panic %q, want it to contain %q", name, r, want)
-		}
-	}()
-	f()
-}
-
-// show renders an array as Perl would print it, with holes and undef as "-".
-func show(a *AV) string {
-	parts := make([]string, a.Length())
-	for i, s := range a.All() {
-		if s.Defined() {
-			parts[i] = s.Str()
-		} else {
-			parts[i] = "-"
-		}
-	}
-	return strings.Join(parts, ",")
-}
+import "testing"
 
 func TestNegativeIndexReads(t *testing.T) {
 	a := Array("a", "b", "c")

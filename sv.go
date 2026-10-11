@@ -9,6 +9,7 @@
 package scalar
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -48,9 +49,7 @@ type SV struct {
 
 // Scalar returns a scalar holding x. See Set for how Go values are converted.
 func Scalar(x any) *SV {
-	s := &SV{}
-	s.v = normalize(x)
-	return s
+	return &SV{v: normalize(x)}
 }
 
 // Set assigns x to s and returns s. Go values are converted as follows:
@@ -178,7 +177,7 @@ func (s *SV) NumOK() (float64, bool) {
 		_, nv, _, ok := parseNumber(v)
 		return nv, ok
 	case *AV, *HV:
-		return float64(reflect.ValueOf(v).Pointer()), true
+		return float64(refAddr(v)), true
 	}
 	return 0, false
 }
@@ -304,6 +303,12 @@ func formatFloat(f float64) string {
 	return strconv.FormatFloat(f, 'g', 15, 64)
 }
 
+// refAddr is a reference's address, which is what Perl gives for a reference
+// in numeric context.
+func refAddr(ref any) int64 {
+	return int64(reflect.ValueOf(ref).Pointer())
+}
+
 func floatToInt(f float64) (int64, bool) {
 	switch {
 	case math.IsNaN(f):
@@ -350,14 +355,14 @@ func normalize(x any) any {
 		return float64(v)
 	case float64:
 		return v
-	case jsonNumber:
+	case json.Number:
 		return normalizeJSONNumber(v)
 	case []any:
 		return Array(v...)
 	case map[string]any:
-		h := &HV{}
+		h := newHV(len(v))
 		for k, e := range v {
-			h.Set(k, e)
+			h.m[k] = Scalar(e)
 		}
 		return h
 	}
@@ -378,9 +383,9 @@ func normalize(x any) any {
 			if rv.IsNil() {
 				return nil
 			}
-			h := &HV{}
+			h := newHV(rv.Len())
 			for it := rv.MapRange(); it.Next(); {
-				h.Set(it.Key().String(), it.Value().Interface())
+				h.m[it.Key().String()] = Scalar(it.Value().Interface())
 			}
 			return h
 		}

@@ -2,8 +2,10 @@ package scalar
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -301,24 +303,6 @@ func TestJSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestNilContainerWritesPanic(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic pushing onto a non-array")
-		}
-	}()
-	Scalar("str").AV().Push(1)
-}
-
-func mustJSON(t *testing.T, v any) string {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(b)
-}
-
 func TestLengthAndScalar(t *testing.T) {
 	tests := []struct {
 		in   any
@@ -449,5 +433,171 @@ func TestCopy(t *testing.T) {
 	var nilSV *SV
 	if nilSV.Copy().Defined() {
 		t.Error("Copy of a nil *SV should be undef")
+	}
+}
+
+func TestConversions(t *testing.T) {
+	n := 7
+	var nilPtr *int
+	var nilSlice []string
+	var nilMap map[string]int
+	tests := []struct {
+		name string
+		in   any
+		kind Kind
+		json string
+	}{
+		{"nil", nil, Undef, "null"},
+		{"int8", int8(-8), Int, "-8"},
+		{"int16", int16(16), Int, "16"},
+		{"int32", int32(32), Int, "32"},
+		{"uint", uint(1), Int, "1"},
+		{"uint8", uint8(8), Int, "8"},
+		{"uint16", uint16(16), Int, "16"},
+		{"uint32", uint32(32), Int, "32"},
+		{"uint64 fits", uint64(64), Int, "64"},
+		{"uint64 too big", uint64(math.MaxUint64), Float, "18446744073709552000"},
+		{"float32", float32(1.5), Float, "1.5"},
+		{"SV value", *Scalar("v"), String, `"v"`},
+		{"pointer", &n, Int, "7"},
+		{"nil pointer", nilPtr, Undef, "null"},
+		{"[]string", []string{"a", "b"}, ArrayRef, `["a","b"]`},
+		{"array", [2]int{1, 2}, ArrayRef, "[1,2]"},
+		{"nil slice", nilSlice, Undef, "null"},
+		{"map[string]int", map[string]int{"a": 1}, HashRef, `{"a":1}`},
+		{"nil map", nilMap, Undef, "null"},
+		{"map with int keys", map[int]string{1: "x"}, String, `"map[1:x]"`},
+		{"struct", struct{ A int }{1}, String, `"{1}"`},
+		{"nested", map[string]any{"xs": []any{1, map[string]any{"y": true}}}, HashRef, `{"xs":[1,{"y":true}]}`},
+	}
+	for _, tt := range tests {
+		s := Scalar(tt.in)
+		if s.Kind() != tt.kind {
+			t.Errorf("%s: kind %d, want %d", tt.name, s.Kind(), tt.kind)
+		}
+		if got := mustJSON(t, s); got != tt.json {
+			t.Errorf("%s: JSON %s, want %s", tt.name, got, tt.json)
+		}
+	}
+}
+
+func TestKindRefAndPrinting(t *testing.T) {
+	tests := []struct {
+		in   any
+		kind Kind
+		ref  string
+	}{
+		{nil, Undef, ""},
+		{true, Bool, ""},
+		{1, Int, ""},
+		{1.5, Float, ""},
+		{"s", String, ""},
+		{Array(), ArrayRef, "ARRAY"},
+		{Hash(), HashRef, "HASH"},
+	}
+	for _, tt := range tests {
+		s := Scalar(tt.in)
+		if s.Kind() != tt.kind || s.Ref() != tt.ref {
+			t.Errorf("%#v: Kind %d Ref %q, want %d %q", tt.in, s.Kind(), s.Ref(), tt.kind, tt.ref)
+		}
+	}
+
+	a := Array()
+	ref := Scalar(a)
+	if got, want := ref.String(), fmt.Sprintf("ARRAY(%p)", a); got != want {
+		t.Errorf("array ref prints as %q, want %q", got, want)
+	}
+	if !strings.HasPrefix(Scalar(Hash()).Str(), "HASH(0x") {
+		t.Error("hash ref should print as HASH(0x...)")
+	}
+	if ref.Num() == 0 || ref.Int() == 0 || !ref.Bool() {
+		t.Error("a reference is a non-zero address and true, as in Perl")
+	}
+	if Scalar("2.5").Num() != 2.5 || Scalar(math.Inf(-1)).Str() != "-Inf" {
+		t.Error("Num/Str basics")
+	}
+}
+
+func TestJSONEdges(t *testing.T) {
+	tests := []struct {
+		v    any
+		want string
+	}{
+		{Array(), "[]"},
+		{Hash(), "{}"},
+		{&AV{}, "[]"},
+		{&HV{}, "{}"},
+		{(*AV)(nil), "null"},
+		{(*HV)(nil), "null"},
+		{(*SV)(nil), "null"},
+		{struct{ S *SV }{Scalar("x")}, `{"S":"x"}`},
+	}
+	for _, tt := range tests {
+		if got := mustJSON(t, tt.v); got != tt.want {
+			t.Errorf("%#v encodes as %s, want %s", tt.v, got, tt.want)
+		}
+	}
+
+	for _, bad := range []string{`{} }`, `{} ]`, `[] x`, `1 2`, `{`, ``} {
+		if _, err := FromJSON([]byte(bad)); err == nil {
+			t.Errorf("FromJSON(%q) should fail", bad)
+		}
+	}
+	if s, err := FromJSON([]byte("  {\"a\":1}\n\t ")); err != nil || s.Path("a").Int() != 1 {
+		t.Errorf("surrounding whitespace should be fine: %v", err)
+	}
+
+	var holder struct{ S *SV }
+	if err := json.Unmarshal([]byte(`{"S":{"x":[1,2]}}`), &holder); err != nil || holder.S.Path("x", 1).Int() != 2 {
+		t.Errorf("SV as a struct field: %v", err)
+	}
+}
+
+func TestIteration(t *testing.T) {
+	a := Array(1, 2, 3)
+	var seen []int64
+	for _, s := range a.All() {
+		seen = append(seen, s.Int())
+		if len(seen) == 2 {
+			break
+		}
+	}
+	if !slices.Equal(seen, []int64{1, 2}) {
+		t.Errorf("breaking out of AV.All: %v", seen)
+	}
+	items := a.Items()
+	items[0] = Scalar(99)
+	if a.Get(0).Int() != 1 || len(items) != 3 {
+		t.Error("Items should return a new slice")
+	}
+	items[1].Set(20)
+	if a.Get(1).Int() != 20 {
+		t.Error("Items' elements are the stored values")
+	}
+
+	h := Hash("a", 1, "b", 2, "c", 3, "d", 4)
+	visited := 0
+	for k := range h.All() {
+		visited++
+		// Delete everything else and add new keys mid-iteration.
+		for _, other := range []string{"a", "b", "c", "d"} {
+			if other != k {
+				h.Delete(other)
+			}
+		}
+		h.Set("new-"+k, 1)
+	}
+	if visited != 1 {
+		t.Errorf("keys deleted during All should be skipped, and added ones not visited; visited %d", visited)
+	}
+
+	h = Hash("a", 1, "b", 2)
+	visited = 0
+	for range h.All() {
+		visited++
+		break
+	}
+	if visited != 1 {
+		t.Error("breaking out of HV.All")
 	}
 }

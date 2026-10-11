@@ -170,22 +170,12 @@ func TestComparisons(t *testing.T) {
 }
 
 func TestDivModByZeroPanic(t *testing.T) {
-	for name, f := range map[string]func(){
-		"1/0":     func() { Scalar(1).Div(0) },
-		`1/"0.0"`: func() { Scalar(1).Div("0.0") },
-		`1/"abc"`: func() { Scalar(1).Div("abc") },
-		"1%0":     func() { Scalar(1).Mod(0) },
-		"1%0.5":   func() { Scalar(1).Mod(0.5) },
-	} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("%s didn't panic", name)
-				}
-			}()
-			f()
-		}()
-	}
+	const div, mod = "Illegal division by zero", "Illegal modulus zero"
+	expectPanic(t, "1/0", div, func() { Scalar(1).Div(0) })
+	expectPanic(t, `1/"0.0"`, div, func() { Scalar(1).Div("0.0") })
+	expectPanic(t, `1/"abc"`, div, func() { Scalar(1).Div("abc") })
+	expectPanic(t, "1%0", mod, func() { Scalar(1).Mod(0) })
+	expectPanic(t, "1%0.5", mod, func() { Scalar(1).Mod(0.5) })
 }
 
 func TestOperandsUnchanged(t *testing.T) {

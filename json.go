@@ -3,11 +3,10 @@ package scalar
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"io"
 	"strconv"
 )
-
-type jsonNumber = json.Number
 
 // FromJSON decodes data into a scalar. Integers that fit in int64 become
 // IVs and keep full precision; other numbers become NVs.
@@ -27,8 +26,8 @@ func (s *SV) UnmarshalJSON(data []byte) error {
 	if err := dec.Decode(&x); err != nil {
 		return err
 	}
-	if dec.More() {
-		return fmt.Errorf("scalar: trailing data after JSON value")
+	if _, err := dec.Token(); err != io.EOF {
+		return errors.New("scalar: trailing data after JSON value")
 	}
 	s.Set(x)
 	return nil

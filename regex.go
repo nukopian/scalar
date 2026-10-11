@@ -88,15 +88,16 @@ func check(rx *regexp2.Regexp, err error) {
 	}
 	msg := err.Error()
 	if len(msg) > 200 {
-		msg = msg[:200] + "..."
+		msg = strings.ToValidUTF8(msg[:200], "") + "..."
 	}
 	panic(fmt.Sprintf("scalar: regex %q: %s", rx.String(), msg))
 }
 
-// matches iterates over successive matches of rx in str.
-func matches(rx *regexp2.Regexp, str string) iter.Seq[*regexp2.Match] {
+// matches iterates over successive matches of rx in text. regexp2 works on
+// runes, and match positions are rune offsets into text.
+func matches(rx *regexp2.Regexp, text []rune) iter.Seq[*regexp2.Match] {
 	return func(yield func(*regexp2.Match) bool) {
-		m, err := rx.FindStringMatch(str)
+		m, err := rx.FindRunesMatch(text)
 		for {
 			check(rx, err)
 			if m == nil || !yield(m) {
@@ -105,6 +106,13 @@ func matches(rx *regexp2.Regexp, str string) iter.Seq[*regexp2.Match] {
 			m, err = rx.FindNextMatch(m)
 		}
 	}
+}
+
+// firstMatch returns the first match of rx in str, or nil.
+func firstMatch(rx *regexp2.Regexp, str string) *regexp2.Match {
+	m, err := rx.FindStringMatch(str)
+	check(rx, err)
+	return m
 }
 
 // matchAV turns a match into an array: index 0 is the whole match ($&),
@@ -135,7 +143,7 @@ func (s *SV) Matches(re string, flags ...string) bool {
 // to read, so s.Match(re).Get(1).Str() is "" when nothing matched.
 func (s *SV) Match(re string, flags ...string) *AV {
 	rx := compile(re, parseFlags("Match", "imsx", flags))
-	for m := range matches(rx, s.Str()) {
+	if m := firstMatch(rx, s.Str()); m != nil {
 		return matchAV(m)
 	}
 	return nil
@@ -146,7 +154,7 @@ func (s *SV) Match(re string, flags ...string) *AV {
 func (s *SV) MatchAll(re string, flags ...string) *AV {
 	rx := compile(re, parseFlags("MatchAll", "imsx", flags))
 	out := &AV{}
-	for m := range matches(rx, s.Str()) {
+	for m := range matches(rx, []rune(s.Str())) {
 		out.Push(matchAV(m))
 	}
 	return out
@@ -157,10 +165,7 @@ func (s *SV) MatchAll(re string, flags ...string) *AV {
 // participate are undef.
 func (s *SV) MatchNamed(re string, flags ...string) *HV {
 	rx := compile(re, parseFlags("MatchNamed", "imsx", flags))
-	var m *regexp2.Match
-	for m = range matches(rx, s.Str()) {
-		break
-	}
+	m := firstMatch(rx, s.Str())
 	if m == nil {
 		return nil
 	}
@@ -199,7 +204,7 @@ func (s *SV) Subst(re string, repl any, flags ...string) *SV {
 	var out string
 	switch r := repl.(type) {
 	case string:
-		for range matches(rx, str) {
+		for range matches(rx, []rune(str)) {
 			n++
 			if n == limit {
 				break
@@ -266,7 +271,7 @@ func (s *SV) Split(re string, limit ...int) *AV {
 	rx := compile(re, "")
 	runes := []rune(str)
 	pos, splits := 0, 0
-	for m := range matches(rx, str) {
+	for m := range matches(rx, runes) {
 		if lim > 0 && splits >= lim-1 {
 			break
 		}
@@ -276,9 +281,9 @@ func (s *SV) Split(re string, limit ...int) *AV {
 			continue
 		}
 		out.Push(string(runes[pos:m.Index]))
-		groups := matchAV(m)
-		for i := 1; i < groups.Length(); i++ {
-			out.Push(groups.Get(i))
+		if m.GroupCount() > 1 {
+			groups := matchAV(m)
+			out.items = append(out.items, groups.items[1:]...)
 		}
 		pos = m.Index + m.Length
 		splits++
@@ -305,6 +310,7 @@ func (s *SV) Split(re string, limit ...int) *AV {
 // characters matched is returned, so Tr("a-z", "") counts lowercase letters.
 func (s *SV) Tr(from, to string, flags ...string) *SV {
 	f := parseFlags("Tr", "cdsr", flags)
+	del, squeeze := f.has('d'), f.has('s')
 	fromSet, toList := expandTr(from), expandTr(to)
 
 	// translate returns the replacement for c, whether c was in the search
@@ -322,10 +328,10 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 			case len(toList) > 0:
 				return toList[len(toList)-1], true, false
 			}
-			return c, true, f.has('d')
+			return c, true, del
 		}
 	} else {
-		if len(toList) == 0 && !f.has('d') {
+		if len(toList) == 0 && !del {
 			toList = fromSet
 		}
 		type mapping struct {
@@ -340,7 +346,7 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 			switch {
 			case i < len(toList):
 				table[c] = mapping{to: toList[i]}
-			case f.has('d'):
+			case del:
 				table[c] = mapping{del: true}
 			default:
 				table[c] = mapping{to: toList[len(toList)-1]}
@@ -361,17 +367,17 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 	var last rune
 	lastTranslated := false
 	for _, c := range str {
-		rep, matched, del := translate(c)
+		rep, matched, deleted := translate(c)
 		if !matched {
 			out.WriteRune(c)
 			lastTranslated = false
 			continue
 		}
 		count++
-		if del {
+		if deleted {
 			continue
 		}
-		if f.has('s') && lastTranslated && rep == last {
+		if squeeze && lastTranslated && rep == last {
 			continue
 		}
 		out.WriteRune(rep)

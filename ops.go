@@ -3,7 +3,6 @@ package scalar
 import (
 	"cmp"
 	"math"
-	"reflect"
 	"regexp"
 	"strings"
 )
@@ -41,7 +40,7 @@ func (s *SV) numify() (iv int64, nv float64, isInt bool) {
 		iv, nv, isInt, _ = parseNumber(v)
 		return iv, nv, isInt
 	}
-	p := int64(reflect.ValueOf(s.v).Pointer())
+	p := refAddr(s.v)
 	return p, float64(p), true
 }
 
@@ -122,23 +121,25 @@ func (s *SV) Pow(x any) *SV {
 	return &SV{v: math.Pow(af, bf)}
 }
 
-var identStart = regexp.MustCompile(`^[A-Za-z_]`)
-
 // Neg is Perl's unary minus, string madness included: -"foo" is "-foo",
 // -"-foo" is "+foo", and -"+foo" is "-foo". Numeric strings negate as numbers.
 func (s *SV) Neg() *SV {
-	if f, ok := s.val().(float64); ok {
-		return &SV{v: -f} // keeps -0.0, which 0 - f would not
-	}
-	if str, ok := s.val().(string); ok && str != "" {
-		_, _, _, numeric := parseNumber(str)
-		switch {
-		case identStart.MatchString(str):
-			return &SV{v: "-" + str}
-		case str[0] == '+':
-			return &SV{v: "-" + str[1:]}
-		case str[0] == '-' && !numeric:
-			return &SV{v: "+" + str[1:]}
+	switch v := s.val().(type) {
+	case float64:
+		return &SV{v: -v} // keeps -0.0, which 0 - v would not
+	case string:
+		if v == "" {
+			break
+		}
+		switch c := v[0]; {
+		case c == '_' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+			return &SV{v: "-" + v}
+		case c == '+':
+			return &SV{v: "-" + v[1:]}
+		case c == '-':
+			if _, _, _, numeric := parseNumber(v); !numeric {
+				return &SV{v: "+" + v[1:]}
+			}
 		}
 	}
 	return Scalar(0).Sub(s)

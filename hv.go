@@ -17,15 +17,21 @@ type HV struct {
 // Hash builds a hash from a flat key/value list, as %h = (k1 => v1, ...)
 // does. Keys are stringified; a trailing key without a value maps to undef.
 func Hash(kv ...any) *HV {
-	h := &HV{}
+	h := newHV((len(kv) + 1) / 2)
 	for i := 0; i < len(kv); i += 2 {
 		var v any
 		if i+1 < len(kv) {
 			v = kv[i+1]
 		}
-		h.Set(Scalar(kv[i]).Str(), v)
+		h.m[Scalar(kv[i]).Str()] = Scalar(v)
 	}
 	return h
+}
+
+// newHV returns an empty hash with room for n keys. Constructors fill h.m
+// directly, skipping the autovivification machinery in Get and Set.
+func newHV(n int) *HV {
+	return &HV{m: make(map[string]*SV, n)}
 }
 
 // Length is Perl's scalar(keys %h).
@@ -144,10 +150,13 @@ func (h *HV) ValuesSlice() []*SV {
 	return vs
 }
 
-// All iterates over key/value pairs in the same order as Keys.
+// All iterates over key/value pairs in the same order as Keys. Keys added
+// during iteration aren't visited; keys deleted during iteration are skipped.
 func (h *HV) All() iter.Seq2[string, *SV] {
 	return func(yield func(string, *SV) bool) {
-		for _, k := range slices.Clone(h.keys()) {
+		// Adding or deleting a key replaces h.order rather than changing it,
+		// so ranging over the current slice is safe without a copy.
+		for _, k := range h.keys() {
 			s, ok := h.m[k]
 			if !ok {
 				continue // deleted during iteration
