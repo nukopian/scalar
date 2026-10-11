@@ -383,6 +383,7 @@ a.Exists(3)                    // exists $a[3]
 a.Delete(3)                    // delete $a[3]
 a.Slice(0, -1)                 // @a[0, -1]
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
+head, tail := a.SplitAt(2)        // my ($x, $y, @tail) = @a   (see below)
 
 a.Join(", ")                   // join(", ", @a)
 a.Sort(nil)                    // sort @a                  (as strings)
@@ -396,8 +397,31 @@ for i, s := range a.All() {
 }
 ```
 
-`Sort`, `Reverse`, `Map`, `Grep` and `Slice` return a new array and leave the
-original alone. `Splice` returns the elements it removed.
+`Sort`, `Reverse`, `Map`, `Grep`, `Slice` and `SplitAt` return new arrays and
+leave the original alone. `Splice` returns the elements it removed.
+
+### Splitting off the first few elements
+
+Perl's `my ($one, $two, $three, @tail) = @a` splits a list into its first few
+elements and the rest. Go can't return a different number of values depending
+on an argument, so `SplitAt` returns the head as one array, and `SplitAtSlice`
+returns it as a Go slice you can unpack. (The name comes from Haskell's
+`splitAt`, which also returns the first `n` elements and the rest.)
+
+```go
+head, tail := a.SplitAt(3)          // head and tail are both arrays
+
+h, tail := a.SplitAtSlice(3)        // h is a []*scalar.SV
+one, two, three := h[0], h[1], h[2]
+```
+
+As with Perl's list assignment:
+
+- **The head always has exactly `n` elements.** If the array is shorter, the
+  missing ones are undef, so `h[2]` is always safe to read.
+- **Everything is a copy,** and the original array isn't changed. To remove
+  the elements as well, use `Shift` or `Splice(0, n)`.
+- **A negative count panics,** as `make` does in Go.
 
 ### Lists flatten, as in Perl
 
@@ -993,7 +1017,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `UniqueStr`, `UniqueNum` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `Ucfirst`, `Lcfirst`, `Trim` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |

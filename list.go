@@ -1,6 +1,9 @@
 package scalar
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // List utilities, after Perl's List::Util. The predicate functions play the
 // part of List::Util's blocks: a.AnyMatch(f) is any { f($_) } @a.
@@ -84,6 +87,42 @@ func (a *AV) extreme(beats func(x, best *SV) bool) *SV {
 		return &SV{}
 	}
 	return best
+}
+
+// SplitAt splits a into its first n elements and the rest, as Perl's
+// my ($x1, ..., $xn, @tail) = @a does. head always has exactly n elements,
+// padded with undef if a is shorter, so head.Get(i) for i < n is always
+// meaningful. Both arrays hold copies, and a isn't changed; to remove the
+// elements as well, use Shift or Splice. n must not be negative. The name
+// comes from Haskell's splitAt, which also returns the head and the rest.
+func (a *AV) SplitAt(n int) (head, tail *AV) {
+	h, tail := a.SplitAtSlice(n)
+	return &AV{items: h}, tail
+}
+
+// SplitAtSlice is SplitAt with the head as a Go slice of exactly n elements, so
+// it can be unpacked: h, tail := a.SplitAtSlice(3); x, y, z := h[0], h[1], h[2].
+func (a *AV) SplitAtSlice(n int) (head []*SV, tail *AV) {
+	if n < 0 {
+		panic(fmt.Sprintf("scalar: SplitAt count %d is negative", n))
+	}
+	var items []*SV // Copy turns holes (nil entries) into undef
+	if a != nil {
+		items = a.items
+	}
+	head = make([]*SV, n)
+	for i := range head {
+		if i < len(items) {
+			head[i] = items[i].Copy()
+		} else {
+			head[i] = &SV{}
+		}
+	}
+	tail = &AV{items: make([]*SV, 0, max(len(items)-n, 0))}
+	for _, s := range items[min(n, len(items)):] {
+		tail.items = append(tail.items, s.Copy())
+	}
+	return head, tail
 }
 
 // UniqueStr is List::Util's uniqstr: a new array of copies of the elements,

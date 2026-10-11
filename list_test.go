@@ -157,3 +157,59 @@ func TestMaxMinNum(t *testing.T) {
 		t.Error("empty array should give undef")
 	}
 }
+
+func TestSplitAt(t *testing.T) {
+	list := Array("one", "two", "three", "four", "five")
+
+	// my ($one, $two, $three, @tail) = @list
+	h, tail := list.SplitAtSlice(3)
+	one, two, three := h[0], h[1], h[2]
+	if one.Str() != "one" || two.Str() != "two" || three.Str() != "three" || show(tail) != "four,five" {
+		t.Errorf("SplitAtSlice(3) = %v, %s", h, show(tail))
+	}
+
+	head, tail := list.SplitAt(3)
+	if show(head) != "one,two,three" || show(tail) != "four,five" {
+		t.Errorf("SplitAt(3) = %s, %s", show(head), show(tail))
+	}
+
+	// Shorter than n: the head is padded with undef, the tail is empty.
+	h, tail = Array("a").SplitAtSlice(3)
+	if len(h) != 3 || h[0].Str() != "a" || h[1].Defined() || h[2].Defined() || tail.Length() != 0 {
+		t.Errorf("short SplitAtSlice = %v, %s", h, show(tail))
+	}
+	head, tail = Array("a").SplitAt(3)
+	if head.Length() != 3 || show(head) != "a,-,-" || tail.Length() != 0 {
+		t.Errorf("short SplitAt = %s, %s", show(head), show(tail))
+	}
+
+	// Edge cases.
+	if head, tail := list.SplitAt(0); head.Length() != 0 || tail.Length() != 5 {
+		t.Error("SplitAt(0) should give everything as the tail")
+	}
+	if h, tail := (*AV)(nil).SplitAtSlice(2); len(h) != 2 || h[0].Defined() || tail.Length() != 0 {
+		t.Error("nil array")
+	}
+	holey := Array()
+	holey.Set(2, "c")
+	if head, _ := holey.SplitAt(3); show(head) != "-,-,c" {
+		t.Errorf("holes = %s", show(head))
+	}
+
+	// Copies, and the list itself is unchanged.
+	h, tail = list.SplitAtSlice(1)
+	h[0].Set("changed")
+	tail.Get(0).Set("changed")
+	tail.Push("extra")
+	if show(list) != "one,two,three,four,five" {
+		t.Errorf("SplitAt changed the list: %s", show(list))
+	}
+	// Writing to a padding undef doesn't add to the list either.
+	h, _ = Array().SplitAtSlice(1)
+	h[0].Set("x")
+	if list.Length() != 5 {
+		t.Error("padding should be detached")
+	}
+
+	expectPanic(t, "negative count", "SplitAt count -1 is negative", func() { list.SplitAt(-1) })
+}
