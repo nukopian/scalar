@@ -387,10 +387,10 @@ it's used and then reused.
 
 | Perl | Go |
 |------|-----|
-| `$s =~ /re/` | `s.Matches(re)` |
-| `my @m = $s =~ /re/` | `s.Match(re)` |
-| `$s =~ /re/g` | `s.Match(re, "g")` |
-| `%+` | `s.MatchNamed(re)` |
+| `if ($s =~ /re/)` | `if s.M(re) != nil` |
+| `my @m = $s =~ /re/` | `s.M(re)` |
+| `$s =~ /re/g` | `s.M(re, "g")` |
+| `%+` | `s.Named(re)` |
 | `$s =~ s/re/x/` | `s.S(re, "x")` |
 | `$s =~ s/re/x/g` | `s.S(re, "x", "g")` |
 | `$s =~ s/re/x/r` | `s.S(re, "x", "r")` |
@@ -398,18 +398,18 @@ it's used and then reused.
 | `split /re/, $s` | `s.Split(re)` |
 | `$s =~ tr/a-z/A-Z/` | `s.Tr("a-z", "A-Z")` |
 
-Every method here takes Perl's flags as an optional last argument, written as
-one string: `s.Match(re, "gi")`, `s.S(re, "x", "gi")`.
+`M`, `Named`, `S` and `Tr` take Perl's flags as an optional last argument,
+written as one string: `s.M(re, "gi")`, `s.S(re, "x", "gi")`.
 
-- **Everywhere:** `i` (ignore case), `m` (multi-line `^`/`$`), `s` (`.` matches
-  newline), `x` (allow spaces and comments in the pattern).
-- **`Match` and `S`:** `g` (every match, not just the first).
-- **`S` only:** `r` (return a new string instead of changing `s`).
+- **`M`, `Named` and `S`:** `i` (ignore case), `m` (multi-line `^`/`$`), `s`
+  (`.` matches newline), `x` (allow spaces and comments in the pattern).
+- **`M` and `S`:** `g` (every match, not just the first).
+- **`S` only:** `r` (return a new string instead of changing the scalar).
 - **`Tr` has its own flags:** `c`, `d`, `s` and `r`, the same as Perl's `tr///`.
 
-`Matches` and `MatchNamed` don't take `g`. In Perl, `if ($s =~ /re/g)` steps
-through the matches one call at a time, which depends on hidden state that
-`scalar` doesn't keep.
+`Split`'s optional argument is the limit instead, as in Perl. To give `Split`
+a flag, put it inside the pattern: `` s.Split(`(?i)and`) ``. That works in
+every pattern.
 
 Use Go raw strings (backquotes) for patterns, so backslashes don't need
 escaping.
@@ -419,41 +419,43 @@ escaping.
 ```go
 s := scalar.Scalar("Salary: £45,000 - £55,000")
 
-if s.Matches(`(?i)salary`) { ... }
+if s.M(`(?i)salary`) != nil { ... }
 
-m := s.Match(`£([\d,]+)\s*-\s*£([\d,]+)`)
+m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
 m.Get(0) // "£45,000 - £55,000"   ($&)
 m.Get(1) // "45,000"              ($1)
 m.Get(2) // "55,000"              ($2)
 ```
 
-Unlike Perl's list of captures, which starts at `$1`, `Match` puts the whole
+Unlike Perl's list of captures, which starts at `$1`, `M` puts the whole
 match at index 0. That way `Get(n)` is always `$n`.
 
-`Match` returns `nil` if nothing matched. It's still safe to read:
-`s.Match(re).Get(1).Str()` is just `""`. A group that didn't take part in the
+`M` returns `nil` if nothing matched. It's still safe to read:
+`s.M(re).Get(1).Str()` is just `""`. A group that didn't take part in the
 match is undef.
 
-With `g`, `Match` finds every match and returns one array per match, each
+With `g`, `M` finds every match and returns one array per match, each
 laid out the same way. If nothing matches, it also returns `nil`, so
 `m != nil` means "matched" either way:
 
 ```go
-for _, m := range s.Match(`£([\d,]+)`, "g").All() {
+for _, m := range s.M(`£([\d,]+)`, "g").All() {
 	fmt.Println(m.AV().Get(1))   // 45,000 then 55,000
 }
 ```
 
-`MatchNamed` returns named groups as a hash:
+`Named` returns the named groups of the first match as a hash, like Perl's
+`%+`, or `nil` if nothing matched. It doesn't take `g`, because `%+` only ever
+describes one match:
 
 ```go
-d := scalar.Scalar("2026-10-11").MatchNamed(`(?<year>\d{4})-(?<month>\d\d)`)
+d := scalar.Scalar("2026-10-11").Named(`(?<year>\d{4})-(?<month>\d\d)`)
 d.Get("year").Int() // 2026
 ```
 
 **Group numbering differs from Perl.** Named groups are numbered *after* all
 the unnamed ones. In `(?<y>\d+)-(\d+)`, the unnamed group is `$1` and `y` is
-`$2`. If you name your groups, use `MatchNamed`.
+`$2`. If you name your groups, use `Named`.
 
 ### Substitution
 
@@ -479,7 +481,7 @@ clean := s.S(`\s+`, " ", "gr").Str()
 ```
 
 For computed replacements, as in `s///e`, pass a function. It gets the match
-in the same layout as `Match` returns:
+in the same layout as `M` returns:
 
 ```go
 s := scalar.Scalar("10 apples and 3 pears")

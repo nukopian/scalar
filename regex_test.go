@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestMatches(t *testing.T) {
+func TestMatchAsCondition(t *testing.T) {
 	tests := []struct {
 		s, re, flags string
 		want         bool
@@ -24,77 +24,76 @@ func TestMatches(t *testing.T) {
 		{"hello world", `\b(\w+) \1\b`, "", false},
 	}
 	for _, tt := range tests {
-		if got := Scalar(tt.s).Matches(tt.re, tt.flags); got != tt.want {
+		if got := Scalar(tt.s).M(tt.re, tt.flags) != nil; got != tt.want {
 			t.Errorf("%q =~ /%s/%s = %v, want %v", tt.s, tt.re, tt.flags, got, tt.want)
 		}
 	}
 }
 
 func TestMatch(t *testing.T) {
-	m := Scalar("Salary: £45,000 - £55,000").Match(`£([\d,]+)\s*-\s*£([\d,]+)`)
+	m := Scalar("Salary: £45,000 - £55,000").M(`£([\d,]+)\s*-\s*£([\d,]+)`)
 	if m.Length() != 3 || m.Get(0).Str() != "£45,000 - £55,000" || m.Get(1).Str() != "45,000" || m.Get(2).Str() != "55,000" {
-		t.Errorf("Match = %s", mustJSON(t, m))
+		t.Errorf("M = %s", mustJSON(t, m))
 	}
 
 	// Groups that don't participate are undef.
-	m = Scalar("ab").Match(`(a)(x)?(b)`)
+	m = Scalar("ab").M(`(a)(x)?(b)`)
 	if m.Get(2).Defined() || m.Get(3).Str() != "b" {
 		t.Errorf("optional group: %s", mustJSON(t, m))
 	}
 
 	// No match gives nil, which is still safe to read.
-	m = Scalar("nothing here").Match(`(\d+)`)
+	m = Scalar("nothing here").M(`(\d+)`)
 	if m != nil || m.Get(1).Str() != "" || m.Length() != 0 {
 		t.Error("no match should be a readable nil")
 	}
 }
 
 func TestMatchGlobal(t *testing.T) {
-	all := Scalar("Go 1.27, Perl 5.40, Python 3.13").Match(`(\w+) (\d+)\.(\d+)`, "g")
+	all := Scalar("Go 1.27, Perl 5.40, Python 3.13").M(`(\w+) (\d+)\.(\d+)`, "g")
 	var got []string
 	for _, m := range all.All() {
 		got = append(got, m.AV().Get(1).Str()+"="+m.AV().Get(2).Str())
 	}
 	if strings.Join(got, ",") != "Go=1,Perl=5,Python=3" {
-		t.Errorf(`Match(re, "g") = %v`, got)
+		t.Errorf(`M(re, "g") = %v`, got)
 	}
 
-	// Each match is laid out as Match lays out one: $& at 0, then groups.
+	// Each match is laid out as M lays out one: $& at 0, then groups.
 	first := all.Get(0).AV()
 	if first.Get(0).Str() != "Go 1.27" || first.Get(3).Str() != "27" {
 		t.Errorf("first match = %s", show(first))
 	}
 
 	// Flags combine.
-	if got := Scalar("a A a").Match(`a`, "gi").Length(); got != 3 {
-		t.Errorf(`Match(re, "gi") found %d matches, want 3`, got)
+	if got := Scalar("a A a").M(`a`, "gi").Length(); got != 3 {
+		t.Errorf(`M(re, "gi") found %d matches, want 3`, got)
 	}
 
 	// No match is nil either way, so m != nil means "matched".
-	if Scalar("none").Match(`\d`, "g") != nil || Scalar("none").Match(`\d`) != nil {
+	if Scalar("none").M(`\d`, "g") != nil || Scalar("none").M(`\d`) != nil {
 		t.Error("no match should be nil, with or without g")
 	}
-	if Scalar("none").Match(`\d`, "g").Length() != 0 {
+	if Scalar("none").M(`\d`, "g").Length() != 0 {
 		t.Error("a nil result should still be safe to read")
 	}
 
 	// g doesn't make sense for these, as in Perl.
-	expectPanic(t, "Matches with g", `doesn't support flag 'g'`, func() { Scalar("x").Matches(`x`, "g") })
-	expectPanic(t, "MatchNamed with g", `doesn't support flag 'g'`, func() { Scalar("x").MatchNamed(`(?<n>x)`, "g") })
+	expectPanic(t, "Named with g", `doesn't support flag 'g'`, func() { Scalar("x").Named(`(?<n>x)`, "g") })
 }
 
-func TestMatchNamed(t *testing.T) {
-	h := Scalar("2026-10-11").MatchNamed(`(?<year>\d{4})-(?<month>\d\d)-(\d\d)(?<time>T.*)?`)
+func TestNamed(t *testing.T) {
+	h := Scalar("2026-10-11").Named(`(?<year>\d{4})-(?<month>\d\d)-(\d\d)(?<time>T.*)?`)
 	if h.Get("year").Int() != 2026 || h.Get("month").Str() != "10" {
-		t.Errorf("MatchNamed = %s", mustJSON(t, h))
+		t.Errorf("Named = %s", mustJSON(t, h))
 	}
 	if !h.Exists("time") || h.Get("time").Defined() {
 		t.Error("non-participating named group should exist as undef")
 	}
 	if h.Length() != 3 {
-		t.Errorf("unnamed groups leaked into MatchNamed: %s", mustJSON(t, h))
+		t.Errorf("unnamed groups leaked into Named: %s", mustJSON(t, h))
 	}
-	if Scalar("x").MatchNamed(`(?<d>\d)`) != nil {
+	if Scalar("x").Named(`(?<d>\d)`) != nil {
 		t.Error("no match should be nil")
 	}
 }
@@ -213,8 +212,8 @@ func TestTr(t *testing.T) {
 }
 
 func TestRegexPanics(t *testing.T) {
-	expectPanic(t, "bad pattern", "bad regex", func() { Scalar("x").Matches(`(`) })
-	expectPanic(t, "bad flag", `doesn't support flag 'g'`, func() { Scalar("x").Matches(`x`, "g") })
+	expectPanic(t, "bad pattern", "bad regex", func() { Scalar("x").M(`(`) })
+	expectPanic(t, "bad flag", `doesn't support flag 'r'`, func() { Scalar("x").M(`x`, "r") })
 	expectPanic(t, "bad tr flag", `doesn't support flag 'g'`, func() { Scalar("x").Tr("x", "y", "g") })
 	expectPanic(t, "bad repl type", "S replacement", func() { Scalar("x").S(`x`, 42) })
 	expectPanic(t, "bad Path key", "Path key must be string or int", func() { Scalar(nil).Path(1.5) })
@@ -239,5 +238,5 @@ func TestRegexTimeout(t *testing.T) {
 			t.Errorf("timeout took %v", elapsed)
 		}
 	}()
-	evil.Matches(`^(a+)+$`)
+	evil.M(`^(a+)+$`)
 }

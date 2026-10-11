@@ -16,14 +16,15 @@ import (
 // named captures all work. Patterns are compiled on first use and cached, so
 // they can be written inline as in Perl.
 //
-// Flags are passed as an optional trailing string, as in Perl: "i", "m",
-// "s" and "x" work everywhere; Match and S also take "g", and S
-// takes "r". Invalid patterns, unknown flags and timeouts panic, as Perl
-// would die.
+// Flags are passed as an optional trailing string, as in Perl: M, Named
+// and S take "i", "m", "s" and "x"; M and S also take "g", and S takes "r".
+// Split's optional argument is its limit, so its flags go inside the
+// pattern, as in (?i). Invalid patterns, unknown flags and timeouts panic,
+// as Perl would die.
 //
 // One difference from Perl: named groups are numbered after all unnamed
 // groups, so in (?<y>\d+)-(\d+) the unnamed group is $1 and y is $2. Use
-// MatchNamed to get named groups by name.
+// Named to get named groups by name.
 
 // RegexTimeout caps how long a single match may run, so that a pathological
 // pattern meeting unexpected input can't hang the program. Set it before
@@ -121,32 +122,29 @@ func firstMatch(rx *regexp2.Regexp, str string) *regexp2.Match {
 func matchAV(m *regexp2.Match) *AV {
 	groups := m.Groups()
 	a := &AV{items: make([]*SV, len(groups))}
-	for i, g := range groups {
-		if len(g.Captures) == 0 {
-			a.items[i] = &SV{}
-		} else {
-			a.items[i] = &SV{v: g.String()}
-		}
+	for i := range groups {
+		a.items[i] = groupSV(&groups[i])
 	}
 	return a
 }
 
-// Matches reports whether s matches re: if ($s =~ /re/).
-func (s *SV) Matches(re string, flags ...string) bool {
-	rx := compile(re, parseFlags("Matches", "imsx", flags))
-	ok, err := rx.MatchString(s.Str())
-	check(rx, err)
-	return ok
+// groupSV is a group's captured text, or undef if the group didn't take part
+// in the match.
+func groupSV(g *regexp2.Group) *SV {
+	if g == nil || len(g.Captures) == 0 {
+		return &SV{}
+	}
+	return &SV{v: g.String()}
 }
 
-// Match is $s =~ /re/ with captures. It returns nil if there is no match;
+// M is $s =~ /re/ with captures. It returns nil if there is no match;
 // otherwise Get(0) is the whole match and Get(n) is $n. A nil *AV is safe
-// to read, so s.Match(re).Get(1).Str() is "" when nothing matched.
+// to read, so s.M(re).Get(1).Str() is "" when nothing matched.
 //
 // With the "g" flag it is $s =~ /re/g: it returns one array reference per
 // match, each laid out as above, or nil if nothing matched.
-func (s *SV) Match(re string, flags ...string) *AV {
-	f := parseFlags("Match", "imsxg", flags)
+func (s *SV) M(re string, flags ...string) *AV {
+	f := parseFlags("M", "imsxg", flags)
 	rx := compile(re, f)
 	if !f.has('g') {
 		if m := firstMatch(rx, s.Str()); m != nil {
@@ -164,33 +162,28 @@ func (s *SV) Match(re string, flags ...string) *AV {
 	return out
 }
 
-// MatchNamed is $s =~ /re/ followed by reading %+. It returns nil if there
+// Named is $s =~ /re/ followed by reading %+. It returns nil if there
 // is no match, otherwise a hash of named groups; ones that didn't
 // participate are undef.
-func (s *SV) MatchNamed(re string, flags ...string) *HV {
-	rx := compile(re, parseFlags("MatchNamed", "imsx", flags))
+func (s *SV) Named(re string, flags ...string) *HV {
+	rx := compile(re, parseFlags("Named", "imsx", flags))
 	m := firstMatch(rx, s.Str())
 	if m == nil {
 		return nil
 	}
-	h := &HV{}
+	h := newHV(0)
 	for _, name := range rx.GetGroupNames() {
 		if _, err := strconv.Atoi(name); err == nil {
 			continue // unnamed groups are named by number
 		}
-		g := m.GroupByName(name)
-		if g == nil || len(g.Captures) == 0 {
-			h.Set(name, nil)
-		} else {
-			h.Set(name, g.String())
-		}
+		h.m[name] = groupSV(m.GroupByName(name))
 	}
 	return h
 }
 
 // S is Perl's s///. repl is either a replacement string, in which $1,
 // ${name}, $& and $$ are expanded, or a func(*AV) any (or func(*AV) string)
-// that receives the match as Match lays it out, like s///e.
+// that receives the match as M lays it out, like s///e.
 //
 // Flags: "g" replaces every match; "r" leaves s alone and returns the new
 // string. Without "r", s is modified in place (only if something matched)
