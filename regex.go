@@ -110,8 +110,8 @@ func matches(rx *regexp2.Regexp, text []rune) iter.Seq[*regexp2.Match] {
 	}
 }
 
-// firstMatch returns the first match of rx in str, or nil.
-func firstMatch(rx *regexp2.Regexp, str string) *regexp2.Match {
+// firstRegexMatch returns the first match of rx in str, or nil.
+func firstRegexMatch(rx *regexp2.Regexp, str string) *regexp2.Match {
 	m, err := rx.FindStringMatch(str)
 	check(rx, err)
 	return m
@@ -147,7 +147,7 @@ func (s *SV) M(re string, flags ...string) *AV {
 	f := parseFlags("M", "imsxg", flags)
 	rx := compile(re, f)
 	if !f.has('g') {
-		if m := firstMatch(rx, s.Str()); m != nil {
+		if m := firstRegexMatch(rx, s.Str()); m != nil {
 			return matchAV(m)
 		}
 		return nil
@@ -167,7 +167,7 @@ func (s *SV) M(re string, flags ...string) *AV {
 // participate are undef.
 func (s *SV) Named(re string, flags ...string) *HV {
 	rx := compile(re, parseFlags("Named", "imsx", flags))
-	m := firstMatch(rx, s.Str())
+	m := firstRegexMatch(rx, s.Str())
 	if m == nil {
 		return nil
 	}

@@ -263,6 +263,46 @@ for i, s := range a.All() {
 `Sort`, `Reverse`, `Map`, `Grep` and `Slice` return a new array and leave the
 original alone. `Splice` returns the elements it removed.
 
+### List utilities
+
+These follow Perl's `List::Util`. The ones that test elements take a function,
+where Perl takes a block:
+
+| Perl (`List::Util`) | Go |
+|------|-----|
+| `any { ... } @a` | `a.AnyMatch(func(s *scalar.SV) bool { ... })` |
+| `all { ... } @a` | `a.AllMatch(func(s *scalar.SV) bool { ... })` |
+| `none { ... } @a` | `a.NoneMatch(func(s *scalar.SV) bool { ... })` |
+| `first { ... } @a` | `a.FirstMatch(func(s *scalar.SV) bool { ... })` |
+| `max @a`, `min @a` | `a.MaxNum()`, `a.MinNum()` |
+| `maxstr @a`, `minstr @a` | `a.MaxStr()`, `a.MinStr()` |
+| `uniqstr @a` | `a.UniqueStr()` |
+| `uniqnum @a` | `a.UniqueNum()` |
+
+```go
+remote := func(s *scalar.SV) bool { return s.M(`(?i)\bremote\b`) != nil }
+if bullets.AnyMatch(remote) { ... }
+
+salary := chunks.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
+
+skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr()   // ignoring case
+```
+
+As in Perl:
+
+- **Empty arrays:** `AllMatch` and `NoneMatch` are true, and `AnyMatch` is false.
+- **`AnyMatch` and `FirstMatch` stop at the first match.**
+- **Nothing found:** `FirstMatch` and the max and min methods return undef.
+  Otherwise, like `Get`, they return the element itself, not a copy.
+- **`MaxNum` and `MinNum` compare as numbers,** so `"10"` beats `9`.
+  **`MaxStr` and `MinStr` compare as strings,** so `"9"` beats `"10"`. All
+  four keep the first of equal elements. As in `List::Util`, a NaN never wins
+  a comparison, so `MaxNum` only returns one if it comes first.
+- **`UniqueStr` and `UniqueNum` keep the first of each value, in order,** and
+  return copies. `UniqueStr` compares as strings, with undef counting as `""`.
+  `UniqueNum` compares as numbers, so `1`, `"1"` and `"1.0"` count as the same
+  value. Large integers compare exactly.
+
 ### Sorting
 
 `Sort` takes any function of the form `func(x, y *scalar.SV) int`. Closures
@@ -704,7 +744,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `UniqueStr`, `UniqueNum` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `Ucfirst`, `Lcfirst`, `Trim` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |

@@ -1,0 +1,159 @@
+package scalar
+
+import (
+	"math"
+	"testing"
+)
+
+func TestMatchPredicates(t *testing.T) {
+	bullets := Array("Write Go services", "Remote-first team", "Mentor juniors")
+	remote := func(s *SV) bool { return s.M(`(?i)\bremote\b`) != nil }
+	hasLetters := func(s *SV) bool { return s.M(`\p{L}`) != nil }
+	salary := func(s *SV) bool { return s.Index("£") >= 0 }
+
+	tests := []struct {
+		name string
+		got  bool
+		want bool
+	}{
+		{"any: one matches", bullets.AnyMatch(remote), true},
+		{"any: none match", bullets.AnyMatch(salary), false},
+		{"all: every one matches", bullets.AllMatch(hasLetters), true},
+		{"all: one doesn't", bullets.AllMatch(remote), false},
+		{"none: none match", bullets.NoneMatch(salary), true},
+		{"none: one does", bullets.NoneMatch(remote), false},
+
+		// Empty arrays, as in List::Util.
+		{"any on empty", Array().AnyMatch(remote), false},
+		{"all on empty", Array().AllMatch(remote), true},
+		{"none on empty", Array().NoneMatch(remote), true},
+		{"nil array", (*AV)(nil).AllMatch(remote), true},
+	}
+	for _, tt := range tests {
+		if tt.got != tt.want {
+			t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.want)
+		}
+	}
+
+	// AnyMatch stops at the first match.
+	calls := 0
+	Array(1, 2, 3).AnyMatch(func(s *SV) bool { calls++; return s.Int() == 1 })
+	if calls != 1 {
+		t.Errorf("AnyMatch made %d calls, want 1", calls)
+	}
+}
+
+func TestFirstMatch(t *testing.T) {
+	chunks := Array("About us", "Salary: £45,000", "Salary: £50,000")
+	first := chunks.FirstMatch(func(s *SV) bool { return s.Index("£") >= 0 })
+	if first.Str() != "Salary: £45,000" {
+		t.Errorf("FirstMatch = %q", first)
+	}
+
+	// It's the element itself, like Get.
+	first.Set("changed")
+	if chunks.Get(1).Str() != "changed" {
+		t.Error("FirstMatch should return the stored element")
+	}
+
+	if Array(1, 2).FirstMatch(func(s *SV) bool { return s.Int() > 5 }).Defined() {
+		t.Error("no match should be undef")
+	}
+}
+
+func TestMaxMinStr(t *testing.T) {
+	a := Array("pear", "apple", "fig", "10", "9")
+	if a.MaxStr().Str() != "pear" || a.MinStr().Str() != "10" {
+		t.Errorf("MaxStr %q, MinStr %q", a.MaxStr(), a.MinStr())
+	}
+	// String order, not numeric: "9" sorts after "10".
+	if Array(10, 9).MaxStr().Int() != 9 {
+		t.Error("MaxStr compares as strings")
+	}
+	// Ties keep the first.
+	x, y := Scalar("same"), Scalar("same")
+	tied := Array(x, y)
+	if tied.MaxStr() != tied.Get(0) || tied.MinStr() != tied.Get(0) {
+		t.Error("ties should keep the first element")
+	}
+	if Array().MaxStr().Defined() || Array().MinStr().Defined() {
+		t.Error("empty array should give undef")
+	}
+}
+
+func TestUniqueStr(t *testing.T) {
+	skills := Array("Go", "Perl", "Go", "go", "Perl", "SQL")
+	if got := show(skills.UniqueStr()); got != "Go,Perl,go,SQL" {
+		t.Errorf("UniqueStr = %s", got)
+	}
+
+	// Ignoring case: fold first, then remove duplicates.
+	folded := skills.Map(func(s *SV) any { return s.Fc() }).UniqueStr()
+	if got := show(folded); got != "go,perl,sql" {
+		t.Errorf("UniqueStr of Fc = %s", got)
+	}
+
+	// Strings, so 1 and "1.0" differ; undef counts as "".
+	if got := showSep(Array(1, "1", "1.0", nil, "").UniqueStr(), "|"); got != "1|1.0|-" {
+		t.Errorf("UniqueStr = %s", got)
+	}
+
+	// Copies.
+	a := Array("x")
+	a.UniqueStr().Get(0).Set("changed")
+	if a.Get(0).Str() != "x" {
+		t.Error("UniqueStr should copy")
+	}
+}
+
+func TestUniqueNum(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *AV
+		want string
+	}{
+		{"numbers and numeric strings", Array(1, "1", "1.0", 2, " 2 ", 3.5, "3.50"), "1,2,3.5"},
+		{"order kept", Array(3, 1, 3, 2, 1), "3,1,2"},
+		{"0 and -0", Array(0, math.Copysign(0, -1), "0", "-0"), "0"},
+		{"large integers exact", Array("9007199254740993", "9007199254740992"), "9007199254740993,9007199254740992"},
+		{"NaNs are one", Array(math.NaN(), "nan", math.NaN()), "NaN"},
+		{"non-numeric strings are 0", Array("abc", 0, "xyz"), "abc"},
+		{"empty", Array(), ""},
+	}
+	for _, tt := range tests {
+		if got := show(tt.in.UniqueNum()); got != tt.want {
+			t.Errorf("%s: UniqueNum = %s, want %s", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestMaxMinNum(t *testing.T) {
+	a := Array(3, "10", 2.5, " 7 ")
+	if a.MaxNum() != a.Get(1) || a.MinNum() != a.Get(2) {
+		t.Errorf("MaxNum %q, MinNum %q", a.MaxNum(), a.MinNum())
+	}
+	// Numeric, not string, order: the opposite of MaxStr here.
+	if Array(10, 9).MaxNum().Int() != 10 || Array(10, 9).MaxStr().Int() != 9 {
+		t.Error("MaxNum compares as numbers")
+	}
+	// Large integers compare exactly.
+	big := Array("9007199254740992", "9007199254740993")
+	if big.MaxNum().Str() != "9007199254740993" {
+		t.Errorf("MaxNum of large integers = %q", big.MaxNum())
+	}
+	// Ties keep the first.
+	tied := Array(1, "1.0")
+	if tied.MaxNum() != tied.Get(0) || tied.MinNum() != tied.Get(0) {
+		t.Error("ties should keep the first element")
+	}
+	// NaN never wins a comparison, so it only results if it comes first.
+	if !math.IsNaN(Array(math.NaN(), 5).MaxNum().Num()) {
+		t.Error("a leading NaN should be the result, as in List::Util")
+	}
+	if Array(5, math.NaN(), 7).MaxNum().Int() != 7 || Array(5, math.NaN(), 3).MinNum().Int() != 3 {
+		t.Error("a later NaN should be ignored")
+	}
+	if Array().MaxNum().Defined() || Array().MinNum().Defined() {
+		t.Error("empty array should give undef")
+	}
+}
