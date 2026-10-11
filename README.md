@@ -159,6 +159,47 @@ The rules are Perl's:
 like Perl's four-argument `substr`. It also does the job of assigning to
 `substr`: Perl's `substr($s, 0, 1) = "X"` is `s.SubstrReplace(0, 1, "X")`.
 
+### Searching, case and trimming
+
+| Perl | Go | |
+|------|-----|---|
+| `index($s, "£")` | `s.Index("£")` | first position of `"£"`, or -1 |
+| `index($s, "£", 5)` | `s.Index("£", 5)` | first position at or after 5 |
+| `rindex($s, "£")` | `s.Rindex("£")` | last position, or -1 |
+| `lc($s)`, `uc($s)` | `s.Lc()`, `s.Uc()` | lower or upper case |
+| `ucfirst($s)`, `lcfirst($s)` | `s.Ucfirst()`, `s.Lcfirst()` | change just the first character |
+| `fc($s)` | `s.Fc()` | case-fold, for comparing regardless of case |
+| `trim($s)` | `s.Trim()` | remove leading and trailing whitespace |
+
+They all return a new value and leave the scalar alone, so they chain:
+`s.Trim().Lc()`.
+
+`Index` and `Rindex` count characters, like Perl. Go's own `strings.Index`
+counts bytes, which gives the wrong answer for `Substr` as soon as the text
+contains `£`, `é` or `•`. The positions from `Index` can go straight into
+`Substr`:
+
+```go
+salary := scalar.Scalar("Salary: £45,000 – £55,000")
+salary.Substr(salary.Index("£"), 7)   // "£45,000"
+salary.Substr(salary.Rindex("£"))     // "£55,000"
+```
+
+The case functions use Unicode's full rules, as Perl does, so
+`Uc("straße")` is `"STRASSE"`. To compare text regardless of case, use `Fc`,
+not `Lc`. Some words have more than one lower-case form, and `Fc` maps them
+all to the same thing:
+
+```go
+seen := scalar.Hash()
+for _, skill := range skills.All() {
+	seen.Get(skill.Fc().Str()).Inc()   // "Go", "GO" and "go" count as one
+}
+```
+
+`Trim` removes Unicode whitespace too, such as the no-break spaces that HTML
+`&nbsp;` turns into.
+
 ### Other methods
 
 - `Kind()` tells you what a scalar holds: `Undef`, `Bool`, `Int`, `Float`,
@@ -445,6 +486,22 @@ every pattern.
 Use Go raw strings (backquotes) for patterns, so backslashes don't need
 escaping.
 
+### Building patterns from data
+
+To use text from your data inside a pattern, pass it through
+`scalar.Quotemeta`, Perl's `quotemeta` (`\Q...\E`). Skill names are full of
+characters that mean something in a regex: without it, `s.M("C++")` panics
+with an invalid pattern, and `s.M(".NET")` also matches `"xNET"`.
+
+```go
+for _, skill := range []string{"C++", ".NET", "Node.js"} {
+	if posting.M(`(?i)` + scalar.Quotemeta(skill)) != nil { ... }
+}
+```
+
+`Quotemeta` takes a Go string or a scalar, and returns a Go string, ready to
+add to a pattern.
+
 ### Matching
 
 ```go
@@ -633,7 +690,7 @@ return something new:
 | Changes in place | Returns something new, original untouched |
 |---|---|
 | `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys` |
-| `SubstrReplace` | `Substr` |
+| `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `Ucfirst`, `Lcfirst`, `Trim` |
 | `Inc`, `Dec` | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
 
