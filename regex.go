@@ -277,7 +277,7 @@ func (s *SV) Split(re string, limit ...int) *AV {
 		}
 		out.Push(string(runes[pos:m.Index]))
 		groups := matchAV(m)
-		for i := 1; i < groups.Len(); i++ {
+		for i := 1; i < groups.Length(); i++ {
 			out.Push(groups.Get(i))
 		}
 		pos = m.Index + m.Length
@@ -286,7 +286,7 @@ func (s *SV) Split(re string, limit ...int) *AV {
 	out.Push(string(runes[pos:]))
 
 	if lim == 0 {
-		for out.Len() > 0 && out.Get(-1).Str() == "" {
+		for out.Length() > 0 && out.Get(-1).Str() == "" {
 			out.Pop()
 		}
 	}

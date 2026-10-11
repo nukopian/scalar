@@ -28,20 +28,29 @@ func Hash(kv ...any) *HV {
 	return h
 }
 
-// Len is Perl's scalar(keys %h).
-func (h *HV) Len() int {
+// Length is Perl's scalar(keys %h).
+func (h *HV) Length() int {
 	if h == nil {
 		return 0
 	}
 	return len(h.m)
 }
 
+// Scalar is Perl's scalar(%h), which since Perl 5.26 is the number of keys.
+// It is the same as Length.
+func (h *HV) Scalar() int {
+	return h.Length()
+}
+
 // Get returns the value for key. A missing key reads as undef without being
 // created; writing through the returned SV (Set, or an autovivifying AV/HV
 // deref) creates it, so h.Get("a").HV().Set("b", 1) is $h{a}{b} = 1.
+//
+// Get on a nil *HV (something that wasn't a hash) returns undef, but
+// writing to it panics, as Perl dies with "Not a HASH reference".
 func (h *HV) Get(key string) *SV {
 	if h == nil {
-		return &SV{}
+		return &SV{noCreate: "Not a HASH reference"}
 	}
 	if s, ok := h.m[key]; ok {
 		return s
@@ -61,9 +70,6 @@ func (h *HV) store(key string, s *SV) {
 
 // Set assigns v to key and returns the stored SV.
 func (h *HV) Set(key string, v any) *SV {
-	if h == nil {
-		panic("scalar: Set on nil *HV (not a HASH reference)")
-	}
 	return h.Get(key).Set(v)
 }
 

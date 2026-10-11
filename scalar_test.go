@@ -148,7 +148,7 @@ func TestHashAutoviv(t *testing.T) {
 	// $h{x}{y}[2]{z} = 1
 	h.Get("x").HV().Get("y").AV().Get(2).HV().Set("z", 1)
 	got := h.Get("x").HV().Get("y").AV()
-	if got.Len() != 3 || got.Get(0).Defined() || got.Get(2).HV().Get("z").Int() != 1 {
+	if got.Length() != 3 || got.Get(0).Defined() || got.Get(2).HV().Get("z").Int() != 1 {
 		t.Fatalf("deep autoviv produced %s", mustJSON(t, h))
 	}
 
@@ -210,11 +210,11 @@ func TestArray(t *testing.T) {
 	if got := a.Get(-1).Int(); got != 2 {
 		t.Errorf("Get(-1) = %d", got)
 	}
-	if a.Get(-10).Defined() || a.Get(99).Defined() || a.Len() != 3 {
+	if a.Get(-10).Defined() || a.Get(99).Defined() || a.Length() != 3 {
 		t.Error("out-of-range reads should be undef and not extend the array")
 	}
 	a.Set(5, "x")
-	if a.Len() != 6 || a.Get(4).Defined() {
+	if a.Length() != 6 || a.Get(4).Defined() {
 		t.Errorf("Set(5) should extend with undef, got %s", mustJSON(t, a))
 	}
 	if Array().Pop().Defined() {
@@ -233,14 +233,14 @@ func TestCopiesAreValues(t *testing.T) {
 	// Copying a reference shares the referent, as in Perl.
 	ref := Scalar(a)
 	Scalar(ref).AV().Push(3)
-	if a.Len() != 3 {
+	if a.Length() != 3 {
 		t.Error("copied reference should share the array")
 	}
 }
 
 func TestHashOrder(t *testing.T) {
 	h := Hash("a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "orphan")
-	if h.Len() != 6 || h.Get("orphan").Defined() || !h.Exists("orphan") {
+	if h.Length() != 6 || h.Get("orphan").Defined() || !h.Exists("orphan") {
 		t.Fatal("odd-length Hash should map the last key to undef")
 	}
 
@@ -273,7 +273,7 @@ func TestHashOrder(t *testing.T) {
 	h.Set("f", 6)
 	h.Delete("b")
 	check()
-	if h.Len() != 6 || h.Exists("b") {
+	if h.Length() != 6 || h.Exists("b") {
 		t.Error("add/delete bookkeeping is off")
 	}
 }
@@ -317,4 +317,49 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+func TestLengthAndScalar(t *testing.T) {
+	tests := []struct {
+		in   any
+		want int
+	}{
+		{nil, 0},
+		{"", 0},
+		{"hello", 5},
+		{"café", 4},
+		{"→•", 2},
+		{12345, 5},
+		{-1.5, 4},
+		{true, 1},
+		{false, 0},
+		{"0E0", 3},
+	}
+	for _, tt := range tests {
+		if got := Scalar(tt.in).Length(); got != tt.want {
+			t.Errorf("length(%#v) = %d, want %d", tt.in, got, tt.want)
+		}
+	}
+	var nilSV *SV
+	if nilSV.Length() != 0 {
+		t.Error("nil *SV should have length 0")
+	}
+
+	a := Array(1, 2, 3)
+	if a.Scalar() != 3 || a.Scalar() != a.Length() || Array().Scalar() != 0 {
+		t.Error("scalar(@a) should be the element count")
+	}
+	var nilAV *AV
+	if nilAV.Scalar() != 0 {
+		t.Error("nil *AV should have scalar 0")
+	}
+
+	h := Hash("a", 1, "b", 2)
+	if h.Scalar() != 2 || h.Scalar() != h.Length() || Hash().Scalar() != 0 {
+		t.Error("scalar(%h) should be the key count")
+	}
+	var nilHV *HV
+	if nilHV.Scalar() != 0 {
+		t.Error("nil *HV should have scalar 0")
+	}
 }

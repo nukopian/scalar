@@ -32,7 +32,7 @@ func TestMatches(t *testing.T) {
 
 func TestMatch(t *testing.T) {
 	m := Scalar("Salary: £45,000 - £55,000").Match(`£([\d,]+)\s*-\s*£([\d,]+)`)
-	if m.Len() != 3 || m.Get(0).Str() != "£45,000 - £55,000" || m.Get(1).Str() != "45,000" || m.Get(2).Str() != "55,000" {
+	if m.Length() != 3 || m.Get(0).Str() != "£45,000 - £55,000" || m.Get(1).Str() != "45,000" || m.Get(2).Str() != "55,000" {
 		t.Errorf("Match = %s", mustJSON(t, m))
 	}
 
@@ -44,7 +44,7 @@ func TestMatch(t *testing.T) {
 
 	// No match gives nil, which is still safe to read.
 	m = Scalar("nothing here").Match(`(\d+)`)
-	if m != nil || m.Get(1).Str() != "" || m.Len() != 0 {
+	if m != nil || m.Get(1).Str() != "" || m.Length() != 0 {
 		t.Error("no match should be a readable nil")
 	}
 }
@@ -58,7 +58,7 @@ func TestMatchAll(t *testing.T) {
 	if strings.Join(got, ",") != "Go=1,Perl=5,Python=3" {
 		t.Errorf("MatchAll = %v", got)
 	}
-	if Scalar("none").MatchAll(`\d`).Len() != 0 {
+	if Scalar("none").MatchAll(`\d`).Length() != 0 {
 		t.Error("MatchAll with no matches should be empty")
 	}
 }
@@ -71,7 +71,7 @@ func TestMatchNamed(t *testing.T) {
 	if !h.Exists("time") || h.Get("time").Defined() {
 		t.Error("non-participating named group should exist as undef")
 	}
-	if h.Len() != 3 {
+	if h.Length() != 3 {
 		t.Errorf("unnamed groups leaked into MatchNamed: %s", mustJSON(t, h))
 	}
 	if Scalar("x").MatchNamed(`(?<d>\d)`) != nil {
@@ -132,7 +132,7 @@ func TestSubst(t *testing.T) {
 
 func TestSplit(t *testing.T) {
 	join := func(a *AV) string {
-		parts := make([]string, a.Len())
+		parts := make([]string, a.Length())
 		for i, s := range a.All() {
 			if s.Defined() {
 				parts[i] = s.Str()

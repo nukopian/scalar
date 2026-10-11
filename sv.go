@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Kind reports what an SV currently holds.
@@ -37,6 +38,12 @@ type SV struct {
 	// set when Get misses on an AV or HV, and fires on the first write, so
 	// reading a missing element doesn't create it but writing through it does.
 	viv func(*SV)
+
+	// noCreate marks an undef that Perl couldn't create, such as an array
+	// element before index 0 or an element of a non-reference. Writing to it
+	// panics with this message; dereferencing it yields nil, so reads
+	// through it stay undef.
+	noCreate string
 }
 
 // Scalar returns a scalar holding x. See Set for how Go values are converted.
@@ -52,12 +59,15 @@ func Scalar(x any) *SV {
 // copied reference still points at the same AV/HV, as in Perl). Anything
 // else is stringified with fmt.Sprint.
 func (s *SV) Set(x any) *SV {
-	s.v = normalize(x)
 	s.vivify()
+	s.v = normalize(x)
 	return s
 }
 
 func (s *SV) vivify() {
+	if s.noCreate != "" {
+		panic("scalar: " + s.noCreate)
+	}
 	if s.viv != nil {
 		f := s.viv
 		s.viv = nil
@@ -129,6 +139,11 @@ func (s *SV) Str() string {
 
 // String implements fmt.Stringer.
 func (s *SV) String() string { return s.Str() }
+
+// Length is Perl's length($s): the number of characters (not bytes) in s
+// in string context, so Scalar(12345).Length() is 5 and "café" is 4. Perl
+// returns undef for undef; this returns 0.
+func (s *SV) Length() int { return utf8.RuneCountInString(s.Str()) }
 
 // Num returns s in numeric context. Values that don't look like numbers
 // numify as Perl does ("42abc" is 42, "abc" is 0); use NumOK to detect that.
@@ -204,8 +219,9 @@ func (s *SV) Bool() bool {
 }
 
 // AV dereferences s as an array. An undef s is autovivified into a new
-// array reference. Returns nil if s holds anything else; reads through a
-// nil *AV yield undef, writes panic (Perl's "Not an ARRAY reference").
+// array reference. Returns nil if s holds anything else, or is an undef
+// that can't be created (see AV.Get); reads through a nil *AV yield undef,
+// writes panic (Perl's "Not an ARRAY reference").
 func (s *SV) AV() *AV {
 	if s == nil {
 		return nil
@@ -214,9 +230,12 @@ func (s *SV) AV() *AV {
 	case *AV:
 		return v
 	case nil:
+		if s.noCreate != "" {
+			return nil
+		}
 		a := &AV{}
-		s.v = a
 		s.vivify()
+		s.v = a
 		return a
 	}
 	return nil
@@ -231,9 +250,12 @@ func (s *SV) HV() *HV {
 	case *HV:
 		return v
 	case nil:
+		if s.noCreate != "" {
+			return nil
+		}
 		h := &HV{}
-		s.v = h
 		s.vivify()
+		s.v = h
 		return h
 	}
 	return nil

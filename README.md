@@ -91,10 +91,11 @@ Create a scalar with `Scalar`:
 
 ```go
 s := scalar.Scalar("42")
-s.Str()  // "42"
-s.Int()  // 42
-s.Num()  // 42.0
-s.Bool() // true
+s.Str()    // "42"
+s.Int()    // 42
+s.Num()    // 42.0
+s.Bool()   // true
+s.Length() // 2: length($s), counted in characters
 ```
 
 Strings are turned into numbers the Perl way:
@@ -117,8 +118,15 @@ including `"0.0"`, `"00"` and `" "`.
 
 ### Undef
 
-The zero value of `SV` is undef, and so is `scalar.Scalar(nil)`. Check for it with
-`Defined()`.
+The zero value of `SV` is undef, and so is `scalar.Scalar(nil)`. Check for it
+with `Defined()`.
+
+### Length
+
+`Length()` counts the characters in the string form of the value, like Perl's
+`length`. It counts characters, not bytes, so `"café"` has length 4, and a
+number is measured as it prints: `Scalar(12345).Length()` is 5. The one
+difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
 
 ### Other methods
 
@@ -139,8 +147,15 @@ first := a.Shift()             // shift @a
 
 a.Get(0)                       // $a[0]
 a.Get(-1)                      // $a[-1]
-a.Set(5, "x")                  // $a[5] = "x"  (fills the gap with undef)
-a.Len()                        // scalar(@a)
+a.Set(5, "x")                  // $a[5] = "x"
+a.Length()                     // scalar(@a)
+a.Scalar()                     // scalar(@a), same as Length
+a.LastIndex()                  // $#a
+a.SetLastIndex(2)              // $#a = 2   (truncate or extend)
+a.Exists(3)                    // exists $a[3]
+a.Delete(3)                    // delete $a[3]
+a.Slice(0, -1)                 // @a[0, -1]
+a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
 
 a.Join(", ")                   // join(", ", @a)
 a.Sort(nil)                    // sort @a                  (as strings)
@@ -154,8 +169,28 @@ for i, s := range a.All() {
 }
 ```
 
-`Sort`, `Reverse`, `Map` and `Grep` return a new array and leave the original
-alone.
+`Sort`, `Reverse`, `Map`, `Grep` and `Slice` return a new array and leave the
+original alone. `Splice` returns the elements it removed.
+
+### Negative indices
+
+Negative indices count from the end, everywhere an index is accepted:
+`Get(-1)` is the last element, and `Splice(-2, 1)` removes the second to last.
+
+As in Perl, you can read before the start of an array, but you can't write
+there. `a.Get(-10)` on a short array is undef, but `a.Set(-10, "x")` panics
+with Perl's message: *Modification of non-creatable array value attempted,
+subscript -10*.
+
+### Holes
+
+Setting an element past the end, as in `a.Set(5, "x")` on a short array, leaves
+a gap. The elements in the gap read as undef, but they don't exist: `Exists`
+is false for them, just as in Perl. `Delete` also leaves a hole, unless it
+removes the last element, in which case the array shrinks.
+
+`Splice` takes a count, not an end position. A count that runs past the end
+stops at the end, so `a.Splice(2, a.Length())` removes everything from index 2.
 
 ## Hashes
 
@@ -166,7 +201,8 @@ h.Get("name")       // $h{name}
 h.Set("lang", "Go") // $h{lang} = "Go"
 h.Exists("age")     // exists $h{age}
 h.Delete("age")     // delete $h{age}
-h.Len()             // scalar(keys %h)
+h.Length()          // scalar(keys %h)
+h.Scalar()          // scalar(%h), same as Length
 
 h.Keys()            // keys %h
 h.Values()          // values %h
@@ -207,10 +243,16 @@ The rules are the same as Perl's:
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints).
 It follows the same rules.
 
-If you try to use a non-reference, such as a string, as an array or hash:
+The same applies to an array element before the start of the array, such as
+`$a[-10]` on a short array: reading through it gives undef, and writing to it
+panics. If you try to use a non-reference, such as a string, as an array or
+hash:
 
 - reading through it gives undef, and
 - writing through it panics, as `use strict` would make Perl die.
+
+Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
+on, because a read that can't panic is what makes `Path` safe on messy data.
 
 ## Operators
 
