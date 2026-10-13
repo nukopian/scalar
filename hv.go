@@ -176,7 +176,7 @@ func (h *HV) Keys() *AV {
 // Values is Perl's values %h: the values, in the same order as Keys. Given
 // keys, it's the hash slice @h{k1, k2, ...} instead: the values for those
 // keys, in that order. The keys may be strings, scalars or arrays of them,
-// flattened as a list is (see Push), so h.Values(names) is @h{@names}.
+// flattened as a list is (see AV.Push), so h.Values(names) is @h{@names}.
 //
 // As in Perl, the elements are the hash's own values, not copies: changing
 // one (with Set, Inc and so on) changes h. A missing key reads as undef and

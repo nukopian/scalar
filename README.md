@@ -1314,12 +1314,17 @@ original's own, as described under [Hashes](#hashes).
 - **It panics where Perl would die.** Most Go code returns errors instead of
   panicking, so be aware of these cases:
   - writing to an array element before the start of the array, or through
-    something that isn't an array or hash (reads are always safe)
+    something that isn't an array or hash (reads are always safe); this
+    includes `Push` to a nil hash, and `Insert` into a nil set or bag
+  - `Splice` with an offset before the start of the array
+  - a negative count for `SplitAt`, `PopN`, `ShiftN` or `MostCommon`
   - `SubstrReplace` on a substring entirely outside the string
   - `Div` or `Mod` by zero
   - an invalid regex (use `scalar.Compile` to get an error instead), an
-    unknown flag, a regex that runs past `RegexTimeout`, or a pattern that's
-    neither a string nor a `*Regexp`
+    unknown flag, a regex that runs past `RegexTimeout`, a pattern that's
+    neither a string nor a `*Regexp`, a nil `*Regexp`, or the flags `i`,
+    `m`, `s` or `x` given again with a `*Regexp`
+  - a malformed JSONPath in `Find`
   - passing something other than a string or int to `Path`, or something
     other than a string or function as an `S` replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON

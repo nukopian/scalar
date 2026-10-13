@@ -144,10 +144,7 @@ func (s *Set) Has(v any) bool {
 
 // Length is Set::Scalar's size: the number of members.
 func (s *Set) Length() int {
-	if s == nil {
-		return 0
-	}
-	return len(s.c.order)
+	return len(s.cs().keys())
 }
 
 // Members is Set::Scalar's members: a new array of copies of the members,
@@ -335,35 +332,29 @@ func (b *Bag) DeleteN(v any, n int) *Bag {
 
 // Count is Set::Bag's grab(v): how many of v there are, 0 if none.
 func (b *Bag) Count(v any) int {
-	if b == nil {
-		return 0
-	}
-	return b.c.count(operand(v).Str())
+	return b.cs().count(operand(v).Str())
 }
 
 // Length is the number of distinct members.
 func (b *Bag) Length() int {
-	if b == nil {
-		return 0
-	}
-	return len(b.c.order)
+	return len(b.cs().keys())
 }
 
 // Total is the number of members counting repeats: the sum of the counts.
 func (b *Bag) Total() int {
 	total := 0
-	for _, k := range b.keys() {
+	for _, k := range b.cs().keys() {
 		total += b.c.n[k]
 	}
 	return total
 }
 
-// keys is the members' string forms, in order. Nil-safe.
-func (b *Bag) keys() []string {
+// cs is b's counts, or nil for a nil *Bag, which then reads as empty.
+func (b *Bag) cs() *counts {
 	if b == nil {
 		return nil
 	}
-	return b.c.order
+	return &b.c
 }
 
 // Members is Set::Bag's elements: a new array of copies of the distinct
@@ -378,14 +369,14 @@ func (b *Bag) Members() *AV {
 // MembersSlice is Members as a Go []string: the distinct members' string
 // forms, in the order they were first inserted.
 func (b *Bag) MembersSlice() []string {
-	return slices.Clone(b.keys())
+	return slices.Clone(b.cs().keys())
 }
 
 // CountsMap is Counts as a Go map[string]int, from each member (as a
 // string) to its count. The map is new, so changing it doesn't change b.
 func (b *Bag) CountsMap() map[string]int {
 	out := make(map[string]int, b.Length())
-	for _, k := range b.keys() {
+	for _, k := range b.cs().keys() {
 		out[k] = b.c.n[k]
 	}
 	return out
@@ -395,7 +386,7 @@ func (b *Bag) CountsMap() map[string]int {
 // count, for the rest of the package's tools.
 func (b *Bag) Counts() *HV {
 	h := newHV(b.Length())
-	for _, k := range b.keys() {
+	for _, k := range b.cs().keys() {
 		h.m[k] = &SV{v: int64(b.c.n[k])}
 	}
 	return h
@@ -405,7 +396,7 @@ func (b *Bag) Counts() *HV {
 // common first, and the first inserted first among equal counts: the top n,
 // or every member if n is left out or there are fewer.
 func (b *Bag) MostCommon(n ...int) *AV {
-	ks := slices.Clone(b.keys())
+	ks := slices.Clone(b.cs().keys())
 	slices.SortStableFunc(ks, func(x, y string) int { return cmp.Compare(b.c.n[y], b.c.n[x]) })
 	if len(n) > 0 {
 		if n[0] < 0 {
@@ -424,7 +415,7 @@ func (b *Bag) MostCommon(n ...int) *AV {
 // the order they were first inserted.
 func (b *Bag) All() iter.Seq2[*SV, int] {
 	return func(yield func(*SV, int) bool) {
-		for _, k := range slices.Clone(b.keys()) {
+		for _, k := range slices.Clone(b.cs().keys()) {
 			if !yield(b.c.first[k].Copy(), b.c.n[k]) {
 				return
 			}
@@ -509,7 +500,7 @@ func (b *Bag) String() string {
 func (b *Bag) MarshalJSON() ([]byte, error) {
 	var buf strings.Builder
 	buf.WriteString("{")
-	for i, k := range b.keys() {
+	for i, k := range b.cs().keys() {
 		if i > 0 {
 			buf.WriteString(",")
 		}
