@@ -16,6 +16,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -151,13 +152,15 @@ func reference(t *testing.T) string {
 		fmt.Fprintf(&b, "\n### Reference: %s\n", g.title)
 		exs, fset, src := examples(t, g.file)
 		for _, ex := range exs {
-			name := strings.Replace(ex.Name, "_", ".", 1)
+			// In code formatting: some renderers link bare names that look
+			// like domains, such as SV.Lc (.lc is Saint Lucia's).
+			name := "`" + strings.Replace(ex.Name, "_", ".", 1) + "`"
 			if ex.Suffix != "" {
 				name += " (" + ex.Suffix + ")"
 			}
 			fmt.Fprintf(&b, "\n#### %s\n\n", name)
 			if synopsis := docs[ex.Name]; synopsis != "" {
-				b.WriteString(synopsis + "\n\n")
+				b.WriteString(goName.ReplaceAllString(synopsis, "`$0`") + "\n\n")
 			}
 			fmt.Fprintf(&b, "```go\n%s```\n", exampleBody(fset, src, ex))
 			if out := strings.TrimSpace(ex.Output); out != "" {
@@ -168,6 +171,10 @@ func reference(t *testing.T) string {
 	b.WriteString("\n")
 	return b.String()
 }
+
+// goName finds a qualified Go name in a doc comment, such as SV.Int or
+// json.Marshaler, to put in code formatting, as for the headings.
+var goName = regexp.MustCompile(`\b[A-Za-z]\w*\.[A-Z]\w*\b`)
 
 // exampleBody is the source of an example's body, as written (comments
 // included), without its braces, its "// Output:" block or a level of
