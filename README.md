@@ -778,6 +778,7 @@ skills.Count("Go")                           // $skills->grab("Go")
 | `has`, `size`, `members` | `Has`, `Length`, `Members` | | `grab(a)`, `elements` | `Count`, `Members` |
 | `union`, `intersection`, `difference`, `symmetric_difference` | `Union`, `Intersection`, `Difference`, `SymmetricDifference` | | `sum`, `union`, `intersection`, `difference` | `Sum`, `Union`, `Intersection`, `Difference` |
 | `is_subset`, `is_proper_subset`, `is_superset`, `is_equal`, `is_disjoint` | `IsSubset`, `IsProperSubset`, `IsSuperset`, `IsEqual`, `IsDisjoint` | | | `Total`, `Counts` (a hash), `MostCommon` |
+| | `MembersSlice` (a Go `[]string`) | | | `MembersSlice` (a Go `[]string`), `CountsMap` (a Go `map[string]int`) |
 
 - **Members are compared as strings,** as Perl hash keys, and both modules,
   compare them: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
@@ -806,6 +807,12 @@ Two additions to the modules:
   follows the mathematics.
 
 A set encodes as a JSON array, and a bag as an object from member to count.
+For Go code that doesn't use `scalar`, `MembersSlice()` gives a set's or a
+bag's members as a `[]string`, in insertion order, and a bag's `CountsMap()`
+gives its counts as a `map[string]int`. Both are new, so changing them doesn't
+change the set or bag. `Members()` keeps the original values instead, so a
+number stays a number.
+
 Sets and bags can't be stored inside a scalar, as arrays and hashes can,
 because Perl has no references to them: to store one in a hash, store its
 `Members()` (or a bag's `Counts()`).
@@ -3386,6 +3393,19 @@ c,a,b
 a,b,c
 ```
 
+#### `Set.MembersSlice`
+
+MembersSlice is Members as a Go []string: the members' string forms, in the order they were first inserted.
+
+```go
+langs := scalar.NewSet("Go", "Perl", 5)
+fmt.Printf("%q\n", langs.MembersSlice()) // a Go []string, in insertion order
+```
+
+```
+["Go" "Perl" "5"]
+```
+
 #### `Set.All`
 
 All iterates over copies of the members, in the order they were first inserted.
@@ -3685,6 +3705,31 @@ fmt.Println(scalar.NewBag("b", "a", "b").Members().Join(",")) // distinct, in in
 
 ```
 b,a
+```
+
+#### `Bag.MembersSlice`
+
+MembersSlice is Members as a Go []string: the distinct members' string forms, in the order they were first inserted.
+
+```go
+fmt.Printf("%q\n", scalar.NewBag("b", "a", "b").MembersSlice()) // distinct, as a Go []string
+```
+
+```
+["b" "a"]
+```
+
+#### `Bag.CountsMap`
+
+CountsMap is Counts as a Go map[string]int, from each member (as a string) to its count.
+
+```go
+counts := scalar.NewBag("Go", "Go", "Perl").CountsMap() // a Go map[string]int
+fmt.Println(counts["Go"], counts["Perl"], counts["Rust"])
+```
+
+```
+2 1 0
 ```
 
 #### `Bag.Counts`

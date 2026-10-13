@@ -172,3 +172,34 @@ func TestBagExtras(t *testing.T) {
 	expectPanic(t, "Insert on nil", "nil *Bag", func() { nilBag.Insert("a") })
 	expectPanic(t, "negative MostCommon", "is negative", func() { NewBag("a").MostCommon(-1) })
 }
+
+func TestSetAndBagGoForms(t *testing.T) {
+	s := NewSet("c", 1, "a")
+	got := s.MembersSlice()
+	if !slices.Equal(got, []string{"c", "1", "a"}) {
+		t.Errorf("Set.MembersSlice = %q", got)
+	}
+	got[0] = "changed"
+	if !s.Has("c") {
+		t.Error("changing MembersSlice's result shouldn't change the set")
+	}
+
+	b := NewBag("Go", "Perl", "Go")
+	if got := b.MembersSlice(); !slices.Equal(got, []string{"Go", "Perl"}) {
+		t.Errorf("Bag.MembersSlice = %q", got)
+	}
+	m := b.CountsMap()
+	if len(m) != 2 || m["Go"] != 2 || m["Perl"] != 1 {
+		t.Errorf("CountsMap = %v", m)
+	}
+	m["Go"] = 99
+	if b.Count("Go") != 2 {
+		t.Error("changing CountsMap's result shouldn't change the bag")
+	}
+
+	var nilSet *Set
+	var nilBag *Bag
+	if len(nilSet.MembersSlice()) != 0 || len(nilBag.MembersSlice()) != 0 || nilBag.CountsMap() == nil {
+		t.Error("nil sets and bags should give empty Go values, and CountsMap a usable map")
+	}
+}

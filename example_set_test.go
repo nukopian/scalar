@@ -62,6 +62,13 @@ func ExampleSet_Members() {
 	// a,b,c
 }
 
+func ExampleSet_MembersSlice() {
+	langs := scalar.NewSet("Go", "Perl", 5)
+	fmt.Printf("%q\n", langs.MembersSlice()) // a Go []string, in insertion order
+	// Output:
+	// ["Go" "Perl" "5"]
+}
+
 func ExampleSet_All() {
 	for m := range scalar.NewSet("x", "y").All() {
 		fmt.Println(m)
@@ -229,6 +236,19 @@ func ExampleBag_Members() {
 	fmt.Println(scalar.NewBag("b", "a", "b").Members().Join(",")) // distinct, in insertion order
 	// Output:
 	// b,a
+}
+
+func ExampleBag_MembersSlice() {
+	fmt.Printf("%q\n", scalar.NewBag("b", "a", "b").MembersSlice()) // distinct, as a Go []string
+	// Output:
+	// ["b" "a"]
+}
+
+func ExampleBag_CountsMap() {
+	counts := scalar.NewBag("Go", "Go", "Perl").CountsMap() // a Go map[string]int
+	fmt.Println(counts["Go"], counts["Perl"], counts["Rust"])
+	// Output:
+	// 2 1 0
 }
 
 func ExampleBag_Counts() {
