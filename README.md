@@ -76,7 +76,7 @@ package is:
 
 | Type | Perl | What it is |
 |------|------|------------|
-| `SV` | `$x` | A scalar: undef, a boolean, an integer, a float, a string, or a reference to an `AV` or `HV` |
+| `SV` | `$x` | A scalar: undef, a boolean, an integer, a float, a string, a byte string (binary data), or a reference to an `AV` or `HV` |
 | `AV` | `@a` | An array of scalars |
 | `HV` | `%h` | A hash of scalars, keyed by string |
 
@@ -1015,6 +1015,11 @@ Regexes use [regexp2](https://github.com/dlclark/regexp2) instead of Go's
 standard `regexp`. Its syntax is close to Perl's. Unlike Go's standard engine,
 it supports lookahead, lookbehind, backreferences and atomic groups.
 
+One difference from Perl remains: case-insensitive matching pairs single
+characters only. Perl also uses the folds where one character matches
+several, so `/ss/i` matches `ß` and `/strasse/i` matches `straße`; regexp2
+doesn't. To match those, fold both sides first with `Fc`.
+
 You write patterns inline, as in Perl. Each pattern is compiled the first time
 it's used and then reused. You can also compile a pattern up front, as with
 Perl's `qr//`; see [Compiling patterns up front](#compiling-patterns-up-front).
@@ -1230,6 +1235,90 @@ An invalid pattern or an unknown flag also panics, just as Perl would die.
 For a simple pattern on a hot path, Go's standard `regexp` package is faster
 and can never backtrack.
 
+## Byte strings
+
+A scalar can hold binary data, such as a blob, as a **byte string**: one made
+from a Go `[]byte`, or by `Pack`. Its kind is `scalar.Bytes`, and `s.Bytes()`
+gives the bytes back as a `[]byte` (a copy).
+
+```go
+png := scalar.Scalar(data)       // data is a []byte
+png.Length()                     // the number of bytes
+png.M(`^\x89PNG`) != nil          // patterns match bytes
+header := png.Substr(0, 8)       // still a byte string
+blob := png.Bytes()              // a Go []byte again
+```
+
+A byte string behaves as Perl's does under `use v5.12` or later, which turns
+on the `unicode_strings` feature: **each byte is one character, from 0 to
+255**. So:
+
+- `Length`, `Substr`, `Index` and `RIndex` count bytes, and their results
+  are byte strings.
+- Regexes see one character per byte, so `\x89PNG` finds those bytes, and
+  captures, substitutions and splits of a byte string are byte strings.
+- `\w`, `\s`, case-insensitive matching and `Lc`, `Uc` and friends treat the
+  bytes from 128 to 255 as the Latin-1 letters and spaces they'd be as
+  characters: `\xe9` is `é`, so `Uc` of it is `\xc9`.
+- A result with a character beyond 255 becomes text, as Perl upgrades a
+  string: `Uc` of `\xff` (`ÿ`) is `Ÿ`, which has no single byte.
+- Joining text to a byte string joins characters: `é` (U+00E9) becomes the
+  one byte `\xe9`, while `☺` makes the result text. To append text's UTF-8
+  bytes, append `scalar.Scalar([]byte(text))`.
+- `eq`, `lt` and the other comparisons compare characters, so the byte
+  string `"\xe9"` equals the text `"é"`.
+
+`Str()` gives the bytes as they are, for writing a blob out or for `Unpack`,
+and printing a byte string prints its bytes, as Perl's `print` does.
+`Pack`'s tests and these were checked against Perl itself: `TestBytesMatchPerl`
+sends hundreds of random byte strings through every operation above in both.
+
+Where byte strings differ from Perl:
+
+- **JSON:** a byte string encodes as base64, as Go's `encoding/json` encodes a
+  `[]byte`, so binary data survives the trip; Perl's JSON modules would write
+  each byte as a character.
+- **`%x` and `%X`** give a byte string's bytes in hex, as Go does for a
+  `[]byte`, where Perl's `sprintf` would read it as a number.
+- **Hash keys and set members** use a byte string's bytes as they are, so the
+  byte string `"\xe9"` and the text `"é"` are different keys.
+
+A Go `[]byte` in a list is one value, a byte string, not a list of numbers:
+`scalar.Array(blob, "name")` has two elements.
+
+## Pack and unpack
+
+A subset of Perl's `pack` and `unpack`: hex (`H`, `h`), bits (`B`, `b`) and
+floating-point numbers (`f` for float32, `d` and `F` for float64). That
+covers turning bytes into hex or bits and back, and numbers into their
+binary forms and back.
+
+| Perl | Go |
+|---|---|
+| `pack("H*", "4a6f")` | `scalar.Pack("H*", "4a6f")`: `"Jo"` |
+| `unpack("H*", $bytes)` | `scalar.Unpack("H*", bytes)`: an array holding `"4a6f"` |
+| `pack("B8", "01001010")` | `scalar.Pack("B8", "01001010")`: `"J"` |
+| `pack("f>", 1.5)` | `scalar.Pack("f>", 1.5)`: a big-endian float32's 4 bytes |
+| `unpack("B32", pack("f>", $x))` | `scalar.Unpack("B32", scalar.Pack("f>", x))`: a float's bits |
+| `pack("d<*", @nums)` | `scalar.Pack("d<*", nums)`: little-endian float64s |
+
+Templates work as in Perl: a letter, then `<` or `>` for the byte order of a
+float (without either, the machine's own), then a count or `*`, with spaces
+and `#` comments allowed between items, as in `"H2 f> B8"`. For `H`, `h`,
+`B` and `b` the count is a number of digits or bits, not bytes. `Unpack`
+takes a scalar, a Go string or a `[]byte`.
+
+Every detail follows Perl, including the odd ones: an odd number of hex
+digits fills the last byte with a zero, characters that aren't hex digits or
+bits are turned into them by Perl's own formula rather than rejected, a float32
+comes back widened (`0.1` as `0.100000001490116`), and bytes left over at the
+end are ignored. `TestPackMatchesPerl` checks hundreds of random templates
+and values against Perl itself, when `perl` is installed.
+
+**The result is a [byte string](#byte-strings),** as Perl's is, so `Length`,
+`Substr` and `Index` count its bytes. Other template letters (`N`, `a`, `w`
+and so on) panic.
+
 ## JSON
 
 ```go
@@ -1325,6 +1414,8 @@ original's own, as described under [Hashes](#hashes).
     neither a string nor a `*Regexp`, a nil `*Regexp`, or the flags `i`,
     `m`, `s` or `x` given again with a `*Regexp`
   - a malformed JSONPath in `Find`
+  - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
+    `Pack` or `Unpack`, or `<` or `>` after anything but a float
   - passing something other than a string or int to `Path`, or something
     other than a string or function as an `S` replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON
@@ -1355,6 +1446,7 @@ example here works and prints what it says. Edit the examples, not this section,
 - [List utilities](#reference-list-utilities)
 - [Sets and bags](#reference-sets-and-bags)
 - [Regular expressions](#reference-regular-expressions)
+- [Pack and unpack](#reference-pack-and-unpack)
 - [JSON and JSONPath](#reference-json-and-jsonpath)
 
 ### Reference: Scalars
@@ -1551,6 +1643,28 @@ fmt.Println(scalar.Scalar(1e21)) // fmt uses String, as Perl's print would
 
 ```
 1e+21
+```
+
+#### `SV.Bytes`
+
+Bytes returns s as a Go []byte: a byte string's bytes, or anything else's bytes in string context (see Str), so text gives its UTF-8 encoding.
+
+```go
+png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
+fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
+fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
+fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
+blob := png.Bytes()                                   // back to a Go []byte (a copy)
+fmt.Println(len(blob))
+fmt.Println(scalar.Scalar("café").Bytes()) // text gives its UTF-8 bytes
+```
+
+```
+true 11
+true
+89504e47
+11
+[99 97 102 195 169]
 ```
 
 #### `SV.Format`
@@ -4021,6 +4135,49 @@ fmt.Println(scalar.MustCompile(`\d+`, "i"))
 
 ```
 \d+
+```
+
+### Reference: Pack and unpack
+
+#### `Pack`
+
+Pack is Perl's pack for templates of H, h, B, b, f, d and F: it packs vals (flattened as a list is, see `AV.Push`) into bytes, returned as a byte string (see `SV.Bytes`).
+
+```go
+fmt.Println(scalar.Pack("H*", "4a6f"))     // hex digits to bytes: "Jo"
+fmt.Println(scalar.Pack("B8", "01001010")) // bits to a byte: "J"
+
+f := scalar.Pack("f>", 1.5) // a big-endian float32: 4 bytes
+fmt.Println(len(f.Str()), hex.EncodeToString([]byte(f.Str())))
+d := scalar.Pack("d<*", 1, 2.5) // two little-endian float64s
+fmt.Println(len(d.Str()))
+```
+
+```
+Jo
+J
+4 3fc00000
+16
+```
+
+#### `Unpack`
+
+Unpack is Perl's unpack for templates of H, h, B, b, f, d and F: it reads data, a string of bytes (a scalar, a Go string or a []byte), and returns what the template describes, as an array.
+
+```go
+fmt.Println(scalar.Unpack("H*", "Jo").Get(0))                       // bytes to hex
+fmt.Println(scalar.Unpack("B8", "J").Get(0))                        // a byte to bits
+fmt.Println(scalar.Unpack("H*", scalar.Pack("d>", 3.14159)).Get(0)) // a float64's bytes, in hex
+fmt.Println(scalar.Unpack("B32", scalar.Pack("f>", -2)).Get(0))     // a float32's bits: sign, exponent, fraction
+fmt.Println(scalar.Unpack("f<*", scalar.Pack("f<*", 1.5, 0.1)).Join(", "))
+```
+
+```
+4a6f
+01001010
+400921f9f01b866e
+11000000000000000000000000000000
+1.5, 0.100000001490116
 ```
 
 ### Reference: JSON and JSONPath

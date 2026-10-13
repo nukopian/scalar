@@ -1,7 +1,7 @@
 // Package scalar brings Perl-style dynamic values to Go.
 //
 // SV is a scalar: undef, a boolean, an integer (IV), a float (NV), a string,
-// or a reference to an AV (array) or HV (hash). Scalars coerce between
+// a byte string (binary data), or a reference to an AV (array) or HV (hash). Scalars coerce between
 // string, numeric and boolean contexts the way Perl does, and dereferencing
 // an undef scalar as an array or hash autovivifies it.
 //
@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -28,11 +29,14 @@ const (
 	String
 	ArrayRef
 	HashRef
+	// Bytes is a byte string: binary data, such as a blob or Pack's result.
+	// See SV.Bytes.
+	Bytes
 )
 
 // SV is a Perl-style scalar. The zero value is undef.
 type SV struct {
-	v any // nil (undef), bool, int64, float64, string, *AV, *HV
+	v any // nil (undef), bool, int64, float64, string, []byte, *AV, *HV
 
 	// viv attaches a detached SV to the container it was read from. It is
 	// set when Get misses on an AV or HV, and fires on the first write, so
@@ -105,6 +109,8 @@ func (s *SV) Kind() Kind {
 		return ArrayRef
 	case *HV:
 		return HashRef
+	case []byte:
+		return Bytes
 	}
 	return Undef
 }
@@ -140,6 +146,8 @@ func (s *SV) toAny(inProgress map[any]bool) (any, error) {
 	}
 
 	switch v := s.val().(type) {
+	case []byte:
+		return slices.Clone(v), nil
 	case *AV:
 		out := make([]any, v.Length())
 		for i, e := range v.items {
@@ -207,6 +215,8 @@ func (s *SV) Str() string {
 		return formatFloat(v)
 	case string:
 		return v
+	case []byte:
+		return string(v) // the bytes as they are
 	case *AV:
 		return fmt.Sprintf("ARRAY(%p)", v)
 	case *HV:
@@ -218,13 +228,73 @@ func (s *SV) Str() string {
 // String implements fmt.Stringer.
 func (s *SV) String() string { return s.Str() }
 
+// Bytes returns s as a Go []byte: a byte string's bytes, or anything else's
+// bytes in string context (see Str), so text gives its UTF-8 encoding. The
+// slice is new, so changing it doesn't change s.
+//
+// A byte string is a scalar of kind Bytes: one made from a Go []byte, or by
+// Pack. Its Str is the bytes as they are, for writing out or Unpack. The
+// character functions (Length, Substr, Index, Lc, the regex methods and so
+// on) treat each byte as one character from 0 to 255, as Perl treats a byte
+// string under use v5.12 or later: lengths and positions count bytes, \w
+// and case rules apply to bytes as Latin-1 letters. A result that's all
+// characters from 0 to 255 is a byte string again; one with characters
+// beyond, such as Uc of "\xff", is text.
+func (s *SV) Bytes() []byte {
+	if b, ok := s.val().([]byte); ok {
+		return slices.Clone(b)
+	}
+	return []byte(s.Str())
+}
+
+// text is s as characters, for the string functions: its string, or for a
+// byte string, its bytes as Latin-1 characters, one per byte, so that a
+// byte 0xe9 is the character é. isBytes reports which.
+func (s *SV) text() (str string, isBytes bool) {
+	b, ok := s.val().([]byte)
+	if !ok {
+		return s.Str(), false
+	}
+	r := make([]rune, len(b))
+	for i, c := range b {
+		r[i] = rune(c)
+	}
+	return string(r), true
+}
+
+// textResult is the result of a string function: str as text, or, if the
+// input was a byte string and every character of str is from 0 to 255, a
+// byte string again. A character beyond 255 makes it text, as Perl upgrades
+// a byte string.
+func textResult(str string, isBytes bool) *SV {
+	if !isBytes {
+		return &SV{v: str}
+	}
+	b := make([]byte, 0, len(str))
+	for _, r := range str {
+		if r > 0xff {
+			return &SV{v: str}
+		}
+		b = append(b, byte(r))
+	}
+	return &SV{v: b}
+}
+
 // Format implements fmt.Formatter, so that Go's format verbs treat s as
 // Perl's sprintf does, in the context each verb implies: %d, %b, %o, %x, %X
 // and %c in integer context (see Int), %e, %E, %f, %F, %g and %G in numeric
 // context (see Num), %t in boolean context, and %s, %q, %v and anything
 // else in string context (see Str). Widths, precisions and flags work as
 // usual, so fmt.Sprintf("%05.2f", Scalar("3.14159")) is "03.14".
+//
+// A byte string prints as its bytes, as Perl's print does, and formats as Go
+// formats a []byte for %q, %x and %X: %x gives its bytes in hex, which is
+// what you want for binary data, where Perl's %x would read it as a number.
 func (s *SV) Format(f fmt.State, verb rune) {
+	if b, ok := s.val().([]byte); ok && strings.ContainsRune("qxX", verb) {
+		fmt.Fprintf(f, fmt.FormatString(f, verb), b)
+		return
+	}
 	var arg any
 	switch verb {
 	case 'd', 'b', 'o', 'x', 'X', 'c':
@@ -262,6 +332,9 @@ func (s *SV) NumOK() (float64, bool) {
 	case string:
 		_, nv, _, ok := parseNumber(v)
 		return nv, ok
+	case []byte:
+		_, nv, _, ok := parseNumber(string(v))
+		return nv, ok
 	case *AV, *HV:
 		return float64(refAddr(v)), true
 	}
@@ -282,8 +355,8 @@ func (s *SV) IntOK() (int64, bool) {
 		return v, true
 	case float64:
 		return floatToInt(v)
-	case string:
-		iv, nv, isInt, ok := parseNumber(v)
+	case string, []byte:
+		iv, nv, isInt, ok := parseNumber(Scalar(v).Str())
 		if isInt {
 			return iv, ok
 		}
@@ -308,6 +381,8 @@ func (s *SV) Bool() bool {
 		return v != 0
 	case string:
 		return v != "" && v != "0"
+	case []byte:
+		return len(v) > 0 && string(v) != "0"
 	}
 	return true
 }
@@ -451,6 +526,11 @@ func normalize(x any) any {
 		return v.v
 	case bool, string, *AV, *HV:
 		return v
+	case []byte:
+		if v == nil {
+			return nil // a nil slice is undef
+		}
+		return slices.Clone(v) // the scalar's own copy
 	case int:
 		return int64(v)
 	case int8:

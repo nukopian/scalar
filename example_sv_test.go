@@ -138,6 +138,22 @@ func ExampleSV_String() {
 	// 1e+21
 }
 
+func ExampleSV_Bytes() {
+	png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
+	fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
+	fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
+	fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
+	blob := png.Bytes()                                   // back to a Go []byte (a copy)
+	fmt.Println(len(blob))
+	fmt.Println(scalar.Scalar("café").Bytes()) // text gives its UTF-8 bytes
+	// Output:
+	// true 11
+	// true
+	// 89504e47
+	// 11
+	// [99 97 102 195 169]
+}
+
 func ExampleSV_Format() {
 	fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
 		scalar.Scalar("42 apples"), scalar.Scalar("3.14159"), scalar.Scalar(255),

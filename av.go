@@ -51,7 +51,7 @@ func flatten(vals []any) []*SV {
 				out = append(out, &SV{v: k}, s.Copy())
 			}
 			return
-		case nil, *SV, string, bool, int, int64, float64:
+		case nil, *SV, string, bool, int, int64, float64, []byte: // a []byte is one byte string
 			out = append(out, Scalar(v))
 			return
 		// The most common slices skip reflection.

@@ -39,6 +39,9 @@ func (s *SV) numify() (iv int64, nv float64, isInt bool) {
 	case string:
 		iv, nv, isInt, _ = parseNumber(v)
 		return iv, nv, isInt
+	case []byte:
+		iv, nv, isInt, _ = parseNumber(string(v))
+		return iv, nv, isInt
 	}
 	p := refAddr(s.v)
 	return p, float64(p), true
@@ -145,18 +148,25 @@ func (s *SV) Neg() *SV {
 	return Scalar(0).Sub(s)
 }
 
-// Concat is Perl's . operator.
+// Concat is Perl's . operator. If either side is a byte string, so is the
+// result, joined as characters, as Perl joins them: text characters from 0 to
+// 255 become one byte each, and any beyond make the result text (see
+// SV.Bytes). To append text's UTF-8 bytes to a byte string instead, append
+// Scalar([]byte(text)).
 func (s *SV) Concat(x any) *SV {
-	return &SV{v: s.Str() + operand(x).Str()}
+	a, aBytes := s.text()
+	b, bBytes := operand(x).text()
+	return textResult(a+b, aBytes || bBytes)
 }
 
 // Repeat is Perl's x operator on a scalar. A count below 1 gives "".
 func (s *SV) Repeat(n any) *SV {
+	str, isBytes := s.text()
 	count := operand(n).Int()
 	if count < 1 {
-		return &SV{v: ""}
+		return textResult("", isBytes)
 	}
-	return &SV{v: strings.Repeat(s.Str(), int(count))}
+	return textResult(strings.Repeat(str, int(count)), isBytes)
 }
 
 var magicIncRE = regexp.MustCompile(`^[a-zA-Z]*[0-9]*$`)
@@ -259,23 +269,32 @@ func magicInc(str string) string {
 	return "A" + string(b)
 }
 
+// strPair is s and x as characters, for the string comparisons: a byte
+// string compares as its bytes, as Latin-1 characters (see SV.Bytes), so
+// "\xe9" as bytes equals "é", as in Perl.
+func strPair(s *SV, x any) (string, string) {
+	a, _ := s.text()
+	b, _ := operand(x).text()
+	return a, b
+}
+
 // Eq is Perl's eq.
-func (s *SV) Eq(x any) bool { return s.Str() == operand(x).Str() }
+func (s *SV) Eq(x any) bool { a, b := strPair(s, x); return a == b }
 
 // Ne is Perl's ne.
-func (s *SV) Ne(x any) bool { return s.Str() != operand(x).Str() }
+func (s *SV) Ne(x any) bool { a, b := strPair(s, x); return a != b }
 
 // Lt is Perl's lt.
-func (s *SV) Lt(x any) bool { return s.Str() < operand(x).Str() }
+func (s *SV) Lt(x any) bool { a, b := strPair(s, x); return a < b }
 
 // Le is Perl's le.
-func (s *SV) Le(x any) bool { return s.Str() <= operand(x).Str() }
+func (s *SV) Le(x any) bool { a, b := strPair(s, x); return a <= b }
 
 // Gt is Perl's gt.
-func (s *SV) Gt(x any) bool { return s.Str() > operand(x).Str() }
+func (s *SV) Gt(x any) bool { a, b := strPair(s, x); return a > b }
 
 // Ge is Perl's ge.
-func (s *SV) Ge(x any) bool { return s.Str() >= operand(x).Str() }
+func (s *SV) Ge(x any) bool { a, b := strPair(s, x); return a >= b }
 
 // NumEq is Perl's ==. NaN equals nothing, itself included.
 func (s *SV) NumEq(x any) bool { c, ok := numCompare(s, operand(x)); return ok && c == 0 }

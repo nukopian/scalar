@@ -11,6 +11,10 @@ import (
 	"github.com/dlclark/regexp2"
 )
 
+// A byte string is matched as characters from 0 to 255, one per byte (see
+// SV.Bytes), so a pattern such as \x89PNG finds those bytes, and captures,
+// substitutions and splits of a byte string are byte strings.
+//
 // Regex helpers use github.com/dlclark/regexp2, a backtracking engine with
 // near-Perl syntax: lookahead, lookbehind, backreferences, atomic groups and
 // named captures all work. Patterns are compiled on first use and cached, so
@@ -186,22 +190,22 @@ func firstRegexMatch(rx *regexp2.Regexp, str string) *regexp2.Match {
 
 // matchAV turns a match into an array: index 0 is the whole match ($&),
 // index n is group n ($n), and groups that didn't participate are undef.
-func matchAV(m *regexp2.Match) *AV {
+func matchAV(m *regexp2.Match, isBytes bool) *AV {
 	groups := m.Groups()
 	a := &AV{items: make([]*SV, len(groups))}
 	for i := range groups {
-		a.items[i] = groupSV(&groups[i])
+		a.items[i] = groupSV(&groups[i], isBytes)
 	}
 	return a
 }
 
 // groupSV is a group's captured text, or undef if the group didn't take part
 // in the match.
-func groupSV(g *regexp2.Group) *SV {
+func groupSV(g *regexp2.Group, isBytes bool) *SV {
 	if g == nil || len(g.Captures) == 0 {
 		return &SV{}
 	}
-	return &SV{v: g.String()}
+	return textResult(g.String(), isBytes) // a byte string's captures are byte strings
 }
 
 // M is $s =~ /re/ with captures. It returns nil if there is no match;
@@ -215,18 +219,19 @@ func groupSV(g *regexp2.Group) *SV {
 func (s *SV) M(re any, flags ...string) *AV {
 	f := parseFlags("M", "imsxg", flags)
 	rx := regex("M", re, f)
+	str, isBytes := s.text()
 	if !f.has('g') {
-		if m := firstRegexMatch(rx, s.Str()); m != nil {
-			return matchAV(m)
+		if m := firstRegexMatch(rx, str); m != nil {
+			return matchAV(m, isBytes)
 		}
 		return nil
 	}
 	var out *AV
-	for m := range matches(rx, []rune(s.Str())) {
+	for m := range matches(rx, []rune(str)) {
 		if out == nil {
 			out = &AV{}
 		}
-		out.items = append(out.items, &SV{v: matchAV(m)})
+		out.items = append(out.items, &SV{v: matchAV(m, isBytes)})
 	}
 	return out
 }
@@ -236,7 +241,8 @@ func (s *SV) M(re any, flags ...string) *AV {
 // participate are undef. re is a pattern string or a *Regexp.
 func (s *SV) Named(re any, flags ...string) *HV {
 	rx := regex("Named", re, parseFlags("Named", "imsx", flags))
-	m := firstRegexMatch(rx, s.Str())
+	str, isBytes := s.text()
+	m := firstRegexMatch(rx, str)
 	if m == nil {
 		return nil
 	}
@@ -245,7 +251,7 @@ func (s *SV) Named(re any, flags ...string) *HV {
 		if _, err := strconv.Atoi(name); err == nil {
 			continue // unnamed groups are named by number
 		}
-		h.m[name] = groupSV(m.GroupByName(name))
+		h.m[name] = groupSV(m.GroupByName(name), isBytes)
 	}
 	return h
 }
@@ -262,7 +268,7 @@ func (s *SV) Named(re any, flags ...string) *HV {
 func (s *SV) S(re any, repl any, flags ...string) *SV {
 	f := parseFlags("S", "imsxgr", flags)
 	rx := regex("S", re, f)
-	str := s.Str()
+	str, isBytes := s.text()
 	limit := 1
 	if f.has('g') {
 		limit = -1
@@ -299,14 +305,15 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 		var err error
 		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
 			n++
-			return Scalar(r(matchAV(&m))).Str()
+			text, _ := operand(r(matchAV(&m, isBytes))).text()
+			return text
 		}, -1, limit)
 		check(rx, err)
 	case func(*AV) string:
 		var err error
 		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
 			n++
-			return r(matchAV(&m))
+			return r(matchAV(&m, isBytes))
 		}, -1, limit)
 		check(rx, err)
 	default:
@@ -317,10 +324,10 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 	}
 
 	if f.has('r') {
-		return Scalar(out)
+		return textResult(out, isBytes)
 	}
 	if n > 0 {
-		s.Set(out)
+		s.Set(textResult(out, isBytes))
 	}
 	return Scalar(n)
 }
@@ -337,7 +344,7 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 // re is a pattern string or a *Regexp. Awk mode is only for the string " ",
 // as in Perl, where split qr/ / splits on single spaces.
 func (s *SV) Split(re any, limit ...int) *AV {
-	str := s.Str()
+	str, isBytes := s.text()
 	lim := 0
 	if len(limit) > 0 {
 		lim = limit[0]
@@ -363,15 +370,15 @@ func (s *SV) Split(re any, limit ...int) *AV {
 		if m.Length == 0 && m.Index == pos {
 			continue
 		}
-		out.Push(string(runes[pos:m.Index]))
+		out.Push(textResult(string(runes[pos:m.Index]), isBytes))
 		if m.GroupCount() > 1 {
-			groups := matchAV(m)
+			groups := matchAV(m, isBytes)
 			out.items = append(out.items, groups.items[1:]...)
 		}
 		pos = m.Index + m.Length
 		splits++
 	}
-	out.Push(string(runes[pos:]))
+	out.Push(textResult(string(runes[pos:]), isBytes))
 
 	if lim == 0 {
 		for out.Length() > 0 && out.Get(-1).Str() == "" {
@@ -444,7 +451,7 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 		}
 	}
 
-	str := s.Str()
+	str, isBytes := s.text()
 	var out strings.Builder
 	count := 0
 	var last rune
@@ -468,10 +475,10 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 	}
 
 	if f.has('r') {
-		return Scalar(out.String())
+		return textResult(out.String(), isBytes)
 	}
 	if result := out.String(); result != str {
-		s.Set(result)
+		s.Set(textResult(result, isBytes))
 	}
 	return Scalar(count)
 }

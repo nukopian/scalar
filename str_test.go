@@ -16,7 +16,7 @@ func TestIndexRIndex(t *testing.T) {
 		{"match exactly at the position", "hello world", "o", []int{4}, 4, []int{4}, 4},
 		{"not found", "hello world", "z", nil, -1, nil, -1},
 		{"nothing after the position", "hello world", "h", []int{1}, -1, []int{0}, 0},
-		{"negative position is 0", "hello", "h", []int{-5}, 0, []int{-5}, 0},
+		{"negative position (index: 0; rindex: searches nothing)", "hello", "h", []int{-5}, 0, []int{-5}, -1},
 		{"position past the end", "hello", "o", []int{99}, -1, []int{99}, 4},
 		{"empty substring", "abc", "", nil, 0, nil, 3},
 		{"empty substring past the end", "abc", "", []int{9}, 3, []int{9}, 3},
@@ -153,5 +153,26 @@ func TestQuotemeta(t *testing.T) {
 	}
 	if QuoteMeta(Scalar("a.b")) != `a\.b` {
 		t.Error("QuoteMeta should accept a scalar")
+	}
+}
+
+// RIndex's position rule, checked against perl -E.
+func TestRIndexPosition(t *testing.T) {
+	s := Scalar("abc")
+	for _, tt := range []struct {
+		sub  string
+		pos  int
+		want int
+	}{
+		{"a", -1, -1}, // searches nothing: only an empty substring is found
+		{"a", 0, 0},
+		{"", -1, 0},
+		{"", 9, 3},
+		{"c", 1, -1},
+		{"bc", 1, 1},
+	} {
+		if got := s.RIndex(tt.sub, tt.pos); got != tt.want {
+			t.Errorf("rindex(abc, %q, %d) = %d, want %d", tt.sub, tt.pos, got, tt.want)
+		}
 	}
 }
