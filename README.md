@@ -72,13 +72,21 @@ package is:
 
 ## The types
 
-`scalar` gives you three types:
+`scalar` gives you three types from Perl itself:
 
 | Type | Perl | What it is |
 |------|------|------------|
 | `SV` | `$x` | A scalar: undef, a boolean, an integer, a float, a string, or a reference to an `AV` or `HV` |
 | `AV` | `@a` | An array of scalars |
 | `HV` | `%h` | A hash of scalars, keyed by string |
+
+and two from CPAN, which take Go's usual names, as Perl has no built-in
+names for them (see [Sets and bags](#sets-and-bags)):
+
+| Type | Perl | What it is |
+|------|------|------------|
+| `Set` | `Set::Scalar` | A set of scalars: each member once |
+| `Bag` | `Set::Bag` | A bag of scalars: each member with a count |
 
 A scalar converts itself to whatever you ask for, the way Perl does. Ask for a
 string and you get a string; ask for a number and you get a number.
@@ -742,6 +750,66 @@ on) doesn't add or remove anything in the hash. For a value of your own, call
 `Copy()` on it. Arrays work the same way: `a.Values(0, -1)` gives the first and
 last elements themselves.
 
+## Sets and bags
+
+Perl has no set type of its own: the usual idiom is a hash used only for its
+keys. CPAN's `Set::Scalar` and `Set::Bag` give the familiar operations, and
+`Set` and `Bag` follow them.
+
+```go
+mine := scalar.NewSet("Go", "Perl", "SQL")   // Set::Scalar->new(...)
+wanted := scalar.NewSet("Go", "SQL", "Rust")
+mine.Intersection(wanted)                    // (Go SQL): $mine->intersection($wanted)
+wanted.Difference(mine)                      // (Rust)
+mine.Has("Perl")                             // $mine->has("Perl")
+
+var skills scalar.Bag                        // the zero value is empty, ready to use
+for _, posting := range postings {
+	skills.Insert(posting.Skills)            // count every skill across postings
+}
+skills.MostCommon(10)                        // the 10 most wanted, most common first
+skills.Count("Go")                           // $skills->grab("Go")
+```
+
+| Set::Scalar | `Set` | | Set::Bag | `Bag` |
+|---|---|---|---|---|
+| `new(...)` | `NewSet(...)` | | `new(a => 3)` | `NewBag().InsertN("a", 3)` |
+| `insert`, `delete` | `Insert`, `Delete` | | `insert(a => n)`, `delete(a => n)` | `InsertN`, `DeleteN` (or `Insert`, `Delete` for one each) |
+| `has`, `size`, `members` | `Has`, `Length`, `Members` | | `grab(a)`, `elements` | `Count`, `Members` |
+| `union`, `intersection`, `difference`, `symmetric_difference` | `Union`, `Intersection`, `Difference`, `SymmetricDifference` | | `sum`, `union`, `intersection`, `difference` | `Sum`, `Union`, `Intersection`, `Difference` |
+| `is_subset`, `is_proper_subset`, `is_superset`, `is_equal`, `is_disjoint` | `IsSubset`, `IsProperSubset`, `IsSuperset`, `IsEqual`, `IsDisjoint` | | | `Total`, `Counts` (a hash), `MostCommon` |
+
+- **Members are compared as strings,** as Perl hash keys, and both modules,
+  compare them: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
+  and `"go"` are each different. The first value inserted is the one kept.
+  For a case-insensitive set, insert `s.Fc()`.
+- **Lists flatten,** as everywhere in `scalar`: `NewSet(array)`,
+  `skills.Insert(goSlice)`.
+- **Set operations return new sets and bags,** leaving the originals alone.
+  `Insert` and `Delete` change the set or bag, and return it.
+- **Members are copies,** so changing a value after inserting it, or
+  changing an element of `Members()`, doesn't change the set.
+- **A bag's counts never go below zero.** Removing more than there is removes
+  what there is, as `Set::Bag` does with its `over_delete` option. Without
+  that option `Set::Bag` dies, which would make counting code fragile.
+- **`Union` and `Intersection` for bags** take the larger and smaller count
+  of each member; `Sum` adds them.
+
+Two additions to the modules:
+
+- **Members keep the order they were first inserted in,** so `Members`,
+  `All`, `MostCommon` ties and JSON are reproducible. Printing a set or bag
+  (`String`, `fmt.Println`) sorts the members, as the modules print them:
+  `(a b c)` and `(apples => 3, pears => 1)`.
+- **Empty sets are disjoint.** `Set::Scalar` says two empty sets aren't;
+  mathematically they are, since they have nothing in common, and `IsDisjoint`
+  follows the mathematics.
+
+A set encodes as a JSON array, and a bag as an object from member to count.
+Sets and bags can't be stored inside a scalar, as arrays and hashes can,
+because Perl has no references to them: to store one in a hash, store its
+`Members()` (or a bag's `Counts()`).
+
 ## Nesting and autovivification
 
 Arrays and hashes hold scalars, so you nest them through references, as in
@@ -1221,7 +1289,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
+| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1273,6 +1341,7 @@ example here works and prints what it says. Edit the examples, not this section,
 - [Arrays](#reference-arrays)
 - [Hashes](#reference-hashes)
 - [List utilities](#reference-list-utilities)
+- [Sets and bags](#reference-sets-and-bags)
 - [Regular expressions](#reference-regular-expressions)
 - [JSON and JSONPath](#reference-json-and-jsonpath)
 
@@ -3226,6 +3295,535 @@ fmt.Println(longest, joined)
 
 ```
 perl go+perl+c
+```
+
+### Reference: Sets and bags
+
+#### `NewSet`
+
+NewSet is Set::Scalar->new(...): a set of vals, flattened as a list is (see `AV.Push`), so NewSet(array) and NewSet(goSlice) take their elements.
+
+```go
+s := scalar.NewSet("Go", "Perl", "Go") // Set::Scalar->new(...): each member once
+fmt.Println(s, s.Length())
+same := scalar.NewSet(1, "1", 1.0) // compared as strings: all "1"
+fmt.Println(same.Length())
+fromList := scalar.NewSet(scalar.Array("a", "b"), []string{"c"}) // lists flatten
+fmt.Println(fromList)
+```
+
+```
+(Go Perl) 2
+1
+(a b c)
+```
+
+#### `Set.Insert`
+
+Insert is Set::Scalar's insert: it adds vals, flattened as by NewSet, and returns s.
+
+```go
+var s scalar.Set // the zero value is an empty set
+s.Insert("Go").Insert("Perl", "Go")
+fmt.Println(&s)
+```
+
+```
+(Go Perl)
+```
+
+#### `Set.Delete`
+
+Delete is Set::Scalar's delete: it removes vals, flattened as by NewSet, and returns s.
+
+```go
+s := scalar.NewSet("a", "b", "c")
+s.Delete("b", "not a member") // non-members are ignored
+fmt.Println(s)
+```
+
+```
+(a c)
+```
+
+#### `Set.Has`
+
+Has is Set::Scalar's has: whether v (compared as a string) is a member.
+
+```go
+s := scalar.NewSet("Go", 42)
+fmt.Println(s.Has("Go"), s.Has("go"), s.Has("42")) // "42" is the same member as 42
+```
+
+```
+true false true
+```
+
+#### `Set.Length`
+
+Length is Set::Scalar's size: the number of members.
+
+```go
+fmt.Println(scalar.NewSet("a", "b", "a").Length())
+```
+
+```
+2
+```
+
+#### `Set.Members`
+
+Members is Set::Scalar's members: a new array of copies of the members, in the order they were first inserted.
+
+```go
+s := scalar.NewSet("c", "a", "b")
+fmt.Println(s.Members().Join(","))           // in insertion order
+fmt.Println(s.Members().Sort(nil).Join(",")) // sorted, with the array tools
+```
+
+```
+c,a,b
+a,b,c
+```
+
+#### `Set.All`
+
+All iterates over copies of the members, in the order they were first inserted.
+
+```go
+for m := range scalar.NewSet("x", "y").All() {
+	fmt.Println(m)
+}
+```
+
+```
+x
+y
+```
+
+#### `Set.Copy`
+
+Copy returns a new set with the same members.
+
+```go
+a := scalar.NewSet("a")
+b := a.Copy()
+b.Insert("b")
+fmt.Println(a, b)
+```
+
+```
+(a) (a b)
+```
+
+#### `Set.Union`
+
+Union is Set::Scalar's union: a new set of every member of s or any of others, in order of first appearance.
+
+```go
+a, b := scalar.NewSet("a", "b"), scalar.NewSet("b", "c")
+fmt.Println(a.Union(b))                     // $a->union($b)
+fmt.Println(a.Union(b, scalar.NewSet("d"))) // several at once
+```
+
+```
+(a b c)
+(a b c d)
+```
+
+#### `Set.Intersection`
+
+Intersection is Set::Scalar's intersection: a new set of the members of s that are also in every one of others.
+
+```go
+mine := scalar.NewSet("Go", "Perl", "SQL")
+wanted := scalar.NewSet("Go", "SQL", "Rust")
+fmt.Println(mine.Intersection(wanted)) // the skills I have that are wanted
+```
+
+```
+(Go SQL)
+```
+
+#### `Set.Difference`
+
+Difference is Set::Scalar's difference: a new set of the members of s that are in none of others.
+
+```go
+wanted := scalar.NewSet("Go", "SQL", "Rust")
+mine := scalar.NewSet("Go", "Perl", "SQL")
+fmt.Println(wanted.Difference(mine)) // what's wanted that I lack
+```
+
+```
+(Rust)
+```
+
+#### `Set.SymmetricDifference`
+
+SymmetricDifference is Set::Scalar's symmetric_difference: a new set of the members in exactly one of s and t.
+
+```go
+a, b := scalar.NewSet("a", "b", "c"), scalar.NewSet("b", "c", "d")
+fmt.Println(a.SymmetricDifference(b)) // in one or the other, not both
+```
+
+```
+(a d)
+```
+
+#### `Set.IsSubset`
+
+IsSubset is Set::Scalar's is_subset: whether every member of s is in t.
+
+```go
+a := scalar.NewSet("Go")
+fmt.Println(a.IsSubset(scalar.NewSet("Go", "Perl")), a.IsSubset(a), scalar.NewSet().IsSubset(a))
+```
+
+```
+true true true
+```
+
+#### `Set.IsProperSubset`
+
+IsProperSubset is Set::Scalar's is_proper_subset: a subset of t that isn't equal to it.
+
+```go
+a := scalar.NewSet("Go")
+fmt.Println(a.IsProperSubset(scalar.NewSet("Go", "Perl")), a.IsProperSubset(a))
+```
+
+```
+true false
+```
+
+#### `Set.IsSuperset`
+
+IsSuperset is Set::Scalar's is_superset: whether s has every member of t.
+
+```go
+fmt.Println(scalar.NewSet("Go", "Perl").IsSuperset(scalar.NewSet("Perl")))
+```
+
+```
+true
+```
+
+#### `Set.IsEqual`
+
+IsEqual is Set::Scalar's is_equal: whether s and t have the same members, in any order.
+
+```go
+fmt.Println(scalar.NewSet("a", "b").IsEqual(scalar.NewSet("b", "a"))) // order doesn't matter
+```
+
+```
+true
+```
+
+#### `Set.IsDisjoint`
+
+IsDisjoint is Set::Scalar's is_disjoint: whether s and t have no members in common.
+
+```go
+fmt.Println(scalar.NewSet("a").IsDisjoint(scalar.NewSet("b")))
+fmt.Println(scalar.NewSet().IsDisjoint(scalar.NewSet())) // true, unlike Set::Scalar
+```
+
+```
+true
+true
+```
+
+#### `Set.String`
+
+String is the set as Set::Scalar prints it: its members sorted, between brackets, as in "(a b c)".
+
+```go
+fmt.Println(scalar.NewSet("c", "a", "b").String()) // sorted, as Set::Scalar prints a set
+```
+
+```
+(a b c)
+```
+
+#### `Set.MarshalJSON`
+
+MarshalJSON encodes the set as an array of its members, in the order they were first inserted.
+
+```go
+out, _ := json.Marshal(scalar.NewSet("c", "a", "b")) // an array, in insertion order
+fmt.Println(string(out))
+```
+
+```
+["c","a","b"]
+```
+
+#### `NewBag`
+
+NewBag returns a bag of vals, flattened as a list is (see `AV.Push`), each counting once, so NewBag("Go", "Go", "Perl") has two Go and one Perl.
+
+```go
+skills := scalar.NewBag("Go", "Perl", "Go") // each value counts once
+fmt.Println(skills)
+apples := scalar.NewBag().InsertN("apples", 3) // Set::Bag->new(apples => 3)
+fmt.Println(apples)
+```
+
+```
+(Go => 2, Perl => 1)
+(apples => 3)
+```
+
+#### `Bag.Insert`
+
+Insert adds one of each of vals, flattened as by NewBag, and returns b.
+
+```go
+var counts scalar.Bag // the zero value is an empty bag
+for _, posting := range [][]string{{"Go", "SQL"}, {"Go", "Perl"}, {"Go"}} {
+	counts.Insert(posting) // count the skills across postings
+}
+fmt.Println(&counts)
+```
+
+```
+(Go => 3, Perl => 1, SQL => 1)
+```
+
+#### `Bag.InsertN`
+
+InsertN is Set::Bag's insert(v => n): it adds n of v and returns b.
+
+```go
+b := scalar.NewBag()
+b.InsertN("apples", 3).InsertN("apples", 2) // $b->insert(apples => 3) and so on
+fmt.Println(b)
+```
+
+```
+(apples => 5)
+```
+
+#### `Bag.Delete`
+
+Delete removes one of each of vals, flattened as by NewBag, and returns b.
+
+```go
+b := scalar.NewBag("a", "a", "b")
+b.Delete("a", "b") // one of each
+fmt.Println(b)
+```
+
+```
+(a => 1)
+```
+
+#### `Bag.DeleteN`
+
+DeleteN is Set::Bag's delete(v => n): it removes n of v, or all of it if there are fewer, and returns b.
+
+```go
+b := scalar.NewBag().InsertN("apples", 3)
+b.DeleteN("apples", 2)
+fmt.Println(b)
+b.DeleteN("apples", 10) // more than there is: all of it, never below zero
+fmt.Println(b)
+```
+
+```
+(apples => 1)
+()
+```
+
+#### `Bag.Count`
+
+Count is Set::Bag's grab(v): how many of v there are, 0 if none.
+
+```go
+b := scalar.NewBag("Go", "Go", "Perl")
+fmt.Println(b.Count("Go"), b.Count("Rust")) // $b->grab("Go")
+```
+
+```
+2 0
+```
+
+#### `Bag.Length`
+
+Length is the number of distinct members.
+
+```go
+fmt.Println(scalar.NewBag("a", "a", "b").Length()) // distinct members
+```
+
+```
+2
+```
+
+#### `Bag.Total`
+
+Total is the number of members counting repeats: the sum of the counts.
+
+```go
+fmt.Println(scalar.NewBag("a", "a", "b").Total()) // counting repeats
+```
+
+```
+3
+```
+
+#### `Bag.Members`
+
+Members is Set::Bag's elements: a new array of copies of the distinct members, in the order they were first inserted.
+
+```go
+fmt.Println(scalar.NewBag("b", "a", "b").Members().Join(",")) // distinct, in insertion order
+```
+
+```
+b,a
+```
+
+#### `Bag.Counts`
+
+Counts returns the bag as a new hash from each member (as a string) to its count, for the rest of the package's tools.
+
+```go
+counts := scalar.NewBag("Go", "Go", "Perl").Counts() // a hash, for the hash tools
+fmt.Println(counts.Get("Go"), counts.Get("Perl"))
+```
+
+```
+2 1
+```
+
+#### `Bag.MostCommon`
+
+MostCommon returns copies of the members with the highest counts, most common first, and the first inserted first among equal counts: the top n, or every member if n is left out or there are fewer.
+
+```go
+skills := scalar.NewBag("SQL", "Go", "Perl", "Go", "SQL", "Go")
+fmt.Println(skills.MostCommon(2).Join(",")) // the top 2
+fmt.Println(skills.MostCommon().Join(","))  // all, most common first
+```
+
+```
+Go,SQL
+Go,SQL,Perl
+```
+
+#### `Bag.All`
+
+All iterates over copies of the distinct members with their counts, in the order they were first inserted.
+
+```go
+for m, n := range scalar.NewBag("x", "y", "x").All() {
+	fmt.Println(m, n)
+}
+```
+
+```
+x 2
+y 1
+```
+
+#### `Bag.Copy`
+
+Copy returns a new bag with the same members and counts.
+
+```go
+a := scalar.NewBag("a")
+b := a.Copy()
+b.Insert("a")
+fmt.Println(a, b)
+```
+
+```
+(a => 1) (a => 2)
+```
+
+#### `Bag.Sum`
+
+Sum is Set::Bag's sum: a new bag in which each member's count is its counts in b and others added together.
+
+```go
+monday := scalar.NewBag().InsertN("Go", 3).InsertN("SQL", 1)
+tuesday := scalar.NewBag().InsertN("Go", 1).InsertN("Perl", 2)
+fmt.Println(monday.Sum(tuesday)) // counts added: $monday->sum($tuesday)
+```
+
+```
+(Go => 4, Perl => 2, SQL => 1)
+```
+
+#### `Bag.Union`
+
+Union is Set::Bag's union: a new bag in which each member's count is the largest of its counts in b and others.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("b", 2)
+fmt.Println(x.Union(y)) // the larger count of each
+```
+
+```
+(a => 3, b => 2)
+```
+
+#### `Bag.Intersection`
+
+Intersection is Set::Bag's intersection: a new bag of the members in b and every one of others, each with the smallest of its counts.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("c", 2)
+fmt.Println(x.Intersection(y)) // the smaller count of each, in both
+```
+
+```
+(a => 1)
+```
+
+#### `Bag.Difference`
+
+Difference is Set::Bag's difference: a new bag in which each member's count is its count in b less its counts in others, leaving out any that reach zero, as Set::Bag does with over_delete.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("b", 2)
+fmt.Println(x.Difference(y)) // counts taken away, never below zero
+```
+
+```
+(a => 2)
+```
+
+#### `Bag.String`
+
+String is the bag as Set::Bag prints it: members sorted, each with its count, as in "(apples => 3, pears => 1)".
+
+```go
+fmt.Println(scalar.NewBag("pears", "apples", "apples").String()) // sorted, as Set::Bag prints a bag
+```
+
+```
+(apples => 2, pears => 1)
+```
+
+#### `Bag.MarshalJSON`
+
+MarshalJSON encodes the bag as an object from each member to its count, in the order the members were first inserted.
+
+```go
+out, _ := json.Marshal(scalar.NewBag("pears", "apples", "apples")) // in insertion order
+fmt.Println(string(out))
+```
+
+```
+{"pears":1,"apples":2}
 ```
 
 ### Reference: Regular expressions
