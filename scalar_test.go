@@ -1072,3 +1072,150 @@ func TestPairs(t *testing.T) {
 		t.Errorf("nil hash = %s", got)
 	}
 }
+
+// Each behaves as Perl's each does (checked against perl -E).
+func TestHashEach(t *testing.T) {
+	h := Hash("a", 1, "b", 2, "c", 3)
+	pass := func() []string {
+		var ks []string
+		for k, _, ok := h.Each(); ok; k, _, ok = h.Each() {
+			ks = append(ks, k)
+		}
+		return ks
+	}
+	first := pass()
+	if len(first) != 3 {
+		t.Fatalf("a full pass gave %q", first)
+	}
+	if !slices.Equal(pass(), first) {
+		t.Error("after the end, Each should start again, in the same order")
+	}
+
+	// Stopping early, then carrying on where it stopped.
+	k1, _, _ := h.Each()
+	k2, _, _ := h.Each()
+	if k1 != first[0] || k2 != first[1] {
+		t.Errorf("early pairs %s, %s", k1, k2)
+	}
+	// Keys, Values, Pairs, KeysSlice, ValuesSlice and PairsMap reset it; a
+	// slice of named keys doesn't, and nor does All.
+	for name, reset := range map[string]func(){
+		"Keys": func() { h.Keys() }, "Values": func() { h.Values() }, "Pairs": func() { h.Pairs() },
+		"KeysSlice": func() { h.KeysSlice() }, "ValuesSlice": func() { h.ValuesSlice() },
+		"PairsMap": func() { h.PairsMap() },
+	} {
+		h.Each()
+		reset()
+		if k, _, _ := h.Each(); k != first[0] {
+			t.Errorf("%s should reset Each, but it carried on at %s", name, k)
+		}
+	}
+	h.Keys() // back to the start
+	h.Each()
+	h.Values("a", "b")
+	for range h.All() {
+	}
+	if k, _, _ := h.Each(); k != first[1] {
+		t.Errorf("a named slice or All shouldn't reset Each, but the next key was %s", k)
+	}
+
+	// The values are the hash's own.
+	h.Keys()
+	_, v, _ := h.Each()
+	v.Set(99)
+	if h.Get(first[0]).Int() != 99 {
+		t.Error("Each should give the hash's own values")
+	}
+
+	// Deleting a key along the way skips it; one added isn't returned until
+	// the next pass.
+	h.Keys()
+	h.Each()
+	h.Delete(first[1])
+	h.Set("d", 4)
+	if rest := pass(); !slices.Equal(rest, first[2:]) {
+		t.Errorf("after deleting and adding mid-pass: %q, want %q", rest, first[2:])
+	}
+	if next := pass(); len(next) != 3 || !slices.Contains(next, "d") {
+		t.Errorf("the next pass = %q, want 3 keys including d", next)
+	}
+
+	var nilHash *HV
+	if _, _, ok := nilHash.Each(); ok {
+		t.Error("Each of a nil hash should give nothing")
+	}
+}
+
+func TestArrayEach(t *testing.T) {
+	a := Array("x", "y")
+	a.Set(3, "z") // a hole at 2
+	var got []string
+	for i, v, ok := a.Each(); ok; i, v, ok = a.Each() {
+		got = append(got, fmt.Sprintf("%d=%s", i, v.Or("undef")))
+	}
+	if want := []string{"0=x", "1=y", "2=undef", "3=z"}; !slices.Equal(got, want) {
+		t.Errorf("each @a = %q, want %q", got, want)
+	}
+	if i, _, _ := a.Each(); i != 0 {
+		t.Error("after the end, Each should start again")
+	}
+	a.Each()
+	a.Values() // as values @a does
+	if i, _, _ := a.Each(); i != 0 {
+		t.Error("Values should reset Each")
+	}
+	a.Each()
+	a.Pairs()
+	if i, _, _ := a.Each(); i != 0 {
+		t.Error("Pairs should reset Each")
+	}
+	var nilArray *AV
+	if _, _, ok := nilArray.Each(); ok {
+		t.Error("Each of a nil array should give nothing")
+	}
+}
+
+func TestHashPush(t *testing.T) {
+	h := Hash("a", 1)
+	held := h.Get("a")
+	if got := h.Push("a", 2, "b", 3); got != h {
+		t.Error("Push should return the hash, for chaining")
+	}
+	if h.Get("a").Int() != 2 || h.Get("b").Int() != 3 || held.Int() != 2 {
+		t.Errorf("after Push: a=%v b=%v held=%v; an existing key's scalar should be updated in place",
+			h.Get("a"), h.Get("b"), held)
+	}
+
+	// Another hash, a Go map, Pairs, later keys winning, and a trailing key.
+	h.Push(Hash("c", 4), map[string]int{"d": 5}, Hash("x", 6, "y", 7).Pairs("y"), "e", 1, "e", 8, "f")
+	want := map[string]string{"a": "2", "b": "3", "c": "4", "d": "5", "y": "7", "e": "8", "f": ""}
+	if h.Length() != len(want) || h.Defined("f") || !h.Exists("f") {
+		t.Errorf("after merging: %v", h.Pairs())
+	}
+	for k, v := range want {
+		if h.Get(k).Str() != v {
+			t.Errorf("%s = %q, want %q", k, h.Get(k).Str(), v)
+		}
+	}
+
+	// Values are copied in.
+	src := Scalar("orig")
+	h.Push("g", src)
+	src.Set("changed")
+	if h.Get("g").Str() != "orig" {
+		t.Error("Push should copy values in")
+	}
+	// A reference stays a reference to the same data, as in Perl.
+	list := Array(1)
+	h.Push("list", Scalar(list))
+	list.Push(2)
+	if h.Get("list").AV().Length() != 2 {
+		t.Error("a pushed reference should point at the same array")
+	}
+
+	if got := h.Push(); got != h {
+		t.Error("Push with nothing should return h unchanged")
+	}
+	var nilHash *HV
+	expectPanic(t, "Push to a nil hash", "Not a HASH reference", func() { nilHash.Push("a", 1) })
+}

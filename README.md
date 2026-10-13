@@ -641,6 +641,7 @@ merged := scalar.Hash(defaults, "age", 37)   // %merged = (%defaults, age => 37)
 
 h.Get("name")       // $h{name}
 h.Set("lang", "Go") // $h{lang} = "Go"
+h.Push("a", 1, "b", 2)   // $h{a} = 1; $h{b} = 2   (pairs, another hash or a Go map; later keys win)
 h.Exists("age")     // exists $h{age}    (the key is there, even if its value is undef)
 h.Defined("age")    // defined $h{age}   (the key is there and its value isn't undef)
 h.Delete("age")     // delete $h{age}
@@ -661,7 +662,19 @@ h.PairsMap()        // %h,        as a Go map[string]*scalar.SV
 for k, v := range h.All() {
 	fmt.Println(k, v)
 }
+
+for k, v, ok := h.Each(); ok; k, v, ok = h.Each() {   // while (my ($k, $v) = each %h)
+	fmt.Println(k, v)
+}
 ```
+
+`Each` is Perl's `each`, gotchas and all: the hash remembers how far it has
+got, so leaving the loop early means the next `Each` carries on from there,
+and `Keys`, `Values` and `Pairs` (and their Go forms) reset it, as `keys`,
+`values` and `%h` in list context do. `All` has none of that: each loop
+starts afresh, and stopping early is clean. Prefer `All` unless you need
+`each`'s behaviour. Arrays have both too: `a.Each()` is Perl 5.12's
+`each @a`.
 
 `Hash(...)` takes a list, so you can also build a hash from Go maps, from a
 list of maps, or from other hashes. Later keys win, as in Perl:
@@ -675,6 +688,11 @@ scalar.Hash(map[int]string{1: "one"})   // keys become strings: {"1": "one"}
 
 Only the top level is merged. A value that is itself a slice or map is
 stored as a reference, so it stays nested.
+
+`Hash(h, ...)` makes a new merged hash. To merge into `h` itself, use
+`h.Push(...)`, which takes the same kinds of list. It assigns each pair as
+`$h{k} = v` does, so a key that's already there keeps its scalar, updated in
+place.
 
 `Values` and `Pairs` take keys, as Perl's slices do, and the keys can be
 strings, scalars or arrays of them: `h.Values(names)` is `@h{@names}`. That's
@@ -1203,7 +1221,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
+| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -2586,6 +2604,22 @@ fmt.Println(scalar.Array("a", 1, scalar.Scalar(scalar.Array(2))).AnySlice())
 [a 1 [2]]
 ```
 
+#### `AV.Each`
+
+Each is Perl's each @a (Perl 5.12 and later): the next index and element, with ok true, or ok false once every element has been returned, after which it starts again from the beginning.
+
+```go
+a := scalar.Array("x", "y")
+for i, v, ok := a.Each(); ok; i, v, ok = a.Each() { // while (my ($i, $v) = each @a)
+	fmt.Println(i, v)
+}
+```
+
+```
+0 x
+1 y
+```
+
 #### `AV.All`
 
 All iterates over index/element pairs.
@@ -2806,6 +2840,24 @@ fmt.Println(h.Get("tags").AV().Join(","))
 go,perl
 ```
 
+#### `HV.Push`
+
+Push adds key/value pairs to h and returns h.
+
+```go
+h := scalar.Hash("title", "Developer")
+h.Push("location", "Leeds", "salary", 45000) // $h{location} = "Leeds"; $h{salary} = 45000
+defaults := scalar.Hash("remote", false, "salary", 0)
+h.Push(defaults, "salary", 50000) // merge, later keys winning
+fmt.Println(h.Keys().Sort(nil).Join(","))
+fmt.Println(h.Get("salary"))
+```
+
+```
+location,remote,salary,title
+50000
+```
+
 #### `HV.Exists`
 
 Exists is Perl's exists.
@@ -2937,6 +2989,31 @@ fmt.Println(len(values), values[0])
 
 ```
 1 x
+```
+
+#### `HV.Each`
+
+Each is Perl's each %h: the next key/value pair, with ok true, or ok false once every pair has been returned, after which it starts again from the beginning.
+
+```go
+h := scalar.Hash("a", 1, "b", 2, "c", 3)
+sum := 0
+for _, v, ok := h.Each(); ok; _, v, ok = h.Each() { // while (my ($k, $v) = each %h)
+	sum += int(v.Int())
+}
+fmt.Println(sum)
+
+// As in Perl, the hash remembers where Each got to, until Keys and the
+// like reset it.
+first, _, _ := h.Each()
+h.Keys() // keys %h resets the iterator
+again, _, _ := h.Each()
+fmt.Println(first == again)
+```
+
+```
+6
+true
 ```
 
 #### `HV.All`

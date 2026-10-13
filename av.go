@@ -14,7 +14,8 @@ import (
 // (after $a[5] = 1 on an empty array, or delete $a[2]). Holes read as undef
 // but don't exist; see Exists.
 type AV struct {
-	items []*SV // nil entries are holes
+	items   []*SV // nil entries are holes
+	eachPos int   // how far Each has got
 }
 
 const notArrayRef = "Not an ARRAY reference"
@@ -314,6 +315,7 @@ func (a *AV) Splice(offset, length int, list ...any) *AV {
 // write to it, as with Get. Use Copy on an element for a value of your own.
 func (a *AV) Values(indices ...any) *AV {
 	if len(indices) == 0 {
+		a.resetEach() // as values @a does
 		return &AV{items: a.Items()}
 	}
 	picks := flatten(indices)
@@ -333,6 +335,7 @@ func (a *AV) Values(indices ...any) *AV {
 func (a *AV) Pairs(indices ...any) *AV {
 	var picks []int
 	if len(indices) == 0 {
+		a.resetEach()
 		for i := range a.Length() {
 			picks = append(picks, i)
 		}
@@ -386,7 +389,41 @@ func convertSlice[T any](a *AV, f func(*SV) T) []T {
 	return out
 }
 
-// All iterates over index/element pairs. Holes are yielded as undef.
+// Each is Perl's each @a (Perl 5.12 and later): the next index and element,
+// with ok true, or ok false once every element has been returned, after
+// which it starts again from the beginning. The element is the array's own,
+// and a hole is undef:
+//
+//	for i, v, ok := a.Each(); ok; i, v, ok = a.Each() {   // while (my ($i, $v) = each @a)
+//		...
+//	}
+//
+// As in Perl, the array remembers how far Each has got, and Values and
+// Pairs (without indices) reset it, as keys @a and values @a do. For a loop
+// without any of this, use All.
+func (a *AV) Each() (index int, value *SV, ok bool) {
+	if a == nil {
+		return 0, nil, false
+	}
+	if a.eachPos < len(a.items) {
+		i := a.eachPos
+		a.eachPos++
+		return i, a.Get(i), true
+	}
+	a.resetEach()
+	return 0, nil, false
+}
+
+// resetEach starts Each again from the beginning.
+func (a *AV) resetEach() {
+	if a != nil {
+		a.eachPos = 0
+	}
+}
+
+// All iterates over index/element pairs. Holes are yielded as undef. Unlike
+// Each, every loop starts from the beginning, and it doesn't change where
+// Each has got to.
 func (a *AV) All() iter.Seq2[int, *SV] {
 	return func(yield func(int, *SV) bool) {
 		for i := range a.Length() {

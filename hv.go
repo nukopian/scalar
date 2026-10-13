@@ -12,6 +12,10 @@ import (
 type HV struct {
 	m     map[string]*SV
 	order []string // cached iteration order; nil when stale
+
+	// Each's position: the keys it's going through, and how far it's got.
+	eachKeys []string
+	eachPos  int
 }
 
 // Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
@@ -82,6 +86,36 @@ func (h *HV) Set(key string, v any) *SV {
 	return h.Get(key).Set(v)
 }
 
+// Push adds key/value pairs to h and returns h. The list is flattened as
+// Hash and AV.Push flatten theirs, so it can be pairs, another hash, a Go
+// map, or the result of Pairs:
+//
+//	h.Push("a", 1, "b", 2)        // $h{a} = 1; $h{b} = 2
+//	h.Push(defaults)              // merge another hash in
+//	h.Push(other.Pairs("x", "y")) // copy just those keys over
+//
+// Each pair is assigned as $h{k} = v is, so an existing key keeps its
+// scalar, updated in place, and anything holding it (from Get or Values)
+// sees the change. Later keys win, and a trailing key without a value is
+// set to undef, as in Hash. Values are copied in. Perl has no single
+// operator for this; %h = (%h, ...) is the nearest, though it rebuilds the
+// hash. Hash(h, ...) makes a new merged hash instead. Push on a nil *HV
+// (something that isn't a hash) panics, as Perl dies.
+func (h *HV) Push(kv ...any) *HV {
+	if h == nil {
+		panic("scalar: Not a HASH reference")
+	}
+	flat := flatten(kv)
+	for i := 0; i < len(flat); i += 2 {
+		var v *SV
+		if i+1 < len(flat) {
+			v = flat[i+1]
+		}
+		h.Get(flat[i].Str()).Set(v)
+	}
+	return h
+}
+
 // Exists is Perl's exists.
 func (h *HV) Exists(key string) bool {
 	if h == nil {
@@ -128,8 +162,9 @@ func (h *HV) keys() []string {
 }
 
 // Keys is Perl's keys %h: a new array of the keys. Changing it doesn't
-// change h.
+// change h. As in Perl, it resets Each.
 func (h *HV) Keys() *AV {
+	h.resetEach()
 	ks := h.keys()
 	out := &AV{items: make([]*SV, len(ks))}
 	for i, k := range ks {
@@ -150,7 +185,7 @@ func (h *HV) Keys() *AV {
 // value of your own.
 func (h *HV) Values(keys ...any) *AV {
 	if len(keys) == 0 {
-		return &AV{items: h.ValuesSlice()}
+		return &AV{items: h.ValuesSlice()} // which resets Each, as values %h does
 	}
 	names := flatten(keys)
 	out := &AV{items: make([]*SV, len(names))}
@@ -175,6 +210,7 @@ func (h *HV) Values(keys ...any) *AV {
 func (h *HV) Pairs(keys ...any) *AV {
 	var names []string
 	if len(keys) == 0 {
+		h.resetEach() // as %h in list context does
 		names = h.keys()
 	} else {
 		for _, k := range flatten(keys) {
@@ -188,14 +224,16 @@ func (h *HV) Pairs(keys ...any) *AV {
 	return out
 }
 
-// KeysSlice is Keys as a Go []string.
+// KeysSlice is Keys as a Go []string. Like Keys, it resets Each.
 func (h *HV) KeysSlice() []string {
+	h.resetEach()
 	return slices.Clone(h.keys())
 }
 
 // ValuesSlice is Values() as a Go []*SV. Like Values, the elements are the
-// hash's own values.
+// hash's own values, and it resets Each.
 func (h *HV) ValuesSlice() []*SV {
+	h.resetEach()
 	ks := h.keys()
 	vs := make([]*SV, len(ks))
 	for i, k := range ks {
@@ -204,7 +242,49 @@ func (h *HV) ValuesSlice() []*SV {
 	return vs
 }
 
-// All iterates over key/value pairs in the same order as Keys. Keys added
+// Each is Perl's each %h: the next key/value pair, with ok true, or ok false
+// once every pair has been returned, after which it starts again from the
+// beginning. The value is the hash's own, as in Perl:
+//
+//	for k, v, ok := h.Each(); ok; k, v, ok = h.Each() {   // while (my ($k, $v) = each %h)
+//		...
+//	}
+//
+// As in Perl, the hash remembers how far Each has got, so leaving such a
+// loop early means the next Each carries on where it stopped; and Keys,
+// Values, Pairs (without keys), KeysSlice, ValuesSlice and PairsMap reset
+// it, as keys, values and %h in list context do. Deleting keys along the
+// way is safe: they're skipped. Keys added along the way aren't returned
+// until the next pass. For a loop without any of this, use All.
+func (h *HV) Each() (key string, value *SV, ok bool) {
+	if h == nil {
+		return "", nil, false
+	}
+	if h.eachKeys == nil {
+		h.eachKeys = h.keys() // replaced, never changed, when keys come and go
+		h.eachPos = 0
+	}
+	for h.eachPos < len(h.eachKeys) {
+		k := h.eachKeys[h.eachPos]
+		h.eachPos++
+		if s, exists := h.m[k]; exists {
+			return k, s, true
+		}
+	}
+	h.resetEach()
+	return "", nil, false
+}
+
+// resetEach starts Each again from the beginning.
+func (h *HV) resetEach() {
+	if h != nil {
+		h.eachKeys, h.eachPos = nil, 0
+	}
+}
+
+// All iterates over key/value pairs in the same order as Keys. Unlike Each,
+// every loop starts from the beginning, stopping early is clean, and it
+// doesn't change where Each has got to. Keys added
 // during iteration aren't visited; keys deleted during iteration are skipped.
 func (h *HV) All() iter.Seq2[string, *SV] {
 	return func(yield func(string, *SV) bool) {
@@ -227,6 +307,7 @@ func (h *HV) All() iter.Seq2[string, *SV] {
 // is new, so adding or removing keys doesn't change h, but changing a value
 // does. For plain Go values throughout, use Any on a scalar holding h.
 func (h *HV) PairsMap() map[string]*SV {
+	h.resetEach() // as %h in list context does
 	out := make(map[string]*SV, h.Length())
 	for k, v := range h.All() {
 		out[k] = v

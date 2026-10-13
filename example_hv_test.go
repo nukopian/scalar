@@ -54,6 +54,18 @@ func ExampleHV_Set() {
 	// go,perl
 }
 
+func ExampleHV_Push() {
+	h := scalar.Hash("title", "Developer")
+	h.Push("location", "Leeds", "salary", 45000) // $h{location} = "Leeds"; $h{salary} = 45000
+	defaults := scalar.Hash("remote", false, "salary", 0)
+	h.Push(defaults, "salary", 50000) // merge, later keys winning
+	fmt.Println(h.Keys().Sort(nil).Join(","))
+	fmt.Println(h.Get("salary"))
+	// Output:
+	// location,remote,salary,title
+	// 50000
+}
+
 func ExampleHV_Exists() {
 	h := scalar.Hash("salary", nil)
 	fmt.Println(h.Exists("salary"), h.Exists("bonus")) // there, though undef
@@ -131,6 +143,25 @@ func ExampleHV_ValuesSlice() {
 	fmt.Println(len(values), values[0])
 	// Output:
 	// 1 x
+}
+
+func ExampleHV_Each() {
+	h := scalar.Hash("a", 1, "b", 2, "c", 3)
+	sum := 0
+	for _, v, ok := h.Each(); ok; _, v, ok = h.Each() { // while (my ($k, $v) = each %h)
+		sum += int(v.Int())
+	}
+	fmt.Println(sum)
+
+	// As in Perl, the hash remembers where Each got to, until Keys and the
+	// like reset it.
+	first, _, _ := h.Each()
+	h.Keys() // keys %h resets the iterator
+	again, _, _ := h.Each()
+	fmt.Println(first == again)
+	// Output:
+	// 6
+	// true
 }
 
 func ExampleHV_All() {
