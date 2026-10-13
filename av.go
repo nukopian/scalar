@@ -278,6 +278,19 @@ func (a *AV) Slice(indices ...int) *AV {
 	return out
 }
 
+// KeyValueSlice is Perl's index/value array slice %a[i, j, ...]: a new array
+// of index/value pairs for those indices, in that order, with copies of the
+// values. As in Perl, each index is given as written, so -1 stays -1 while
+// its value is the last element's, and a missing element is undef and isn't
+// created.
+func (a *AV) KeyValueSlice(indices ...int) *AV {
+	out := &AV{items: make([]*SV, 0, 2*len(indices))}
+	for _, i := range indices {
+		out.items = append(out.items, &SV{v: int64(i)}, a.Get(i).Copy())
+	}
+	return out
+}
+
 // Items returns the elements. The slice is a copy; the SVs are not.
 func (a *AV) Items() []*SV {
 	if a == nil {

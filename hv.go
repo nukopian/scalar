@@ -93,6 +93,21 @@ func (h *HV) Slice(keys ...string) *AV {
 	return out
 }
 
+// KeyValueSlice is Perl's key/value hash slice %h{k1, k2, ...}: a new array
+// of key/value pairs for those keys, in that order, with copies of the
+// values. As in Perl, a missing key is included with an undef value, and
+// isn't created in h. To make a hash of them, as %h1 = %h2{...} does, pass
+// the result to Hash:
+//
+//	h1 := scalar.Hash(h2.KeyValueSlice("k1", "k2", "k3"))
+func (h *HV) KeyValueSlice(keys ...string) *AV {
+	out := &AV{items: make([]*SV, 0, 2*len(keys))}
+	for _, k := range keys {
+		out.items = append(out.items, &SV{v: k}, h.Get(k).Copy())
+	}
+	return out
+}
+
 // Exists is Perl's exists.
 func (h *HV) Exists(key string) bool {
 	if h == nil {

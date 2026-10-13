@@ -405,6 +405,7 @@ a.Exists(3)                    // exists $a[3]
 a.Defined(3)                   // defined $a[3]
 a.Delete(3)                    // delete $a[3]
 a.Slice(0, -1)                 // @a[0, -1]
+a.KeyValueSlice(0, -1)         // %a[0, -1]   (index/value pairs: 0, $a[0], -1, $a[-1])
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
 head, tail := a.SplitAt(2)        // my ($x, $y, @tail) = @a   (see below)
 
@@ -641,6 +642,7 @@ h.Length()          // scalar(keys %h)
 h.Scalar()          // scalar(%h), same as Length
 
 h.Slice("a", "b")   // @h{qw(a b)}   (copies; missing keys are undef and aren't created)
+h.KeyValueSlice("a", "b")   // %h{qw(a b)}   (key/value pairs, in that order)
 
 h.Keys()            // keys %h
 h.Values()          // values %h
@@ -664,6 +666,17 @@ scalar.Hash(map[int]string{1: "one"})   // keys become strings: {"1": "one"}
 
 Only the top level is merged. A value that is itself a slice or map is
 stored as a reference, so it stays nested.
+
+A key/value slice gives a list of pairs, as in Perl, so building a hash
+from some of another's keys is the same one step:
+
+```go
+h1 := scalar.Hash(h2.KeyValueSlice("k1", "k2", "k3"))   // %h1 = %h2{qw(k1 k2 k3)}
+```
+
+As in Perl, every key asked for is included, in that order: a missing key
+comes with an undef value, so `h1` has all three keys, though `h2` isn't
+changed. The values are copies.
 
 `Keys` and `Values` return arrays, so you can sort, map, filter or join them
 straight away:
@@ -1168,7 +1181,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice` (arrays and hashes), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice` and `KeyValueSlice` (arrays and hashes), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |

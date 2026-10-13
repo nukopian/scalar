@@ -995,3 +995,40 @@ func TestHashSlice(t *testing.T) {
 		t.Error("Slice of a nil hash should give undef")
 	}
 }
+
+// Key/value slices behave as Perl 5.42's do (checked against perl -E).
+func TestKeyValueSlice(t *testing.T) {
+	undefStr := func(a *AV) string {
+		parts := make([]string, a.Length())
+		for i, s := range a.All() {
+			parts[i] = s.Or("undef").Str()
+		}
+		return strings.Join(parts, ",")
+	}
+
+	// my @l = %h2{qw(k1 k2 k3)}   gives   k1,1,k2,undef,k3,undef
+	h2 := Hash("k1", 1, "k2", nil)
+	if got := undefStr(h2.KeyValueSlice("k1", "k2", "k3")); got != "k1,1,k2,undef,k3,undef" {
+		t.Errorf("hash = %s", got)
+	}
+	// my %h1 = %h2{qw(k1 k3)}: k3 exists in h1 but isn't created in h2.
+	h1 := Hash(h2.KeyValueSlice("k1", "k3"))
+	if !h1.Exists("k3") || h1.Length() != 2 || h2.Exists("k3") {
+		t.Errorf("h1 has k3: %v (length %d); h2 has k3: %v", h1.Exists("k3"), h1.Length(), h2.Exists("k3"))
+	}
+	// The values are copies.
+	h1.Get("k1").Set(99)
+	if h2.Get("k1").Int() != 1 {
+		t.Error("KeyValueSlice should copy the values")
+	}
+
+	// my @p = %a[0, 5, -1]   gives   0,a,5,undef,-1,b, and @a stays at 2.
+	a := Array("a", "b")
+	if got := undefStr(a.KeyValueSlice(0, 5, -1)); got != "0,a,5,undef,-1,b" || a.Length() != 2 {
+		t.Errorf("array = %s, length %d", got, a.Length())
+	}
+	var nilHash *HV
+	if got := undefStr(nilHash.KeyValueSlice("a")); got != "a,undef" {
+		t.Errorf("nil hash = %s", got)
+	}
+}
