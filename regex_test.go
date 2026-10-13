@@ -240,3 +240,63 @@ func TestRegexTimeout(t *testing.T) {
 	}()
 	evil.M(`^(a+)+$`)
 }
+
+// A compiled Regexp works wherever a pattern string does, with the same
+// results, as qr// does in Perl.
+func TestCompiledRegexp(t *testing.T) {
+	salary := MustCompile(`£([\d,]+)`)
+	s := Scalar("From £45,000 to £55,000")
+
+	if got := s.M(salary).Get(1).Str(); got != "45,000" {
+		t.Errorf("M = %q", got)
+	}
+	if got := s.M(salary, "g").Length(); got != 2 {
+		t.Errorf("M with g found %d matches, want 2", got)
+	}
+	if got := s.S(salary, "£X", "gr").Str(); got != "From £X to £X" {
+		t.Errorf("S = %q", got)
+	}
+	if got := Scalar("a1b2c").Split(MustCompile(`(\d)`)).Length(); got != 5 {
+		t.Errorf("Split with captures gave %d fields, want 5", got)
+	}
+	date := MustCompile(`(?<year>\d{4})-(?<month>\d\d)`)
+	if got := Scalar("2026-10-13").Named(date).Get("year").Int(); got != 2026 {
+		t.Errorf("Named year = %d", got)
+	}
+
+	// Flags are fixed when compiling.
+	ci := MustCompile(`SALARY`, "i")
+	if Scalar("Salary: £45,000").M(ci) == nil {
+		t.Error("an i-flagged Regexp should ignore case")
+	}
+	if ci.String() != "SALARY" {
+		t.Errorf("String = %q", ci.String())
+	}
+	// A Regexp's " " is a pattern, not awk mode, as with Perl's split qr/ /.
+	if got := Scalar(" a b").Split(MustCompile(" ")).Length(); got != 3 {
+		t.Errorf("Split on a compiled space gave %d fields, want 3 (\"\", a, b)", got)
+	}
+}
+
+func TestCompile(t *testing.T) {
+	if _, err := Compile(`(`); err == nil || !strings.Contains(err.Error(), "bad regex") {
+		t.Errorf("Compile of a bad pattern: err = %v", err)
+	}
+	if re, err := Compile(`x+`, "i"); err != nil || re.String() != "x+" {
+		t.Errorf("Compile = %v, %v", re, err)
+	}
+	expectPanic(t, "MustCompile bad pattern", "bad regex", func() { MustCompile(`(`) })
+	expectPanic(t, "Compile bad flag", `doesn't support flag 'g'`, func() { Compile(`x`, "g") })
+	expectPanic(t, "flags with a Regexp", "belongs with Compile", func() { Scalar("x").M(MustCompile(`x`), "i") })
+	expectPanic(t, "nil Regexp", "nil *Regexp", func() { Scalar("x").M((*Regexp)(nil)) })
+	expectPanic(t, "wrong pattern type", "must be a string or *Regexp", func() { Scalar("x").M(42) })
+}
+
+// A compiled Regexp keeps the timeout in force when it was compiled.
+func TestCompiledRegexpTimeout(t *testing.T) {
+	old := RegexTimeout
+	RegexTimeout = 50 * time.Millisecond
+	re := MustCompile(`^(a+)+$`)
+	RegexTimeout = old
+	expectPanic(t, "compiled timeout", "timeout", func() { Scalar(strings.Repeat("a", 40) + "!").M(re) })
+}

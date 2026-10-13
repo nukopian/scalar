@@ -14,7 +14,9 @@ import (
 // Regex helpers use github.com/dlclark/regexp2, a backtracking engine with
 // near-Perl syntax: lookahead, lookbehind, backreferences, atomic groups and
 // named captures all work. Patterns are compiled on first use and cached, so
-// they can be written inline as in Perl.
+// they can be written inline as in Perl. They can also be compiled up front,
+// as with Perl's qr//, with Compile or MustCompile: M, Named, S and Split
+// take either a pattern string or a *Regexp.
 //
 // Flags are passed as an optional trailing string, as in Perl: M, Named
 // and S take "i", "m", "s" and "x"; M and S also take "g", and S takes "r".
@@ -54,7 +56,18 @@ func parseFlags(op, allowed string, flags []string) flagSet {
 
 func (f flagSet) has(c rune) bool { return strings.ContainsRune(string(f), c) }
 
+// compile returns the compiled pattern for a pattern string and its flags,
+// from the cache if it's been compiled before. A bad pattern panics.
 func compile(pattern string, f flagSet) *regexp2.Regexp {
+	rx, err := compileErr(pattern, f)
+	if err != nil {
+		panic("scalar: " + err.Error())
+	}
+	return rx
+}
+
+// compileErr is compile, returning a bad pattern as an error.
+func compileErr(pattern string, f flagSet) (*regexp2.Regexp, error) {
 	var opts regexp2.RegexOptions
 	if f.has('i') {
 		opts |= regexp2.IgnoreCase
@@ -71,15 +84,69 @@ func compile(pattern string, f flagSet) *regexp2.Regexp {
 
 	key := cacheKey{pattern, opts, RegexTimeout}
 	if re, ok := regexCache.Load(key); ok {
-		return re.(*regexp2.Regexp)
+		return re.(*regexp2.Regexp), nil
 	}
 	re, err := regexp2.Compile(pattern, opts)
 	if err != nil {
-		panic(fmt.Sprintf("scalar: bad regex %q: %v", pattern, err))
+		return nil, fmt.Errorf("bad regex %q: %v", pattern, err)
 	}
 	re.MatchTimeout = RegexTimeout
 	actual, _ := regexCache.LoadOrStore(key, re)
-	return actual.(*regexp2.Regexp)
+	return actual.(*regexp2.Regexp), nil
+}
+
+// Regexp is a compiled pattern, like the result of Perl's qr//. Its flags
+// ("i", "m", "s", "x") are fixed when it's compiled; M, Named, S and Split
+// accept it wherever they accept a pattern string:
+//
+//	re := scalar.MustCompile(`£([\d,]+)`, "i") // my $re = qr/£([\d,]+)/i;
+//	s.M(re, "g")                               // $s =~ /$re/g
+type Regexp struct {
+	rx *regexp2.Regexp
+}
+
+// Compile compiles pattern with flags, any of "i", "m", "s" and "x", or
+// returns an error if the pattern is invalid. An unknown flag panics, as it's
+// a mistake in the program rather than in the pattern.
+func Compile(pattern string, flags ...string) (*Regexp, error) {
+	rx, err := compileErr(pattern, parseFlags("Compile", "imsx", flags))
+	if err != nil {
+		return nil, fmt.Errorf("scalar: %w", err)
+	}
+	return &Regexp{rx}, nil
+}
+
+// MustCompile is Compile, panicking if the pattern is invalid. Use it for
+// patterns in the program, in package-level variables, so that a bad one
+// fails as soon as the program starts, as with regexp.MustCompile.
+func MustCompile(pattern string, flags ...string) *Regexp {
+	return &Regexp{compile(pattern, parseFlags("MustCompile", "imsx", flags))}
+}
+
+// String returns the pattern as written.
+func (r *Regexp) String() string { return r.rx.String() }
+
+// regex resolves the pattern argument of op: a pattern string, compiled with
+// the flags f, or a *Regexp, whose own flags apply. Giving a *Regexp the
+// flags it was compiled with (or any others of "imsx") panics: they belong
+// with Compile, as with qr//.
+func regex(op string, re any, f flagSet) *regexp2.Regexp {
+	switch re := re.(type) {
+	case string:
+		return compile(re, f)
+	case *Regexp:
+		if re == nil {
+			panic(fmt.Sprintf("scalar: %s given a nil *Regexp", op))
+		}
+		for _, c := range "imsx" {
+			if f.has(c) {
+				panic(fmt.Sprintf("scalar: %s: flag %q belongs with Compile when the pattern is a *Regexp, as with qr//", op, c))
+			}
+		}
+		return re.rx
+	default:
+		panic(fmt.Sprintf("scalar: %s pattern must be a string or *Regexp, got %T", op, re))
+	}
 }
 
 // check panics if a regexp2 call failed. regexp2's timeout error quotes the
@@ -143,9 +210,11 @@ func groupSV(g *regexp2.Group) *SV {
 //
 // With the "g" flag it is $s =~ /re/g: it returns one array reference per
 // match, each laid out as above, or nil if nothing matched.
-func (s *SV) M(re string, flags ...string) *AV {
+//
+// re is a pattern string or a *Regexp (see Compile).
+func (s *SV) M(re any, flags ...string) *AV {
 	f := parseFlags("M", "imsxg", flags)
-	rx := compile(re, f)
+	rx := regex("M", re, f)
 	if !f.has('g') {
 		if m := firstRegexMatch(rx, s.Str()); m != nil {
 			return matchAV(m)
@@ -164,9 +233,9 @@ func (s *SV) M(re string, flags ...string) *AV {
 
 // Named is $s =~ /re/ followed by reading %+. It returns nil if there
 // is no match, otherwise a hash of named groups; ones that didn't
-// participate are undef.
-func (s *SV) Named(re string, flags ...string) *HV {
-	rx := compile(re, parseFlags("Named", "imsx", flags))
+// participate are undef. re is a pattern string or a *Regexp.
+func (s *SV) Named(re any, flags ...string) *HV {
+	rx := regex("Named", re, parseFlags("Named", "imsx", flags))
 	m := firstRegexMatch(rx, s.Str())
 	if m == nil {
 		return nil
@@ -188,9 +257,11 @@ func (s *SV) Named(re string, flags ...string) *HV {
 // Flags: "g" replaces every match; "r" leaves s alone and returns the new
 // string. Without "r", s is modified in place (only if something matched)
 // and the number of substitutions is returned.
-func (s *SV) S(re string, repl any, flags ...string) *SV {
+//
+// re is a pattern string or a *Regexp.
+func (s *SV) S(re any, repl any, flags ...string) *SV {
 	f := parseFlags("S", "imsxgr", flags)
-	rx := compile(re, f)
+	rx := regex("S", re, f)
 	str := s.Str()
 	limit := 1
 	if f.has('g') {
@@ -250,7 +321,10 @@ func (s *SV) S(re string, repl any, flags ...string) *SV {
 // An optional limit works as Perl's LIMIT: a positive limit returns at most
 // that many fields (the last holding the rest of the string), and a negative
 // limit keeps trailing empty fields.
-func (s *SV) Split(re string, limit ...int) *AV {
+//
+// re is a pattern string or a *Regexp. Awk mode is only for the string " ",
+// as in Perl, where split qr/ / splits on single spaces.
+func (s *SV) Split(re any, limit ...int) *AV {
 	str := s.Str()
 	lim := 0
 	if len(limit) > 0 {
@@ -265,7 +339,7 @@ func (s *SV) Split(re string, limit ...int) *AV {
 		return out
 	}
 
-	rx := compile(re, "")
+	rx := regex("Split", re, "")
 	runes := []rune(str)
 	pos, splits := 0, 0
 	for m := range matches(rx, runes) {

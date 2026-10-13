@@ -852,7 +852,8 @@ standard `regexp`. Its syntax is close to Perl's. Unlike Go's standard engine,
 it supports lookahead, lookbehind, backreferences and atomic groups.
 
 You write patterns inline, as in Perl. Each pattern is compiled the first time
-it's used and then reused.
+it's used and then reused. You can also compile a pattern up front, as with
+Perl's `qr//`; see [Compiling patterns up front](#compiling-patterns-up-front).
 
 | Perl | Go |
 |------|-----|
@@ -866,6 +867,8 @@ it's used and then reused.
 | `$s =~ s/re/f($1)/e` | `s.S(re, func(m *scalar.AV) any { ... })` |
 | `split /re/, $s` | `s.Split(re)` |
 | `$s =~ tr/a-z/A-Z/` | `s.Tr("a-z", "A-Z")` |
+| `my $re = qr/re/i` | `re := scalar.MustCompile(re, "i")` |
+| `$s =~ $re` | `s.M(re)` |
 
 `M`, `Named`, `S` and `Tr` take Perl's flags as an optional last argument,
 written as one string: `s.M(re, "gi")`, `s.S(re, "x", "gi")`.
@@ -882,6 +885,40 @@ every pattern.
 
 Use Go raw strings (backquotes) for patterns, so backslashes don't need
 escaping.
+
+### Compiling patterns up front
+
+`scalar.MustCompile` compiles a pattern once and returns a `*scalar.Regexp`,
+like Perl's `qr//`. `M`, `Named`, `S` and `Split` take one wherever they
+take a pattern string:
+
+```go
+var salary = scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/;
+
+for _, m := range s.M(salary, "g").All() { ... }
+s.S(salary, "£X", "g")
+```
+
+Put patterns your program depends on in package-level variables like this:
+a bad one then panics as soon as the program starts, as with Go's
+`regexp.MustCompile`, rather than when it's first used. `scalar.Compile` is
+the same, but returns an error instead, for patterns that come from outside
+the program.
+
+**Flags are fixed when compiling**, as with `qr//i`:
+`scalar.MustCompile(re, "i")` ignores case wherever it's used. Giving `i`,
+`m`, `s` or `x` again to `M`, `Named` or `S` with a `*Regexp` panics, rather
+than being silently ignored. The flags that belong to the operation, `g` and
+`r`, are given to it as usual: `s.M(re, "g")`.
+
+Two more details:
+
+- A compiled pattern keeps the `RegexTimeout` in force when it was compiled.
+- `Split`'s awk mode is only for the string `" "`, as in Perl, where
+  `split qr/ /` splits on single spaces.
+
+The pattern parameter is a Go `any`, as methods can't be generic, so
+passing anything other than a string or a `*Regexp` panics at run time.
 
 ### Building patterns from data
 
@@ -1107,8 +1144,9 @@ are the hash's own values, as described under [Hashes](#hashes).
     something that isn't an array or hash (reads are always safe)
   - `SubstrReplace` on a substring entirely outside the string
   - `Div` or `Mod` by zero
-  - an invalid regex, an unknown flag, or a regex that runs past
-    `RegexTimeout`
+  - an invalid regex (use `scalar.Compile` to get an error instead), an
+    unknown flag, a regex that runs past `RegexTimeout`, or a pattern that's
+    neither a string nor a `*Regexp`
   - passing something other than a string or int to `Path`, or something
     other than a string or function as an `S` replacement
 
