@@ -954,11 +954,14 @@ for _, m := range s.M(salary, "g").All() { ... }
 s.S(salary, "£X", "g")
 ```
 
-Put patterns your program depends on in package-level variables like this:
-a bad one then panics as soon as the program starts, as with Go's
-`regexp.MustCompile`, rather than when it's first used. `scalar.Compile` is
-the same, but returns an error instead, for patterns that come from outside
-the program.
+Declare the patterns your program relies on as package-level variables, as
+`salary` is above. If one of them is invalid, the program then panics as soon
+as it starts, rather than later, when the pattern is first used. Go's own
+`regexp.MustCompile` works the same way.
+
+For patterns that come from outside the program, such as user input or a
+config file, use `scalar.Compile` instead. It returns an error rather than
+panicking.
 
 **Flags are fixed when compiling**, as with `qr//i`:
 `scalar.MustCompile(re, "i")` ignores case wherever it's used. Giving `i`,
