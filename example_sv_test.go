@@ -47,7 +47,7 @@ func ExampleSV_Copy() {
 }
 
 func ExampleSV_Kind() {
-	for _, x := range []any{nil, true, 1, 1.5, "s", []any{}, map[string]any{}} {
+	for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
 		switch scalar.Scalar(x).Kind() {
 		case scalar.Undef:
 			fmt.Println("undef")
@@ -59,6 +59,8 @@ func ExampleSV_Kind() {
 			fmt.Println("float")
 		case scalar.String:
 			fmt.Println("string")
+		case scalar.Bytes:
+			fmt.Println("bytes")
 		case scalar.ArrayRef:
 			fmt.Println("array")
 		case scalar.HashRef:
@@ -71,6 +73,7 @@ func ExampleSV_Kind() {
 	// int
 	// float
 	// string
+	// bytes
 	// array
 	// hash
 }

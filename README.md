@@ -365,7 +365,8 @@ for _, skill := range skills.All() {
 ### Other methods
 
 - `Kind()` tells you what a scalar holds: `Undef`, `Bool`, `Int`, `Float`,
-  `String`, `ArrayRef` or `HashRef`.
+  `String`, `Bytes` (a [byte string](#byte-strings)), `ArrayRef` or
+  `HashRef`.
 - `Ref()` works like Perl's `ref()`: it returns `"ARRAY"`, `"HASH"` or `""`.
 - `Set(x)` assigns a new value and returns the scalar.
 - `Copy()` returns a copy of the scalar. See
@@ -1510,7 +1511,7 @@ fmt.Println(h.Get("count"))
 Kind reports what s currently holds.
 
 ```go
-for _, x := range []any{nil, true, 1, 1.5, "s", []any{}, map[string]any{}} {
+for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
 	switch scalar.Scalar(x).Kind() {
 	case scalar.Undef:
 		fmt.Println("undef")
@@ -1522,6 +1523,8 @@ for _, x := range []any{nil, true, 1, 1.5, "s", []any{}, map[string]any{}} {
 		fmt.Println("float")
 	case scalar.String:
 		fmt.Println("string")
+	case scalar.Bytes:
+		fmt.Println("bytes")
 	case scalar.ArrayRef:
 		fmt.Println("array")
 	case scalar.HashRef:
@@ -1536,6 +1539,7 @@ bool
 int
 float
 string
+bytes
 array
 hash
 ```
