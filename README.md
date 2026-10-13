@@ -83,6 +83,9 @@ package is:
 A scalar converts itself to whatever you ask for, the way Perl does. Ask for a
 string and you get a string; ask for a number and you get a number.
 
+For a worked example of every function and method, see the
+[Reference](#reference) at the end.
+
 ## Quick start
 
 ```go
@@ -1216,3 +1219,2119 @@ are the hash's own values, as described under [Hashes](#hashes).
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.
+
+## Reference
+
+One example for every function and method, with the output it prints.
+<!-- reference:start -->
+
+Generated from the examples in `example_*_test.go`, which `go test` runs, so every
+example here works and prints what it says. Edit the examples, not this section, then run
+`go test ./internal/scalar -run TestReference -update`.
+
+- [Scalars](#reference-scalars)
+- [Strings](#reference-strings)
+- [Operators](#reference-operators)
+- [Arrays](#reference-arrays)
+- [Hashes](#reference-hashes)
+- [List utilities](#reference-list-utilities)
+- [Regular expressions](#reference-regular-expressions)
+- [JSON and JSONPath](#reference-json-and-jsonpath)
+
+### Reference: Scalars
+
+#### Scalar
+
+Scalar returns a scalar holding x.
+
+```go
+fmt.Println(scalar.Scalar(42).Kind() == scalar.Int)
+fmt.Println(scalar.Scalar(3.5).Kind() == scalar.Float)
+fmt.Println(scalar.Scalar("text").Kind() == scalar.String)
+fmt.Println(scalar.Scalar([]string{"a", "b"}).Ref()) // a slice becomes an array reference
+fmt.Println(scalar.Scalar(nil).Defined())            // nil is undef
+```
+
+```
+true
+true
+true
+ARRAY
+false
+```
+
+#### SV.Set
+
+Set assigns x to s and returns s.
+
+```go
+s := scalar.Scalar("old")
+s.Set(10)                     // $s = 10
+fmt.Println(s.Add(1))         // it's a number now
+s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
+fmt.Println(s.Ref())
+```
+
+```
+11
+HASH
+```
+
+#### SV.Copy
+
+Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
+
+```go
+h := scalar.Hash("count", 1)
+alias := h.Get("count")      // the stored value itself
+own := h.Get("count").Copy() // my $own = $h{count}
+alias.Set(2)
+own.Set(99)
+fmt.Println(h.Get("count"))
+```
+
+```
+2
+```
+
+#### SV.Kind
+
+Kind reports what s currently holds.
+
+```go
+for _, x := range []any{nil, true, 1, 1.5, "s", []any{}, map[string]any{}} {
+	switch scalar.Scalar(x).Kind() {
+	case scalar.Undef:
+		fmt.Println("undef")
+	case scalar.Bool:
+		fmt.Println("bool")
+	case scalar.Int:
+		fmt.Println("int")
+	case scalar.Float:
+		fmt.Println("float")
+	case scalar.String:
+		fmt.Println("string")
+	case scalar.ArrayRef:
+		fmt.Println("array")
+	case scalar.HashRef:
+		fmt.Println("hash")
+	}
+}
+```
+
+```
+undef
+bool
+int
+float
+string
+array
+hash
+```
+
+#### SV.Defined
+
+Defined is Perl's defined().
+
+```go
+fmt.Println(scalar.Scalar(nil).Defined())
+fmt.Println(scalar.Scalar("").Defined()) // empty, but defined
+fmt.Println(scalar.Hash().Get("missing").Defined())
+```
+
+```
+false
+true
+false
+```
+
+#### SV.Any
+
+Any returns s as a plain Go value, in the shapes encoding/json uses: undef is nil; booleans, integers, floats and strings are bool, int64, float64 and string; array references become []any and hash references map[string]any, converted all the way down.
+
+```go
+s := scalar.Scalar(map[string]any{"tags": []any{"go", 1}})
+plain := s.Any().(map[string]any) // plain Go, sharing nothing with s
+fmt.Println(plain["tags"])
+```
+
+```
+[go 1]
+```
+
+#### SV.Or
+
+Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s is defined, otherwise def's.
+
+```go
+fmt.Println(scalar.Scalar(nil).Or("default")) // $x // "default"
+fmt.Println(scalar.Scalar(0).Or("default"))   // 0 is defined, so it's kept
+```
+
+```
+default
+0
+```
+
+#### SV.OrSet
+
+OrSet is Perl's $s //= $def: if s is undef, it sets s to def.
+
+```go
+h := scalar.Hash()
+h.Get("retries").OrSet(3) // $h{retries} //= 3
+h.Get("retries").OrSet(5) // already set, so unchanged
+fmt.Println(h.Get("retries"))
+```
+
+```
+3
+```
+
+#### SV.Ref
+
+Ref is Perl's ref(): "ARRAY", "HASH", or "" for non-references.
+
+```go
+fmt.Println(scalar.Scalar(scalar.Array(1)).Ref())
+fmt.Println(scalar.Scalar(scalar.Hash()).Ref())
+fmt.Printf("%q\n", scalar.Scalar("text").Ref())
+```
+
+```
+ARRAY
+HASH
+""
+```
+
+#### SV.Str
+
+Str returns s in string context.
+
+```go
+fmt.Println(scalar.Scalar(42).Str())
+fmt.Println(scalar.Scalar(0.1 + 0.2).Str()) // Perl's 15 significant digits
+fmt.Println(scalar.Scalar(true).Str())
+fmt.Printf("%q\n", scalar.Scalar(nil).Str())
+```
+
+```
+42
+0.3
+1
+""
+```
+
+#### SV.String
+
+String implements fmt.Stringer.
+
+```go
+fmt.Println(scalar.Scalar(1e21)) // fmt uses String, as Perl's print would
+```
+
+```
+1e+21
+```
+
+#### SV.Format
+
+Format implements fmt.Formatter, so that Go's format verbs treat s as Perl's sprintf does, in the context each verb implies: %d, %b, %o, %x, %X and %c in integer context (see Int), %e, %E, %f, %F, %g and %G in numeric context (see Num), %t in boolean context, and %s, %q, %v and anything else in string context (see Str).
+
+```go
+fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
+	scalar.Scalar("42 apples"), scalar.Scalar("3.14159"), scalar.Scalar(255),
+	scalar.Scalar("ab"), scalar.Scalar("0"))
+```
+
+```
+42|03.14|ff|   ab|false
+```
+
+#### SV.Num
+
+Num returns s in numeric context.
+
+```go
+fmt.Println(scalar.Scalar("3.5kg").Num()) // the numeric prefix, as Perl does
+fmt.Println(scalar.Scalar("abc").Num())
+```
+
+```
+3.5
+0
+```
+
+#### SV.NumOK
+
+NumOK is Num, plus false wherever Perl would warn: undef, empty or non-numeric strings, and strings with trailing garbage.
+
+```go
+for _, x := range []any{"42", " 42 ", "42abc", "", nil} {
+	n, ok := scalar.Scalar(x).NumOK()
+	fmt.Println(n, ok) // ok is false wherever Perl would warn
+}
+```
+
+```
+42 true
+42 true
+42 false
+0 false
+0 false
+```
+
+#### SV.Int
+
+Int returns s in integer context, truncating toward zero.
+
+```go
+fmt.Println(scalar.Scalar(-3.9).Int()) // truncates toward zero
+fmt.Println(scalar.Scalar("12 items").Int())
+```
+
+```
+-3
+12
+```
+
+#### SV.IntOK
+
+IntOK is Int, plus false wherever NumOK would be false, and for NaN or floats outside the int64 range (which are clamped).
+
+```go
+i, ok := scalar.Scalar("9223372036854775807").IntOK() // exact, however large
+fmt.Println(i, ok)
+i, ok = scalar.Scalar(1e30).IntOK() // out of range: clamped
+fmt.Println(i, ok)
+```
+
+```
+9223372036854775807 true
+9223372036854775807 false
+```
+
+#### SV.Bool
+
+Bool returns s in boolean context: undef, "", "0", 0 and 0.0 are false; everything else, including "0.0" and "00", is true.
+
+```go
+for _, x := range []any{nil, "", "0", 0, 0.0, "0.0", "00", " ", "a"} {
+	fmt.Print(scalar.Scalar(x).Bool(), " ")
+}
+fmt.Println()
+```
+
+```
+false false false false false true true true true
+```
+
+#### SV.AV
+
+AV dereferences s as an array.
+
+```go
+var s scalar.SV   // undef
+s.AV().Push(1, 2) // push @$s, 1, 2: autovivifies an array
+fmt.Println(s.AV().Join(","))
+fmt.Println(scalar.Scalar("text").AV() == nil) // not an array
+```
+
+```
+1,2
+true
+```
+
+#### SV.HV
+
+HV dereferences s as a hash, autovivifying undef like AV does.
+
+```go
+var s scalar.SV
+s.HV().Set("a", 1) // $s->{a} = 1
+fmt.Println(s.Ref(), s.HV().Get("a"))
+```
+
+```
+HASH 1
+```
+
+#### SV.Path
+
+Path walks a chain of hash keys (string) and array indices (int), so s.Path("content", 0, "text") is $s->{content}[0]{text}.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"items": [{"name": "first"}]}`))
+fmt.Println(doc.Path("items", 0, "name"))  // $doc->{items}[0]{name}
+fmt.Println(doc.Path("items", -1, "name")) // negative indices count from the end
+doc.Path("meta", "count").Set(1)           // writing autovivifies
+fmt.Println(doc.Path("meta", "count"))
+```
+
+```
+first
+first
+1
+```
+
+#### SV.PathOK
+
+PathOK is Path with Go's comma-ok: ok reports whether every step exists, so a value that's present but null (undef) gives ok true, while a missing key or index, or a step through something that isn't an array or hash, gives ok false and an undef scalar.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": null}`))
+_, ok := doc.PathOK("salary") // present, but null
+fmt.Println(ok)
+_, ok = doc.PathOK("bonus") // missing: and nothing is created
+fmt.Println(ok, doc.HV().Exists("bonus"))
+```
+
+```
+true
+false false
+```
+
+#### StrCmp
+
+StrCmp is Perl's cmp, for use with AV.Sort.
+
+```go
+fmt.Println(scalar.Array("b", "10", "a", "9").Sort(scalar.StrCmp).Join(" ")) // sort { $a cmp $b }
+```
+
+```
+10 9 a b
+```
+
+#### NumCmp
+
+NumCmp is Perl's <=>, for use with AV.Sort.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort { $a <=> $b }
+```
+
+```
+2.5 9 10
+```
+
+### Reference: Strings
+
+#### SV.Length
+
+Length is Perl's length($s): the number of characters (not bytes) in s in string context, so Scalar(12345).Length() is 5 and "café" is 4.
+
+```go
+fmt.Println(scalar.Scalar("café").Length()) // characters, not bytes
+fmt.Println(scalar.Scalar(12345).Length())  // in string context
+```
+
+```
+4
+5
+```
+
+#### SV.Substr
+
+Substr is Perl's substr($s, offset) or substr($s, offset, length): a new scalar holding part of s in string context, counted in characters.
+
+```go
+s := scalar.Scalar("Senior Go Developer")
+fmt.Println(s.Substr(7))            // substr($s, 7)
+fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
+fmt.Println(s.Substr(-9))           // from the end
+fmt.Println(s.Substr(0, -10))       // all but the last 10
+fmt.Println(s.Substr(99).Defined()) // entirely outside: undef
+```
+
+```
+Go Developer
+Go
+Developer
+Senior Go
+false
+```
+
+#### SV.SubstrReplace
+
+SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
+
+```go
+s := scalar.Scalar("Junior Go Developer")
+old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
+fmt.Println(s, "/", old)
+```
+
+```
+Senior Go Developer / Junior
+```
+
+#### SV.Index
+
+Index is Perl's index($s, substr[, position]): the character position of the first occurrence of substr at or after position (default 0), or -1.
+
+```go
+s := scalar.Scalar("café au lait")
+fmt.Println(s.Index("au"))   // a character position, ready for Substr
+fmt.Println(s.Index("a", 2)) // starting from position 2
+fmt.Println(s.Index("tea"))
+```
+
+```
+5
+5
+-1
+```
+
+#### SV.RIndex
+
+RIndex is Perl's rindex($s, substr[, position]): the character position of the last occurrence of substr starting at or before position (default the end of the string), or -1.
+
+```go
+s := scalar.Scalar("a/b/c")
+fmt.Println(s.RIndex("/"))    // the last one
+fmt.Println(s.RIndex("/", 2)) // the last one at or before position 2
+```
+
+```
+3
+1
+```
+
+#### SV.Lc
+
+Lc is Perl's lc: s in lower case, using Unicode's full case mappings.
+
+```go
+fmt.Println(scalar.Scalar("ÉCOLE Go").Lc())
+```
+
+```
+école go
+```
+
+#### SV.Uc
+
+Uc is Perl's uc: s in upper case, using Unicode's full case mappings, so "straße" becomes "STRASSE".
+
+```go
+fmt.Println(scalar.Scalar("straße").Uc()) // full Unicode mappings
+```
+
+```
+STRASSE
+```
+
+#### SV.Fc
+
+Fc is Perl's fc: s case-folded, for comparing strings regardless of case.
+
+```go
+a, b := scalar.Scalar("Straße"), scalar.Scalar("STRASSE")
+fmt.Println(a.Lc().Eq(b.Lc())) // lc isn't enough for this
+fmt.Println(a.Fc().Eq(b.Fc())) // fc is: compare case-insensitively with it
+```
+
+```
+false
+true
+```
+
+#### SV.UcFirst
+
+UcFirst is Perl's ucfirst: s with its first character in title case.
+
+```go
+fmt.Println(scalar.Scalar("élan vital").UcFirst())
+```
+
+```
+Élan vital
+```
+
+#### SV.LcFirst
+
+LcFirst is Perl's lcfirst: s with its first character in lower case.
+
+```go
+fmt.Println(scalar.Scalar("HELLO").LcFirst())
+```
+
+```
+hELLO
+```
+
+#### SV.Trim
+
+Trim is Perl's trim (builtin::trim, Perl 5.36): s without leading or trailing whitespace, including Unicode spaces such as no-break space.
+
+```go
+fmt.Printf("%q\n", scalar.Scalar("\u00a0 padded \t").Trim()) // Unicode spaces too
+```
+
+```
+"padded"
+```
+
+#### QuoteMeta
+
+QuoteMeta is Perl's quotemeta: x in string context with every character that could mean something in a pattern backslash-escaped, so that it matches literally.
+
+```go
+fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
+posting := scalar.Scalar("Skills: C++ and .NET")
+fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
+```
+
+```
+C\+\+\ \(\.NET\)
+true
+```
+
+### Reference: Operators
+
+#### SV.Add
+
+Add is Perl's +.
+
+```go
+fmt.Println(scalar.Scalar("40").Add(2))          // "40" + 2
+fmt.Println(scalar.Scalar(1.5).Add("1.5"))       // floats when needed
+fmt.Println(scalar.Scalar(math.MaxInt64).Add(1)) // an integer that would overflow becomes a float
+```
+
+```
+42
+3
+9.22337203685478e+18
+```
+
+#### SV.Sub
+
+Sub is Perl's -.
+
+```go
+fmt.Println(scalar.Scalar(10).Sub("2.5"))
+```
+
+```
+7.5
+```
+
+#### SV.Mul
+
+Mul is Perl's *.
+
+```go
+fmt.Println(scalar.Scalar("6").Mul(7))
+```
+
+```
+42
+```
+
+#### SV.Div
+
+Div is Perl's /.
+
+```go
+fmt.Println(scalar.Scalar(7).Div(2)) // not integer division
+fmt.Println(scalar.Scalar(8).Div(2))
+```
+
+```
+3.5
+4
+```
+
+#### SV.Mod
+
+Mod is Perl's %: both operands are truncated to integers, and a nonzero result takes the sign of the right operand (-7 % 3 is 2).
+
+```go
+fmt.Println(scalar.Scalar(7).Mod(3))
+fmt.Println(scalar.Scalar(-7).Mod(3)) // takes the sign of the right operand
+```
+
+```
+1
+2
+```
+
+#### SV.Pow
+
+Pow is Perl's **.
+
+```go
+fmt.Println(scalar.Scalar(2).Pow(10))
+fmt.Println(scalar.Scalar(2).Pow(-1))
+```
+
+```
+1024
+0.5
+```
+
+#### SV.Neg
+
+Neg is Perl's unary minus, string madness included: -"foo" is "-foo", -"-foo" is "+foo", and -"+foo" is "-foo".
+
+```go
+fmt.Println(scalar.Scalar(5).Neg())
+fmt.Println(scalar.Scalar("foo").Neg()) // string madness, as in Perl
+fmt.Println(scalar.Scalar("-foo").Neg())
+```
+
+```
+-5
+-foo
++foo
+```
+
+#### SV.Concat
+
+Concat is Perl's .
+
+```go
+fmt.Println(scalar.Scalar("Go").Concat(1.5)) // "Go" . 1.5
+```
+
+```
+Go1.5
+```
+
+#### SV.Repeat
+
+Repeat is Perl's x operator on a scalar.
+
+```go
+fmt.Println(scalar.Scalar("ab").Repeat(3)) // "ab" x 3
+fmt.Printf("%q\n", scalar.Scalar("ab").Repeat(0))
+```
+
+```
+ababab
+""
+```
+
+#### SV.Inc
+
+Inc is Perl's ++: it modifies s in place and returns it.
+
+```go
+n := scalar.Scalar(9)
+n.Inc()
+id := scalar.Scalar("az9")
+id.Inc() // Perl's magic string increment
+fmt.Println(n, id)
+```
+
+```
+10 ba0
+```
+
+#### SV.Dec
+
+Dec is Perl's --: it modifies s in place and returns it.
+
+```go
+s := scalar.Scalar("aa")
+s.Dec() // never magic: "aa" is 0 as a number
+fmt.Println(s)
+```
+
+```
+-1
+```
+
+#### SV.AddInPlace
+
+AddInPlace is Perl's +=.
+
+```go
+totals := scalar.Hash()
+for _, n := range []int{5, 10} {
+	totals.Get("sum").AddInPlace(n) // $totals{sum} += $n
+}
+fmt.Println(totals.Get("sum"))
+```
+
+```
+15
+```
+
+#### SV.SubInPlace
+
+SubInPlace is Perl's -=.
+
+```go
+s := scalar.Scalar(10)
+s.SubInPlace(3) // $s -= 3
+fmt.Println(s)
+```
+
+```
+7
+```
+
+#### SV.MulInPlace
+
+MulInPlace is Perl's *=.
+
+```go
+s := scalar.Scalar(4)
+s.MulInPlace(2.5) // $s *= 2.5
+fmt.Println(s)
+```
+
+```
+10
+```
+
+#### SV.DivInPlace
+
+DivInPlace is Perl's /=.
+
+```go
+s := scalar.Scalar(9)
+s.DivInPlace(2) // $s /= 2
+fmt.Println(s)
+```
+
+```
+4.5
+```
+
+#### SV.ModInPlace
+
+ModInPlace is Perl's %=.
+
+```go
+s := scalar.Scalar(17)
+s.ModInPlace(5) // $s %= 5
+fmt.Println(s)
+```
+
+```
+2
+```
+
+#### SV.PowInPlace
+
+PowInPlace is Perl's **=.
+
+```go
+s := scalar.Scalar(3)
+s.PowInPlace(2) // $s **= 2
+fmt.Println(s)
+```
+
+```
+9
+```
+
+#### SV.ConcatInPlace
+
+ConcatInPlace is Perl's .=.
+
+```go
+s := scalar.Scalar("Go")
+s.ConcatInPlace(" developer") // $s .= " developer"
+fmt.Println(s)
+```
+
+```
+Go developer
+```
+
+#### SV.RepeatInPlace
+
+RepeatInPlace is Perl's x=.
+
+```go
+s := scalar.Scalar("-")
+s.RepeatInPlace(5) // $s x= 5
+fmt.Println(s)
+```
+
+```
+-----
+```
+
+#### SV.Eq
+
+Eq is Perl's eq.
+
+```go
+fmt.Println(scalar.Scalar(1.0).Eq("1")) // eq compares strings: 1.0 is "1"
+fmt.Println(scalar.Scalar("1.0").Eq(1))
+```
+
+```
+true
+false
+```
+
+#### SV.Ne
+
+Ne is Perl's ne.
+
+```go
+fmt.Println(scalar.Scalar("go").Ne("Go"))
+```
+
+```
+true
+```
+
+#### SV.Lt
+
+Lt is Perl's lt.
+
+```go
+fmt.Println(scalar.Scalar("10").Lt("9")) // as strings, "10" sorts first
+```
+
+```
+true
+```
+
+#### SV.Le
+
+Le is Perl's le.
+
+```go
+fmt.Println(scalar.Scalar("a").Le("a"))
+```
+
+```
+true
+```
+
+#### SV.Gt
+
+Gt is Perl's gt.
+
+```go
+fmt.Println(scalar.Scalar("b").Gt("abc"))
+```
+
+```
+true
+```
+
+#### SV.Ge
+
+Ge is Perl's ge.
+
+```go
+fmt.Println(scalar.Scalar("abc").Ge("abd"))
+```
+
+```
+false
+```
+
+#### SV.NumEq
+
+NumEq is Perl's ==.
+
+```go
+fmt.Println(scalar.Scalar("1.0").NumEq(1)) // == compares numbers
+fmt.Println(scalar.Scalar("NaN").NumEq("NaN"))
+```
+
+```
+true
+false
+```
+
+#### SV.NumNe
+
+NumNe is Perl's !=.
+
+```go
+fmt.Println(scalar.Scalar("10").NumNe(10.0))
+```
+
+```
+false
+```
+
+#### SV.NumLt
+
+NumLt is Perl's <.
+
+```go
+fmt.Println(scalar.Scalar("10").NumLt("9")) // as numbers, 9 is smaller
+```
+
+```
+false
+```
+
+#### SV.NumLe
+
+NumLe is Perl's <=.
+
+```go
+fmt.Println(scalar.Scalar(2).NumLe("2.0"))
+```
+
+```
+true
+```
+
+#### SV.NumGt
+
+NumGt is Perl's >.
+
+```go
+fmt.Println(scalar.Scalar("9007199254740993").NumGt("9007199254740992")) // integers compare exactly
+```
+
+```
+true
+```
+
+#### SV.NumGe
+
+NumGe is Perl's >=.
+
+```go
+fmt.Println(scalar.Scalar(-1).NumGe(0))
+```
+
+```
+false
+```
+
+### Reference: Arrays
+
+#### Array
+
+Array returns an array of vals, as Perl's (...) list does: arrays and hashes among vals are flattened into it (see Push), and other values are converted as by SV.Set.
+
+```go
+a := scalar.Array("a", []string{"b", "c"}, scalar.Array("d")) // lists flatten, as in Perl
+fmt.Println(a.Length(), a.Join(","))
+nested := scalar.Array(1, scalar.Scalar(scalar.Array(2, 3))) // a reference stays one element
+fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
+```
+
+```
+4 a,b,c,d
+2 2,3
+```
+
+#### AV.Length
+
+Length is Perl's scalar(@a).
+
+```go
+fmt.Println(scalar.Array(1, 2, 3).Length()) // scalar(@a)
+```
+
+```
+3
+```
+
+#### AV.Scalar
+
+Scalar is Perl's scalar(@a), the number of elements.
+
+```go
+fmt.Println(scalar.Array("x", "y").Scalar()) // scalar(@a), the same as Length
+```
+
+```
+2
+```
+
+#### AV.LastIndex
+
+LastIndex is Perl's $#a: Length() - 1, so -1 for an empty array.
+
+```go
+fmt.Println(scalar.Array(1, 2, 3).LastIndex()) // $#a
+fmt.Println(scalar.Array().LastIndex())
+```
+
+```
+2
+-1
+```
+
+#### AV.SetLastIndex
+
+SetLastIndex is Perl's $#a = n.
+
+```go
+a := scalar.Array(1, 2, 3, 4)
+a.SetLastIndex(1) // $#a = 1: truncate
+fmt.Println(a.Join(","))
+a.SetLastIndex(3) // extend with holes
+fmt.Println(a.Length(), a.Exists(3))
+```
+
+```
+1,2
+4 false
+```
+
+#### AV.Get
+
+Get returns element i; negative indices count from the end, as in Perl.
+
+```go
+a := scalar.Array("first", "second", "last")
+fmt.Println(a.Get(0), a.Get(-1))             // $a[0], $a[-1]
+fmt.Println(a.Get(10).Defined(), a.Length()) // reading doesn't create
+a.Get(4).Set("new")                          // writing does, as $a[4] = "new"
+fmt.Println(a.Length())
+```
+
+```
+first last
+false 3
+5
+```
+
+#### AV.Set
+
+Set assigns v to element i, extending the array if needed.
+
+```go
+a := scalar.Array()
+a.Set(2, "c") // $a[2] = "c": extends the array, leaving holes
+fmt.Println(a.Length(), a.Exists(0), a.Get(2))
+```
+
+```
+3 false c
+```
+
+#### AV.Exists
+
+Exists is Perl's exists $a[i]: whether element i has been set.
+
+```go
+a := scalar.Array("a", nil)
+fmt.Println(a.Exists(1)) // set, though undef
+fmt.Println(a.Exists(5))
+```
+
+```
+true
+false
+```
+
+#### AV.Defined
+
+Defined is Perl's defined $a[i]: whether element i exists and isn't undef.
+
+```go
+a := scalar.Array("a", nil)
+fmt.Println(a.Defined(0), a.Defined(1), a.Defined(-2))
+```
+
+```
+true false true
+```
+
+#### AV.Delete
+
+Delete is Perl's delete $a[i]: it returns the element (undef if it didn't exist) and leaves a hole.
+
+```go
+a := scalar.Array("a", "b", "c")
+fmt.Println(a.Delete(1)) // delete $a[1]: leaves a hole
+fmt.Println(a.Length(), a.Exists(1))
+a.Delete(-1) // deleting the last element shrinks the array
+fmt.Println(a.Length())
+```
+
+```
+b
+3 false
+1
+```
+
+#### AV.Push
+
+Push is Perl's push: it appends vals and returns a.
+
+```go
+a := scalar.Array("a")
+a.Push("b", []string{"c", "d"})           // push @a, "b", @list
+a.Push(scalar.Scalar(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
+fmt.Println(a.Length(), a.Get(-1).Ref())
+```
+
+```
+5 ARRAY
+```
+
+#### AV.Unshift
+
+Unshift is Perl's unshift: it prepends vals, keeping their order, and returns a.
+
+```go
+a := scalar.Array("c")
+a.Unshift("a", "b") // unshift @a, "a", "b": order kept
+fmt.Println(a.Join(","))
+```
+
+```
+a,b,c
+```
+
+#### AV.Pop
+
+Pop removes and returns the last element, or undef if a is empty.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Pop(), a.Join(","))
+fmt.Println(scalar.Array().Pop().Defined()) // nothing to pop: undef
+```
+
+```
+3 1,2
+false
+```
+
+#### AV.Shift
+
+Shift removes and returns the first element, or undef if a is empty.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Shift(), a.Join(","))
+```
+
+```
+1 2,3
+```
+
+#### AV.Splice
+
+Splice is Perl's splice @a, offset, length, list: it removes length elements starting at offset, inserts list in their place, and returns the removed elements.
+
+```go
+a := scalar.Array("a", "b", "c", "d", "e")
+removed := a.Splice(1, 2, "X") // splice @a, 1, 2, "X"
+fmt.Println(removed.Join(","), "|", a.Join(","))
+a.Splice(-1, 1) // remove the last element
+fmt.Println(a.Join(","))
+```
+
+```
+b,c | a,X,d,e
+a,X,d
+```
+
+#### AV.Slice
+
+Slice is Perl's array slice @a[i, j, ...]: a new array of copies of the elements at those indices.
+
+```go
+a := scalar.Array("a", "b", "c", "d")
+fmt.Println(a.Slice(0, -1, 1).Join(",")) // @a[0, -1, 1]
+```
+
+```
+a,d,b
+```
+
+#### AV.KeyValueSlice
+
+KeyValueSlice is Perl's index/value array slice %a[i, j, ...]: a new array of index/value pairs for those indices, in that order, with copies of the values.
+
+```go
+a := scalar.Array("a", "b")
+fmt.Println(a.KeyValueSlice(0, -1).Join(",")) // %a[0, -1]: indices as written
+```
+
+```
+0,a,-1,b
+```
+
+#### AV.Items
+
+Items returns the elements.
+
+```go
+for _, s := range scalar.Array("a", "b").Items() { // a Go []*scalar.SV
+	fmt.Print(s, " ")
+}
+fmt.Println()
+```
+
+```
+a b
+```
+
+#### AV.StrSlice
+
+StrSlice returns the elements as a Go []string, each in string context (see SV.Str), so undef and holes become "".
+
+```go
+fmt.Printf("%q\n", scalar.Array("a", 1, nil).StrSlice())
+```
+
+```
+["a" "1" ""]
+```
+
+#### AV.IntSlice
+
+IntSlice returns the elements as a Go []int64, each in integer context (see SV.Int), so values that aren't numbers become 0.
+
+```go
+fmt.Println(scalar.Array("3", 4.9, "x").IntSlice())
+```
+
+```
+[3 4 0]
+```
+
+#### AV.NumSlice
+
+NumSlice returns the elements as a Go []float64, each in numeric context (see SV.Num).
+
+```go
+fmt.Println(scalar.Array("1.5", 2).NumSlice())
+```
+
+```
+[1.5 2]
+```
+
+#### AV.AnySlice
+
+AnySlice returns the elements as plain Go values (see SV.Any), for code that doesn't use this package.
+
+```go
+fmt.Println(scalar.Array("a", 1, scalar.Scalar(scalar.Array(2))).AnySlice())
+```
+
+```
+[a 1 [2]]
+```
+
+#### AV.All
+
+All iterates over index/element pairs.
+
+```go
+for i, s := range scalar.Array("a", "b").All() { // while (my ($i, $s) = each @a)
+	fmt.Println(i, s)
+}
+```
+
+```
+0 a
+1 b
+```
+
+#### AV.Join
+
+Join is Perl's join.
+
+```go
+fmt.Println(scalar.Array("Go", "Perl", 5).Join(", "))
+```
+
+```
+Go, Perl, 5
+```
+
+#### AV.Map
+
+Map is Perl's map: a new array of f applied to each element.
+
+```go
+a := scalar.Array("go", "perl")
+fmt.Println(a.Map(func(s *scalar.SV) any { return s.Uc() }).Join(","))
+pairs := a.Map(func(s *scalar.SV) any { return scalar.Array(s, s.Length()) }) // several values each
+fmt.Println(pairs.Join(","))
+```
+
+```
+GO,PERL
+go,2,perl,4
+```
+
+#### AV.Grep
+
+Grep is Perl's grep: a new array of copies of the elements f accepts.
+
+```go
+n := scalar.Array(1, 2, 3, 4).Grep(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })
+fmt.Println(n.Join(","))
+```
+
+```
+2,4
+```
+
+#### AV.Sort
+
+Sort is Perl's sort: a sorted copy of a.
+
+```go
+a := scalar.Array("10", "9", "2")
+fmt.Println(a.Sort(nil).Join(","))           // sort @a: as strings
+fmt.Println(a.Sort(scalar.NumCmp).Join(",")) // sort { $a <=> $b } @a
+byLength := func(x, y *scalar.SV) int { return x.Length() - y.Length() }
+fmt.Println(scalar.Array("ccc", "a", "bb").Sort(byLength).Join(","))
+fmt.Println(a.Join(",")) // unchanged
+```
+
+```
+10,2,9
+2,9,10
+a,bb,ccc
+10,9,2
+```
+
+#### AV.SortInPlace
+
+SortInPlace is Perl's @a = sort @a: it sorts a itself, as Sort would, and returns a.
+
+```go
+a := scalar.Array(3, 1, 2)
+a.SortInPlace(scalar.NumCmp) // @a = sort { $a <=> $b } @a
+fmt.Println(a.Join(","))
+```
+
+```
+1,2,3
+```
+
+#### AV.Reverse
+
+Reverse is Perl's reverse: a reversed copy of a.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Reverse().Join(","), a.Join(","))
+```
+
+```
+3,2,1 1,2,3
+```
+
+#### AV.ReverseInPlace
+
+ReverseInPlace is Perl's @a = reverse @a: it reverses a itself and returns a.
+
+```go
+a := scalar.Array(1, 2, 3)
+a.ReverseInPlace()
+fmt.Println(a.Join(","))
+```
+
+```
+3,2,1
+```
+
+#### AV.SplitAt
+
+SplitAt splits a into its first n elements and the rest, as Perl's my ($x1, ..., $xn, @tail) = @a does.
+
+```go
+head, tail := scalar.Array("Ada", "Lovelace", "maths", "poetry").SplitAt(2) // my ($first, $last, @interests) = @a
+fmt.Println(head.Join(" "), "|", tail.Join(","))
+```
+
+```
+Ada Lovelace | maths,poetry
+```
+
+#### AV.SplitAtSlice
+
+SplitAtSlice is SplitAt with the head as a Go slice of exactly n elements, so it can be unpacked: h, tail := a.SplitAtSlice(3); x, y, z := h[0], h[1], h[2].
+
+```go
+h, rest := scalar.Array("2026", "10", "13", "extra").SplitAtSlice(3)
+year, month, day := h[0], h[1], h[2] // my ($year, $month, $day, @rest) = @a
+fmt.Println(year, month, day, rest.Length())
+```
+
+```
+2026 10 13 1
+```
+
+### Reference: Hashes
+
+#### Hash
+
+Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
+
+```go
+h := scalar.Hash("name", "Ada", "age", 36) // %h = (name => "Ada", age => 36)
+fmt.Println(h.Get("name"), h.Get("age"))
+merged := scalar.Hash(h, "age", 37) // %merged = (%h, age => 37): later keys win
+fmt.Println(merged.Get("age"))
+fmt.Println(scalar.Hash(map[string]int{"a": 1}).Get("a")) // from a Go map
+```
+
+```
+Ada 36
+37
+1
+```
+
+#### HV.Length
+
+Length is Perl's scalar(keys %h).
+
+```go
+fmt.Println(scalar.Hash("a", 1, "b", 2).Length()) // scalar(keys %h)
+```
+
+```
+2
+```
+
+#### HV.Scalar
+
+Scalar is Perl's scalar(%h), which since Perl 5.26 is the number of keys.
+
+```go
+fmt.Println(scalar.Hash("a", 1).Scalar()) // scalar(%h), the same as Length
+```
+
+```
+1
+```
+
+#### HV.Get
+
+Get returns the value for key.
+
+```go
+h := scalar.Hash("a", 1)
+fmt.Println(h.Get("a"))
+fmt.Println(h.Get("b").Defined(), h.Exists("b")) // reading doesn't create
+h.Get("c").HV().Set("d", 1)                      // $h{c}{d} = 1 autovivifies
+fmt.Println(h.Get("c").Ref())
+```
+
+```
+1
+false false
+HASH
+```
+
+#### HV.Set
+
+Set assigns v to key and returns the stored SV.
+
+```go
+h := scalar.Hash()
+h.Set("tags", []string{"go", "perl"}) // $h{tags} = ["go", "perl"]
+fmt.Println(h.Get("tags").AV().Join(","))
+```
+
+```
+go,perl
+```
+
+#### HV.Exists
+
+Exists is Perl's exists.
+
+```go
+h := scalar.Hash("salary", nil)
+fmt.Println(h.Exists("salary"), h.Exists("bonus")) // there, though undef
+```
+
+```
+true false
+```
+
+#### HV.Defined
+
+Defined is Perl's defined $h{key}: whether key exists and its value isn't undef.
+
+```go
+h := scalar.Hash("salary", nil, "title", "Developer")
+fmt.Println(h.Defined("salary"), h.Defined("title"))
+```
+
+```
+false true
+```
+
+#### HV.Delete
+
+Delete is Perl's delete: removes key and returns its value, or undef.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+fmt.Println(h.Delete("a"), h.Exists("a")) // returns the value it removed
+fmt.Println(h.Delete("missing").Defined())
+```
+
+```
+1 false
+false
+```
+
+#### HV.Slice
+
+Slice is Perl's hash slice @h{k1, k2, ...}: a new array of copies of the values for those keys, in that order.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+fmt.Println(h.Slice("b", "a").Join(","))                     // @h{qw(b a)}
+fmt.Println(h.Slice("missing").Get(0).Defined(), h.Length()) // undef, and not created
+```
+
+```
+2,1
+false 2
+```
+
+#### HV.KeyValueSlice
+
+KeyValueSlice is Perl's key/value hash slice %h{k1, k2, ...}: a new array of key/value pairs for those keys, in that order, with copies of the values.
+
+```go
+h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
+h1 := scalar.Hash(h2.KeyValueSlice("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
+fmt.Println(h1.Keys().Sort(nil).Join(","), h1.Get("k3"))
+fmt.Println(h2.KeyValueSlice("k2", "missing").Join(",")) // a missing key comes with undef
+```
+
+```
+k1,k3 3
+k2,2,missing,
+```
+
+#### HV.Keys
+
+Keys is Perl's keys %h: a new array of the keys.
+
+```go
+h := scalar.Hash("b", 2, "a", 1)
+fmt.Println(h.Keys().Sort(nil).Join(",")) // sort keys %h
+```
+
+```
+a,b
+```
+
+#### HV.Values
+
+Values is Perl's values %h, in the same order as Keys.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+for _, v := range h.Values().All() { // $_ *= 10 for values %h
+	v.MulInPlace(10)
+}
+fmt.Println(h.Get("a"), h.Get("b"))
+```
+
+```
+10 20
+```
+
+#### HV.KeysSlice
+
+KeysSlice is Keys as a Go []string.
+
+```go
+keys := scalar.Hash("a", 1).KeysSlice() // a Go []string
+fmt.Printf("%q\n", keys)
+```
+
+```
+["a"]
+```
+
+#### HV.ValuesSlice
+
+ValuesSlice is Values as a Go []*SV.
+
+```go
+values := scalar.Hash("a", "x").ValuesSlice() // a Go []*scalar.SV
+fmt.Println(len(values), values[0])
+```
+
+```
+1 x
+```
+
+#### HV.All
+
+All iterates over key/value pairs in the same order as Keys.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+sum := 0
+for _, v := range h.All() { // while (my ($k, $v) = each %h)
+	sum += int(v.Int())
+}
+fmt.Println(sum)
+```
+
+```
+3
+```
+
+### Reference: List utilities
+
+#### AV.AnyMatch
+
+AnyMatch is List::Util's any: whether f is true for at least one element.
+
+```go
+lines := scalar.Array("Office in Leeds", "Remote working available")
+fmt.Println(lines.AnyMatch(isRemote)) // any { /remote/i } @lines
+fmt.Println(scalar.Array().AnyMatch(isRemote))
+```
+
+```
+true
+false
+```
+
+#### AV.AllMatch
+
+AllMatch is List::Util's all: whether f is true for every element.
+
+```go
+n := scalar.Array(2, 4, 6)
+fmt.Println(n.AllMatch(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })) // all { $_ % 2 == 0 }
+fmt.Println(scalar.Array().AllMatch(isRemote))                                  // true for nothing
+```
+
+```
+true
+true
+```
+
+#### AV.NoneMatch
+
+NoneMatch is List::Util's none: whether f is false for every element.
+
+```go
+fmt.Println(scalar.Array("Leeds", "York").NoneMatch(isRemote))
+```
+
+```
+true
+```
+
+#### AV.FirstMatch
+
+FirstMatch is List::Util's first: the first element for which f is true, or undef if there's none.
+
+```go
+lines := scalar.Array("Leeds office", "Salary: £45k", "Salary: £50k")
+salary := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
+fmt.Println(salary) // first { index($_, "£") >= 0 } @lines
+fmt.Println(lines.FirstMatch(isRemote).Defined())
+```
+
+```
+Salary: £45k
+false
+```
+
+#### AV.MaxNum
+
+MaxNum is List::Util's max: the element with the largest numeric value, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").MaxNum()) // max: as numbers
+```
+
+```
+10
+```
+
+#### AV.MinNum
+
+MinNum is List::Util's min: the element with the smallest numeric value, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").MinNum())
+```
+
+```
+2.5
+```
+
+#### AV.MaxStr
+
+MaxStr is List::Util's maxstr: the element that sorts last as a string, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", "9", "100").MaxStr()) // maxstr: as strings
+```
+
+```
+9
+```
+
+#### AV.MinStr
+
+MinStr is List::Util's minstr: the element that sorts first as a string, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("b", "a", "c").MinStr())
+```
+
+```
+a
+```
+
+#### AV.UniqueStr
+
+UniqueStr is List::Util's uniqstr: a new array of copies of the elements, keeping only the first of each distinct string, in order.
+
+```go
+fmt.Println(scalar.Array("Go", "go", "Go", "Perl").UniqueStr().Join(",")) // first of each, in order
+skills := scalar.Array("Go", "go", "Perl")
+fmt.Println(skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
+```
+
+```
+Go,go,Perl
+go,perl
+```
+
+#### AV.UniqueNum
+
+UniqueNum is List::Util's uniqnum: a new array of copies of the elements, keeping only the first of each distinct number, in order.
+
+```go
+fmt.Println(scalar.Array(1, "1.0", "01", 2).UniqueNum().Join(",")) // the same number, however written
+```
+
+```
+1,2
+```
+
+#### AV.Sum
+
+Sum is List::Util's sum: the numeric sum of the elements, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array(1, "2", 3.5).Sum()) // sum @a
+fmt.Println(scalar.Array().Sum().Defined())  // undef for nothing
+```
+
+```
+6.5
+false
+```
+
+#### AV.Sum0
+
+Sum0 is List::Util's sum0: Sum, but 0 for an empty array.
+
+```go
+fmt.Println(scalar.Array().Sum0()) // sum0: 0 for nothing
+```
+
+```
+0
+```
+
+#### AV.Product
+
+Product is List::Util's product: the numeric product of the elements, or 1 for an empty array, as in List::Util.
+
+```go
+fmt.Println(scalar.Array(2, 3, 4).Product())
+fmt.Println(scalar.Array().Product()) // 1 for nothing
+```
+
+```
+24
+1
+```
+
+#### AV.Reduce
+
+Reduce is List::Util's reduce { ...
+
+```go
+words := scalar.Array("go", "perl", "c")
+longest := words.Reduce(func(a, b *scalar.SV) any { // reduce { length $b > length $a ? $b : $a } @words
+	if b.Length() > a.Length() {
+		return b
+	}
+	return a
+})
+joined := words.Reduce(func(a, b *scalar.SV) any { return a.Str() + "+" + b.Str() })
+fmt.Println(longest, joined)
+```
+
+```
+perl go+perl+c
+```
+
+### Reference: Regular expressions
+
+#### SV.M
+
+M is $s =~ /re/ with captures.
+
+```go
+s := scalar.Scalar("Salary: £45,000 - £55,000")
+if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
+	fmt.Println("matched")
+}
+m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
+fmt.Println(m.Get(0)) // $&
+fmt.Println(m.Get(1), m.Get(2))
+for _, each := range s.M(`£([\d,]+)`, "g").All() { // $s =~ /£([\d,]+)/g
+	fmt.Println(each.AV().Get(1))
+}
+fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
+```
+
+```
+matched
+£45,000 - £55,000
+45,000 55,000
+45,000
+55,000
+false
+```
+
+#### SV.Named
+
+Named is $s =~ /re/ followed by reading %+.
+
+```go
+d := scalar.Scalar("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
+```
+
+```
+2026 11 30
+```
+
+#### SV.S
+
+S is Perl's s///.
+
+```go
+s := scalar.Scalar("a  b   c")
+n := s.S(`\s+`, " ", "g") // $s =~ s/\s+/ /g
+fmt.Println(s, n)
+name := scalar.Scalar("Lovelace, Ada")
+name.S(`(\w+), (\w+)`, "$2 $1") // $1 and $2 in the replacement
+fmt.Println(name)
+clean := scalar.Scalar("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
+fmt.Println(clean)
+doubled := scalar.Scalar("3 apples, 4 pears")
+doubled.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g") // s///e
+fmt.Println(doubled)
+```
+
+```
+a b c 2
+Ada Lovelace
+xy
+6 apples, 8 pears
+```
+
+#### SV.Split
+
+Split is Perl's split /re/, $s.
+
+```go
+fmt.Println(scalar.Scalar("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
+fmt.Println(scalar.Scalar("a1b2c").Split(`(\d)`).Join("|"))       // captures included
+fmt.Println(scalar.Scalar("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
+fmt.Println(scalar.Scalar("  some  words ").Split(" ").Join("|")) // awk mode
+```
+
+```
+4
+a|1|b|2|c
+a|b,c,d
+some|words
+```
+
+#### SV.Tr
+
+Tr is Perl's tr/// (y///).
+
+```go
+s := scalar.Scalar("hello")
+s.Tr("a-z", "A-Z") // $s =~ tr/a-z/A-Z/
+fmt.Println(s)
+fmt.Println(scalar.Scalar("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
+fmt.Println(scalar.Scalar("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
+```
+
+```
+HELLO
+10
+abc
+```
+
+#### Compile
+
+Compile compiles pattern with flags, any of "i", "m", "s" and "x", or returns an error if the pattern is invalid.
+
+```go
+re, err := scalar.Compile(`£([\d,]+`) // a pattern from outside the program: check it
+fmt.Println(re == nil, err != nil)
+```
+
+```
+true true
+```
+
+#### MustCompile
+
+MustCompile is Compile, panicking if the pattern is invalid.
+
+```go
+salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
+s := scalar.Scalar("£45,000 to £55,000")
+fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
+fmt.Println(s.S(salary, "£X", "gr"))
+insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
+fmt.Println(scalar.Scalar("REMOTE").M(insensitive) != nil)
+```
+
+```
+2
+£X to £X
+true
+```
+
+#### Regexp.String
+
+String returns the pattern as written.
+
+```go
+fmt.Println(scalar.MustCompile(`\d+`, "i"))
+```
+
+```
+\d+
+```
+
+### Reference: JSON and JSONPath
+
+#### FromJSON
+
+FromJSON decodes data into a scalar.
+
+```go
+doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "pay": 45000.5, "skills": ["Go"], "bonus": null}`))
+if err != nil {
+	fmt.Println(err)
+	return
+}
+fmt.Println(doc.Path("id")) // whole numbers stay exact
+fmt.Println(doc.Path("pay"), doc.Path("skills").Ref())
+fmt.Println(doc.HV().Exists("bonus"), doc.Path("bonus").Defined()) // null is undef
+```
+
+```
+9007199254740993
+45000.5 ARRAY
+true false
+```
+
+#### SV.MarshalJSON
+
+MarshalJSON implements json.Marshaler.
+
+```go
+h := scalar.Hash("b", 1, "a", scalar.Scalar(scalar.Array("x", nil)))
+out, _ := json.Marshal(scalar.Scalar(h)) // keys sorted, undef as null
+fmt.Println(string(out))
+h.Set("self", scalar.Scalar(h)) // a loop can't be JSON: an error, not a crash
+_, err := json.Marshal(scalar.Scalar(h))
+fmt.Println(err != nil)
+```
+
+```
+{"a":["x",null],"b":1}
+true
+```
+
+#### AV.MarshalJSON
+
+MarshalJSON implements json.Marshaler, as SV.MarshalJSON does.
+
+```go
+out, _ := json.Marshal(scalar.Array(1, "two", 3.5))
+fmt.Println(string(out))
+```
+
+```
+[1,"two",3.5]
+```
+
+#### HV.MarshalJSON
+
+MarshalJSON implements json.Marshaler, as SV.MarshalJSON does.
+
+```go
+out, _ := json.Marshal(scalar.Hash("z", 1, "a", 2))
+fmt.Println(string(out))
+```
+
+```
+{"a":2,"z":1}
+```
+
+#### SV.UnmarshalJSON
+
+UnmarshalJSON implements json.Unmarshaler.
+
+```go
+var record struct {
+	ID   int        `json:"id"`
+	Data *scalar.SV `json:"data"` // any shape at all
+}
+_ = json.Unmarshal([]byte(`{"id": 1, "data": {"tags": ["a", "b"]}}`), &record)
+fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
+```
+
+```
+1 a,b
+```
+
+#### SV.Find
+
+Find runs a JSONPath query (RFC 9535) on s and returns every match, or nil if nothing matched.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"store": {"book": [
+		{"title": "Go", "price": 30},
+		{"title": "Perl", "price": 45}
+	]}
+}`))
+fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
+fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
+fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
+fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
+```
+
+```
+Go,Perl
+30,45
+Perl
+true
+```
+
+<!-- reference:end -->
