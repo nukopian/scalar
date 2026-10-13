@@ -237,6 +237,42 @@ func (a *AV) Shift() *SV {
 	return orUndef(s)
 }
 
+// PopN removes the last n elements and returns them, in array order, as
+// splice(@a, -n) does: Array(1, 2, 3, 4).PopN(2) gives 3, 4 and leaves 1,
+// 2. Calling Pop n times would give them the other way round. Unlike
+// splice, which dies when n is more than the array holds, PopN removes and
+// returns what there is. As with Pop, the elements are the array's own,
+// not copies. n must not be negative.
+func (a *AV) PopN(n int) *AV {
+	n = countN("PopN", n, a.Length())
+	if n == 0 {
+		return &AV{}
+	}
+	return a.Splice(a.Length()-n, n)
+}
+
+// ShiftN removes the first n elements and returns them, in array order, as
+// splice(@a, 0, n) does: Array(1, 2, 3, 4).ShiftN(2) gives 1, 2 and leaves
+// 3, 4. If n is more than the array holds, it removes and returns them all.
+// As with Shift, the elements are the array's own, not copies. n must not
+// be negative.
+func (a *AV) ShiftN(n int) *AV {
+	n = countN("ShiftN", n, a.Length())
+	if n == 0 {
+		return &AV{}
+	}
+	return a.Splice(0, n)
+}
+
+// countN checks the count given to PopN or ShiftN, and limits it to the
+// array's length.
+func countN(op string, n, length int) int {
+	if n < 0 {
+		panic(fmt.Sprintf("scalar: %s count %d is negative", op, n))
+	}
+	return min(n, length)
+}
+
 // Splice is Perl's splice @a, offset, length, list: it removes length
 // elements starting at offset, inserts list in their place, and returns
 // the removed elements.

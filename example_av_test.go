@@ -131,6 +131,28 @@ func ExampleAV_Shift() {
 	// 1 2,3
 }
 
+func ExampleAV_PopN() {
+	a := scalar.Array("a", "b", "c", "d")
+	last := a.PopN(2) // splice(@a, -2): in array order
+	fmt.Println(last.Join(","), "|", a.Join(","))
+	fmt.Println(a.PopN(10).Join(","), "|", a.Length()) // more than there is: all of it
+	// Output:
+	// c,d | a,b
+	// a,b | 0
+}
+
+func ExampleAV_ShiftN() {
+	queue := scalar.Array("job1", "job2", "job3", "job4", "job5")
+	for queue.Length() > 0 {
+		batch := queue.ShiftN(2) // splice(@queue, 0, 2): the next batch
+		fmt.Println(batch.Join(","))
+	}
+	// Output:
+	// job1,job2
+	// job3,job4
+	// job5
+}
+
 func ExampleAV_Splice() {
 	a := scalar.Array("a", "b", "c", "d", "e")
 	removed := a.Splice(1, 2, "X") // splice @a, 1, 2, "X"

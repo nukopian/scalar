@@ -411,6 +411,8 @@ a.Values()                     // values @a
 a.Values(0, -1)                // @a[0, -1]    (the elements themselves, as Perl aliases them)
 a.Pairs(0, -1)                 // %a[0, -1]    (index/value pairs: 0, $a[0], -1, $a[-1])
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
+a.PopN(2)                      // splice(@a, -2)    (the last 2, in order; all of them if fewer)
+a.ShiftN(2)                    // splice(@a, 0, 2)  (the first 2; all of them if fewer)
 head, tail := a.SplitAt(2)        // my ($x, $y, @tail) = @a   (see below)
 
 a.Join(", ")                   // join(", ", @a)
@@ -1201,12 +1203,12 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
+| `Set`, `Delete`, `Push`, `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
 
-`Delete`, `Pop`, `Shift` and `Splice` return the elements they removed. These
+`Delete`, `Pop`, `PopN`, `Shift`, `ShiftN` and `Splice` return the elements they removed. These
 are the actual values, no longer attached to the array or hash, so changing
 them afterwards has no effect on it.
 
@@ -2430,6 +2432,40 @@ fmt.Println(a.Shift(), a.Join(","))
 
 ```
 1 2,3
+```
+
+#### `AV.PopN`
+
+PopN removes the last n elements and returns them, in array order, as splice(@a, -n) does: Array(1, 2, 3, 4).PopN(2) gives 3, 4 and leaves 1, 2.
+
+```go
+a := scalar.Array("a", "b", "c", "d")
+last := a.PopN(2) // splice(@a, -2): in array order
+fmt.Println(last.Join(","), "|", a.Join(","))
+fmt.Println(a.PopN(10).Join(","), "|", a.Length()) // more than there is: all of it
+```
+
+```
+c,d | a,b
+a,b | 0
+```
+
+#### `AV.ShiftN`
+
+ShiftN removes the first n elements and returns them, in array order, as splice(@a, 0, n) does: Array(1, 2, 3, 4).ShiftN(2) gives 1, 2 and leaves 3, 4.
+
+```go
+queue := scalar.Array("job1", "job2", "job3", "job4", "job5")
+for queue.Length() > 0 {
+	batch := queue.ShiftN(2) // splice(@queue, 0, 2): the next batch
+	fmt.Println(batch.Join(","))
+}
+```
+
+```
+job1,job2
+job3,job4
+job5
 ```
 
 #### `AV.Splice`

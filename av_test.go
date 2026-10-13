@@ -469,3 +469,52 @@ func TestInPlace(t *testing.T) {
 		t.Error("Sort and Reverse should copy")
 	}
 }
+
+// PopN and ShiftN match Perl's splice(@a, -n) and splice(@a, 0, n) (checked
+// against perl -E), but take what there is when n is too big.
+func TestPopNShiftN(t *testing.T) {
+	a := Array(1, 2, 3, 4)
+	if got := show(a.PopN(2)); got != "3,4" || show(a) != "1,2" {
+		t.Errorf("PopN(2) = %s, left %s; want 3,4 left 1,2", got, show(a))
+	}
+	b := Array(1, 2, 3, 4)
+	if got := show(b.ShiftN(2)); got != "1,2" || show(b) != "3,4" {
+		t.Errorf("ShiftN(2) = %s, left %s; want 1,2 left 3,4", got, show(b))
+	}
+
+	// More than there is: all of it, where splice(@a, -5) would die.
+	c := Array(1, 2)
+	if got := show(c.PopN(5)); got != "1,2" || c.Length() != 0 {
+		t.Errorf("PopN(5) of 2 = %s, left %d", got, c.Length())
+	}
+	d := Array(1, 2)
+	if got := show(d.ShiftN(5)); got != "1,2" || d.Length() != 0 {
+		t.Errorf("ShiftN(5) of 2 = %s, left %d", got, d.Length())
+	}
+
+	// None, an empty array, and a nil one.
+	e := Array(1)
+	if e.PopN(0).Length() != 0 || e.ShiftN(0).Length() != 0 || e.Length() != 1 {
+		t.Error("a count of 0 should remove nothing")
+	}
+	if Array().PopN(3).Length() != 0 {
+		t.Error("PopN of an empty array should give an empty array")
+	}
+	var nilArray *AV
+	if nilArray.PopN(1).Length() != 0 || nilArray.ShiftN(1).Length() != 0 {
+		t.Error("PopN and ShiftN of a nil array should give an empty array")
+	}
+
+	// The elements are the array's own, and holes come back as undef.
+	own := Scalar("x")
+	f := Array()
+	f.Push(1)
+	f.items = append(f.items, nil, own) // 1, a hole, then own itself
+	got := f.PopN(2)
+	if got.Get(0).Defined() || got.Items()[1] != own {
+		t.Errorf("PopN over a hole: %s", show(got))
+	}
+
+	expectPanic(t, "negative PopN", "PopN count -1 is negative", func() { Array(1).PopN(-1) })
+	expectPanic(t, "negative ShiftN", "ShiftN count -1 is negative", func() { Array(1).ShiftN(-1) })
+}
