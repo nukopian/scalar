@@ -142,18 +142,30 @@ func ExampleAV_Splice() {
 	// a,X,d
 }
 
-func ExampleAV_Slice() {
+func ExampleAV_Values() {
 	a := scalar.Array("a", "b", "c", "d")
-	fmt.Println(a.Slice(0, -1, 1).Join(",")) // @a[0, -1, 1]
+	fmt.Println(a.Values().Join(","))         // values @a
+	fmt.Println(a.Values(0, -1, 1).Join(",")) // @a[0, -1, 1]
+	picks := scalar.Array(2, 3)
+	fmt.Println(a.Values(picks).Join(","))    // @a[@picks]
+	for _, s := range a.Values(0, -1).All() { // $_ = uc for @a[0, -1]: the elements themselves
+		s.Set(s.Uc())
+	}
+	fmt.Println(a.Join(","))
 	// Output:
+	// a,b,c,d
 	// a,d,b
+	// c,d
+	// A,b,c,D
 }
 
-func ExampleAV_KeyValueSlice() {
+func ExampleAV_Pairs() {
 	a := scalar.Array("a", "b")
-	fmt.Println(a.KeyValueSlice(0, -1).Join(",")) // %a[0, -1]: indices as written
+	fmt.Println(a.Pairs(0, -1).Join(",")) // %a[0, -1]: indices as written
+	fmt.Println(a.Pairs().Join(","))      // every index and element
 	// Output:
 	// 0,a,-1,b
+	// 0,a,1,b
 }
 
 func ExampleAV_Items() {

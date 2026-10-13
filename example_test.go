@@ -114,7 +114,7 @@ func Example_countSkills() {
 			scalar.StrCmp(x, y), // then alphabetically
 		)
 	})
-	for _, skill := range top.Slice(0, 1, 2).All() {
+	for _, skill := range top.Values(0, 1, 2).All() {
 		fmt.Println(skill, counts.Get(skill.Str()))
 	}
 

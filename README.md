@@ -194,7 +194,7 @@ top := counts.Keys().Sort(func(x, y *scalar.SV) int {
 		scalar.StrCmp(x, y),                                       // then alphabetically
 	)
 })
-for _, skill := range top.Slice(0, 1, 2).All() {
+for _, skill := range top.Values(0, 1, 2).All() {
 	fmt.Println(skill, counts.Get(skill.Str()))        // go 3, docker 2, kubernetes 1
 }
 ```
@@ -407,8 +407,9 @@ a.SetLastIndex(2)              // $#a = 2   (truncate or extend)
 a.Exists(3)                    // exists $a[3]
 a.Defined(3)                   // defined $a[3]
 a.Delete(3)                    // delete $a[3]
-a.Slice(0, -1)                 // @a[0, -1]
-a.KeyValueSlice(0, -1)         // %a[0, -1]   (index/value pairs: 0, $a[0], -1, $a[-1])
+a.Values()                     // values @a
+a.Values(0, -1)                // @a[0, -1]    (the elements themselves, as Perl aliases them)
+a.Pairs(0, -1)                 // %a[0, -1]    (index/value pairs: 0, $a[0], -1, $a[-1])
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
 head, tail := a.SplitAt(2)        // my ($x, $y, @tail) = @a   (see below)
 
@@ -644,13 +645,16 @@ h.Delete("age")     // delete $h{age}
 h.Length()          // scalar(keys %h)
 h.Scalar()          // scalar(%h), same as Length
 
-h.Slice("a", "b")   // @h{qw(a b)}   (copies; missing keys are undef and aren't created)
-h.KeyValueSlice("a", "b")   // %h{qw(a b)}   (key/value pairs, in that order)
 
 h.Keys()            // keys %h
 h.Values()          // values %h
+h.Values("a", "b")  // @h{qw(a b)}   (a hash slice)
+h.Pairs()           // %h            (key/value pairs, as a list)
+h.Pairs("a", "b")   // %h{qw(a b)}   (a key/value slice)
+
 h.KeysSlice()       // keys %h,   as a Go []string
 h.ValuesSlice()     // values %h, as a Go []*scalar.SV
+h.PairsMap()        // %h,        as a Go map[string]*scalar.SV
 
 for k, v := range h.All() {
 	fmt.Println(k, v)
@@ -670,16 +674,22 @@ scalar.Hash(map[int]string{1: "one"})   // keys become strings: {"1": "one"}
 Only the top level is merged. A value that is itself a slice or map is
 stored as a reference, so it stays nested.
 
-A key/value slice gives a list of pairs, as in Perl, so building a hash
-from some of another's keys is the same one step:
+`Values` and `Pairs` take keys, as Perl's slices do, and the keys can be
+strings, scalars or arrays of them: `h.Values(names)` is `@h{@names}`. That's
+an addition to Perl's `values`, which takes no keys, but it keeps one name
+for "the values" whichever ones you want.
+
+`Pairs` gives a list of pairs, so building a hash from some of another's
+keys is one step:
 
 ```go
-h1 := scalar.Hash(h2.KeyValueSlice("k1", "k2", "k3"))   // %h1 = %h2{qw(k1 k2 k3)}
+h1 := scalar.Hash(h2.Pairs("k1", "k2", "k3"))   // %h1 = %h2{qw(k1 k2 k3)}
 ```
 
 As in Perl, every key asked for is included, in that order: a missing key
 comes with an undef value, so `h1` has all three keys, though `h2` isn't
-changed. The values are copies.
+changed. Note that `List::Util`'s `pairs` is different: it gives `[key, value]`
+array references, where `Pairs` gives one flat list.
 
 `Keys` and `Values` return arrays, so you can sort, map, filter or join them
 straight away:
@@ -696,8 +706,10 @@ As in Perl, the order of keys is not fixed. `Keys`, `Values`, `KeysSlice`,
 or delete a key.
 
 Also as in Perl, keys are copies but values are not. Changing an element of
-`Keys()` has no effect on the hash. Changing an element of `Values()` changes
-the value in the hash, because it *is* that value:
+`Keys()` has no effect on the hash. Changing an element of `Values()` or
+`Pairs()`, with keys or without, changes the value in the hash, because it
+*is* that value. A missing key reads as undef, and is created only if you
+write to it, as with `Get`:
 
 ```go
 for _, v := range h.Values().All() {   // $_ *= 2 for values %h
@@ -706,7 +718,9 @@ for _, v := range h.Values().All() {   // $_ *= 2 for values %h
 ```
 
 Adding or removing elements of the `Values()` array (with `Push`, `Pop` and so
-on) doesn't add or remove anything in the hash.
+on) doesn't add or remove anything in the hash. For a value of your own, call
+`Copy()` on it. Arrays work the same way: `a.Values(0, -1)` gives the first and
+last elements themselves.
 
 ## Nesting and autovivification
 
@@ -1187,7 +1201,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice` and `KeyValueSlice` (arrays and hashes), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1196,8 +1210,9 @@ return something new:
 are the actual values, no longer attached to the array or hash, so changing
 them afterwards has no effect on it.
 
-`Values()` sits between the two columns: the array is new, but its elements
-are the hash's own values, as described under [Hashes](#hashes).
+`Values` and `Pairs`, for arrays and hashes, sit between the two columns: the
+array is new, but its elements (and in `Pairs`, the values) are the
+original's own, as described under [Hashes](#hashes).
 
 ## Caveats
 
@@ -2434,30 +2449,42 @@ b,c | a,X,d,e
 a,X,d
 ```
 
-#### `AV.Slice`
+#### `AV.Values`
 
-Slice is Perl's array slice @a[i, j, ...]: a new array of copies of the elements at those indices.
+Values is Perl's values @a: the elements.
 
 ```go
 a := scalar.Array("a", "b", "c", "d")
-fmt.Println(a.Slice(0, -1, 1).Join(",")) // @a[0, -1, 1]
+fmt.Println(a.Values().Join(","))         // values @a
+fmt.Println(a.Values(0, -1, 1).Join(",")) // @a[0, -1, 1]
+picks := scalar.Array(2, 3)
+fmt.Println(a.Values(picks).Join(","))    // @a[@picks]
+for _, s := range a.Values(0, -1).All() { // $_ = uc for @a[0, -1]: the elements themselves
+	s.Set(s.Uc())
+}
+fmt.Println(a.Join(","))
 ```
 
 ```
+a,b,c,d
 a,d,b
+c,d
+A,b,c,D
 ```
 
-#### `AV.KeyValueSlice`
+#### `AV.Pairs`
 
-KeyValueSlice is Perl's index/value array slice %a[i, j, ...]: a new array of index/value pairs for those indices, in that order, with copies of the values.
+Pairs is Perl's index/value slice %a[i, j, ...]: a new array of index/value pairs for those indices, in that order, given as for Values.
 
 ```go
 a := scalar.Array("a", "b")
-fmt.Println(a.KeyValueSlice(0, -1).Join(",")) // %a[0, -1]: indices as written
+fmt.Println(a.Pairs(0, -1).Join(",")) // %a[0, -1]: indices as written
+fmt.Println(a.Pairs().Join(","))      // every index and element
 ```
 
 ```
 0,a,-1,b
+0,a,1,b
 ```
 
 #### `AV.Items`
@@ -2784,35 +2811,37 @@ fmt.Println(h.Delete("missing").Defined())
 false
 ```
 
-#### `HV.Slice`
+#### `HV.Pairs`
 
-Slice is Perl's hash slice @h{k1, k2, ...}: a new array of copies of the values for those keys, in that order.
-
-```go
-h := scalar.Hash("a", 1, "b", 2)
-fmt.Println(h.Slice("b", "a").Join(","))                     // @h{qw(b a)}
-fmt.Println(h.Slice("missing").Get(0).Defined(), h.Length()) // undef, and not created
-```
-
-```
-2,1
-false 2
-```
-
-#### `HV.KeyValueSlice`
-
-KeyValueSlice is Perl's key/value hash slice %h{k1, k2, ...}: a new array of key/value pairs for those keys, in that order, with copies of the values.
+Pairs is Perl's %h in list context: a new array of key/value pairs, k1, v1, k2, v2 and so on, in the same order as Keys.
 
 ```go
 h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
-h1 := scalar.Hash(h2.KeyValueSlice("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
+h1 := scalar.Hash(h2.Pairs("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
 fmt.Println(h1.Keys().Sort(nil).Join(","), h1.Get("k3"))
-fmt.Println(h2.KeyValueSlice("k2", "missing").Join(",")) // a missing key comes with undef
+fmt.Println(h2.Pairs("k2", "missing").Join(","))      // a missing key comes with undef
+fmt.Println(scalar.Hash("only", 1).Pairs().Join(",")) // every pair: %h in list context
 ```
 
 ```
 k1,k3 3
 k2,2,missing,
+only,1
+```
+
+#### `HV.PairsMap`
+
+PairsMap returns h as a Go map from its keys to its own values, as Pairs() would list them, for code that doesn't use this package.
+
+```go
+h := scalar.Hash("a", 1)
+m := h.PairsMap() // a Go map[string]*scalar.SV of the hash's own values
+m["a"].Set(2)
+fmt.Println(len(m), h.Get("a"))
+```
+
+```
+1 2
 ```
 
 #### `HV.Keys`
@@ -2830,18 +2859,22 @@ a,b
 
 #### `HV.Values`
 
-Values is Perl's values %h, in the same order as Keys.
+Values is Perl's values %h: the values, in the same order as Keys.
 
 ```go
-h := scalar.Hash("a", 1, "b", 2)
-for _, v := range h.Values().All() { // $_ *= 10 for values %h
+h := scalar.Hash("a", 1, "b", 2, "c", 3)
+fmt.Println(h.Values("c", "a").Join(","))                     // @h{qw(c a)}
+fmt.Println(h.Values("missing").Get(0).Defined(), h.Length()) // undef, and not created
+for _, v := range h.Values().All() {                          // $_ *= 10 for values %h
 	v.MulInPlace(10)
 }
-fmt.Println(h.Get("a"), h.Get("b"))
+fmt.Println(h.Values("a", "b", "c").Join(","))
 ```
 
 ```
-10 20
+3,1
+false 3
+10,20,30
 ```
 
 #### `HV.KeysSlice`
@@ -2859,7 +2892,7 @@ fmt.Printf("%q\n", keys)
 
 #### `HV.ValuesSlice`
 
-ValuesSlice is Values as a Go []*SV.
+ValuesSlice is Values() as a Go []*SV.
 
 ```go
 values := scalar.Hash("a", "x").ValuesSlice() // a Go []*scalar.SV

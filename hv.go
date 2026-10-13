@@ -82,32 +82,6 @@ func (h *HV) Set(key string, v any) *SV {
 	return h.Get(key).Set(v)
 }
 
-// Slice is Perl's hash slice @h{k1, k2, ...}: a new array of copies of the
-// values for those keys, in that order. Missing keys are undef, and aren't
-// created.
-func (h *HV) Slice(keys ...string) *AV {
-	out := &AV{items: make([]*SV, len(keys))}
-	for i, k := range keys {
-		out.items[i] = h.Get(k).Copy()
-	}
-	return out
-}
-
-// KeyValueSlice is Perl's key/value hash slice %h{k1, k2, ...}: a new array
-// of key/value pairs for those keys, in that order, with copies of the
-// values. As in Perl, a missing key is included with an undef value, and
-// isn't created in h. To make a hash of them, as %h1 = %h2{...} does, pass
-// the result to Hash:
-//
-//	h1 := scalar.Hash(h2.KeyValueSlice("k1", "k2", "k3"))
-func (h *HV) KeyValueSlice(keys ...string) *AV {
-	out := &AV{items: make([]*SV, 0, 2*len(keys))}
-	for _, k := range keys {
-		out.items = append(out.items, &SV{v: k}, h.Get(k).Copy())
-	}
-	return out
-}
-
 // Exists is Perl's exists.
 func (h *HV) Exists(key string) bool {
 	if h == nil {
@@ -164,12 +138,54 @@ func (h *HV) Keys() *AV {
 	return out
 }
 
-// Values is Perl's values %h, in the same order as Keys. As in Perl, the
-// elements are the hash's own values, not copies: changing one (with Set,
-// Inc and so on) changes h. Adding or removing elements of the array
-// doesn't change h.
-func (h *HV) Values() *AV {
-	return &AV{items: h.ValuesSlice()}
+// Values is Perl's values %h: the values, in the same order as Keys. Given
+// keys, it's the hash slice @h{k1, k2, ...} instead: the values for those
+// keys, in that order. The keys may be strings, scalars or arrays of them,
+// flattened as a list is (see Push), so h.Values(names) is @h{@names}.
+//
+// As in Perl, the elements are the hash's own values, not copies: changing
+// one (with Set, Inc and so on) changes h. A missing key reads as undef and
+// isn't created unless you write to it, as with Get. Adding or removing
+// elements of the array doesn't change h; use Copy on an element for a
+// value of your own.
+func (h *HV) Values(keys ...any) *AV {
+	if len(keys) == 0 {
+		return &AV{items: h.ValuesSlice()}
+	}
+	names := flatten(keys)
+	out := &AV{items: make([]*SV, len(names))}
+	for i, k := range names {
+		out.items[i] = h.Get(k.Str())
+	}
+	return out
+}
+
+// Pairs is Perl's %h in list context: a new array of key/value pairs, k1,
+// v1, k2, v2 and so on, in the same order as Keys. Given keys, it's the
+// key/value slice %h{k1, k2, ...} instead: the pairs for those keys, in that
+// order, with keys given as for Values. A missing key is included, with an
+// undef value. To make a hash of them, as %h1 = %h2{...} does, pass the
+// result to Hash:
+//
+//	h1 := scalar.Hash(h2.Pairs("k1", "k2", "k3"))
+//
+// As in Perl, the keys are new strings and the values are the hash's own,
+// as with Values. Note that List::Util's pairs is different: it returns
+// [key, value] array references, where this returns one flat list.
+func (h *HV) Pairs(keys ...any) *AV {
+	var names []string
+	if len(keys) == 0 {
+		names = h.keys()
+	} else {
+		for _, k := range flatten(keys) {
+			names = append(names, k.Str())
+		}
+	}
+	out := &AV{items: make([]*SV, 0, 2*len(names))}
+	for _, k := range names {
+		out.items = append(out.items, &SV{v: k}, h.Get(k))
+	}
+	return out
 }
 
 // KeysSlice is Keys as a Go []string.
@@ -177,7 +193,7 @@ func (h *HV) KeysSlice() []string {
 	return slices.Clone(h.keys())
 }
 
-// ValuesSlice is Values as a Go []*SV. Like Values, the elements are the
+// ValuesSlice is Values() as a Go []*SV. Like Values, the elements are the
 // hash's own values.
 func (h *HV) ValuesSlice() []*SV {
 	ks := h.keys()
@@ -204,4 +220,16 @@ func (h *HV) All() iter.Seq2[string, *SV] {
 			}
 		}
 	}
+}
+
+// PairsMap returns h as a Go map from its keys to its own values, as
+// Pairs() would list them, for code that doesn't use this package. The map
+// is new, so adding or removing keys doesn't change h, but changing a value
+// does. For plain Go values throughout, use Any on a scalar holding h.
+func (h *HV) PairsMap() map[string]*SV {
+	out := make(map[string]*SV, h.Length())
+	for k, v := range h.All() {
+		out[k] = v
+	}
+	return out
 }

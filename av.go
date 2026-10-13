@@ -267,26 +267,47 @@ func (a *AV) Splice(offset, length int, list ...any) *AV {
 	return removed
 }
 
-// Slice is Perl's array slice @a[i, j, ...]: a new array of copies of the
-// elements at those indices. Negative indices count from the end, and
-// missing elements are undef.
-func (a *AV) Slice(indices ...int) *AV {
-	out := &AV{items: make([]*SV, len(indices))}
-	for i, idx := range indices {
-		out.items[i] = Scalar(a.Get(idx))
+// Values is Perl's values @a: the elements. Given indices, it's the array
+// slice @a[i, j, ...] instead: the elements at those indices, in that
+// order. Negative indices count from the end, and the indices may be
+// numbers, scalars or arrays of them, flattened as a list is (see Push), so
+// a.Values(picks) is @a[@picks].
+//
+// As in Perl, the elements are the array's own, not copies: changing one
+// changes a. A missing element reads as undef and isn't created unless you
+// write to it, as with Get. Use Copy on an element for a value of your own.
+func (a *AV) Values(indices ...any) *AV {
+	if len(indices) == 0 {
+		return &AV{items: a.Items()}
+	}
+	picks := flatten(indices)
+	out := &AV{items: make([]*SV, len(picks))}
+	for i, x := range picks {
+		out.items[i] = a.Get(int(x.Int()))
 	}
 	return out
 }
 
-// KeyValueSlice is Perl's index/value array slice %a[i, j, ...]: a new array
-// of index/value pairs for those indices, in that order, with copies of the
-// values. As in Perl, each index is given as written, so -1 stays -1 while
-// its value is the last element's, and a missing element is undef and isn't
-// created.
-func (a *AV) KeyValueSlice(indices ...int) *AV {
-	out := &AV{items: make([]*SV, 0, 2*len(indices))}
-	for _, i := range indices {
-		out.items = append(out.items, &SV{v: int64(i)}, a.Get(i).Copy())
+// Pairs is Perl's index/value slice %a[i, j, ...]: a new array of
+// index/value pairs for those indices, in that order, given as for Values.
+// Without indices, it's every index and element. As in Perl, each index is
+// given as written, so -1 stays -1 while its value is the last element's;
+// the values are the array's own, and a missing element is undef and isn't
+// created unless you write to it.
+func (a *AV) Pairs(indices ...any) *AV {
+	var picks []int
+	if len(indices) == 0 {
+		for i := range a.Length() {
+			picks = append(picks, i)
+		}
+	} else {
+		for _, x := range flatten(indices) {
+			picks = append(picks, int(x.Int()))
+		}
+	}
+	out := &AV{items: make([]*SV, 0, 2*len(picks))}
+	for _, i := range picks {
+		out.items = append(out.items, &SV{v: int64(i)}, a.Get(i))
 	}
 	return out
 }

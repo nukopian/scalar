@@ -977,27 +977,53 @@ func TestFormat(t *testing.T) {
 	}
 }
 
-func TestHashSlice(t *testing.T) {
+// Values with keys is Perl's hash slice @h{...}: the hash's own values, as
+// Perl aliases them (checked against perl -E).
+func TestHashValues(t *testing.T) {
 	h := Hash("a", 1, "b", 2)
-	got := h.Slice("b", "missing", "a")
+	got := h.Values("b", "missing", Array("a"))
 	if got.Join(",") != "2,,1" || got.Get(1).Defined() {
-		t.Errorf("Slice = %q", got.StrSlice())
+		t.Errorf("@h{qw(b missing a)} = %q", got.StrSlice())
 	}
 	if h.Exists("missing") {
-		t.Error("Slice shouldn't create missing keys")
+		t.Error("reading a slice shouldn't create missing keys")
 	}
-	got.Get(0).Set(99)
-	if h.Get("b").Int() != 2 {
-		t.Error("Slice should return copies")
+	for _, v := range h.Values("a", "b").All() { // $_ *= 10 for @h{qw(a b)}
+		v.MulInPlace(10)
+	}
+	if h.Get("a").Int() != 10 || h.Get("b").Int() != 20 {
+		t.Errorf("writing through a slice: a=%v b=%v", h.Get("a"), h.Get("b"))
+	}
+	h.Values("new").Get(0).Set(3) // writing to a missing key creates it
+	if h.Get("new").Int() != 3 {
+		t.Error("writing through a slice should create a missing key")
 	}
 	var nilHash *HV
-	if nilHash.Slice("a").Length() != 1 {
-		t.Error("Slice of a nil hash should give undef")
+	if nilHash.Values("a").Length() != 1 || nilHash.Values().Length() != 0 {
+		t.Error("Values of a nil hash should give undef for each key, or nothing")
 	}
 }
 
-// Key/value slices behave as Perl 5.42's do (checked against perl -E).
-func TestKeyValueSlice(t *testing.T) {
+func TestPairsMap(t *testing.T) {
+	h := Hash("a", 1, "b", 2)
+	m := h.PairsMap()
+	if len(m) != 2 || m["a"].Int() != 1 {
+		t.Errorf("PairsMap = %v", m)
+	}
+	m["a"].Set(10) // the hash's own values
+	delete(m, "b") // but its own map
+	if h.Get("a").Int() != 10 || !h.Exists("b") {
+		t.Error("PairsMap should share values but not keys")
+	}
+	var nilHash *HV
+	if m := nilHash.PairsMap(); m == nil || len(m) != 0 {
+		t.Errorf("PairsMap of a nil hash = %#v, want an empty map", m)
+	}
+}
+
+// Pairs behave as Perl 5.42's key/value slices and %h in list context do
+// (checked against perl -E).
+func TestPairs(t *testing.T) {
 	undefStr := func(a *AV) string {
 		parts := make([]string, a.Length())
 		for i, s := range a.All() {
@@ -1008,27 +1034,41 @@ func TestKeyValueSlice(t *testing.T) {
 
 	// my @l = %h2{qw(k1 k2 k3)}   gives   k1,1,k2,undef,k3,undef
 	h2 := Hash("k1", 1, "k2", nil)
-	if got := undefStr(h2.KeyValueSlice("k1", "k2", "k3")); got != "k1,1,k2,undef,k3,undef" {
+	if got := undefStr(h2.Pairs("k1", "k2", "k3")); got != "k1,1,k2,undef,k3,undef" {
 		t.Errorf("hash = %s", got)
 	}
-	// my %h1 = %h2{qw(k1 k3)}: k3 exists in h1 but isn't created in h2.
-	h1 := Hash(h2.KeyValueSlice("k1", "k3"))
+	// my %h1 = %h2{qw(k1 k3)}: k3 exists in h1 but isn't created in h2, and
+	// h1 is a hash of its own.
+	h1 := Hash(h2.Pairs("k1", "k3"))
 	if !h1.Exists("k3") || h1.Length() != 2 || h2.Exists("k3") {
 		t.Errorf("h1 has k3: %v (length %d); h2 has k3: %v", h1.Exists("k3"), h1.Length(), h2.Exists("k3"))
 	}
-	// The values are copies.
 	h1.Get("k1").Set(99)
 	if h2.Get("k1").Int() != 1 {
-		t.Error("KeyValueSlice should copy the values")
+		t.Error("a hash made from Pairs should have its own values")
+	}
+	// for (%h{k1}) { $_ .= "!" } changes the value, as the values are aliased.
+	for _, s := range h2.Pairs("k1").All() {
+		s.ConcatInPlace("!")
+	}
+	if h2.Get("k1").Str() != "1!" || !h2.Exists("k1") {
+		t.Errorf("after writing through Pairs: k1=%v", h2.Get("k1"))
+	}
+	// Without keys, every pair: %h in list context.
+	if got := Hash(Hash("a", 1, "b", 2).Pairs()); got.Length() != 2 || got.Get("b").Int() != 2 {
+		t.Errorf("all pairs = %v", got.Pairs())
 	}
 
 	// my @p = %a[0, 5, -1]   gives   0,a,5,undef,-1,b, and @a stays at 2.
 	a := Array("a", "b")
-	if got := undefStr(a.KeyValueSlice(0, 5, -1)); got != "0,a,5,undef,-1,b" || a.Length() != 2 {
+	if got := undefStr(a.Pairs(0, 5, -1)); got != "0,a,5,undef,-1,b" || a.Length() != 2 {
 		t.Errorf("array = %s, length %d", got, a.Length())
 	}
+	if got := undefStr(a.Pairs()); got != "0,a,1,b" {
+		t.Errorf("all array pairs = %s", got)
+	}
 	var nilHash *HV
-	if got := undefStr(nilHash.KeyValueSlice("a")); got != "a,undef" {
+	if got := undefStr(nilHash.Pairs("a")); got != "a,undef" {
 		t.Errorf("nil hash = %s", got)
 	}
 }

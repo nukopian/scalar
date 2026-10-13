@@ -164,18 +164,33 @@ func TestSplice(t *testing.T) {
 	}
 }
 
-func TestSlice(t *testing.T) {
+// Values with indices is Perl's array slice @a[...]: the array's own
+// elements, as Perl aliases them (checked against perl -E).
+func TestArrayValues(t *testing.T) {
 	a := Array("a", "b", "c", "d")
-	if got := show(a.Slice(0, -1, 1, 10, -10)); got != "a,d,b,-,-" {
+	if got := show(a.Values(0, -1, 1, 10, -10)); got != "a,d,b,-,-" {
 		t.Errorf("@a[0,-1,1,10,-10] = %s", got)
 	}
-	s := a.Slice(0)
-	s.Set(0, "changed")
-	if a.Get(0).Str() != "a" {
-		t.Error("Slice should copy")
+	if got := show(a.Values(Array(2, 3), "0")); got != "c,d,a" {
+		t.Errorf("flattened indices = %s", got)
 	}
 	if a.Length() != 4 {
-		t.Error("Slice shouldn't extend the array")
+		t.Error("reading a slice shouldn't extend the array")
+	}
+	b := Array(1, 2, 3)
+	for _, s := range b.Values(0, -1).All() { // $_ *= 10 for @b[0, -1]
+		s.MulInPlace(10)
+	}
+	if show(b) != "10,2,30" {
+		t.Errorf("writing through a slice: %s, want 10,2,30", show(b))
+	}
+	// Writing to a missing element creates it, as $a[5] = 1 does.
+	b.Values(5).Get(0).Set("new")
+	if b.Length() != 6 || b.Get(5).Str() != "new" {
+		t.Errorf("after writing to a missing element: %s", show(b))
+	}
+	if got := show(Array("x", "y").Values()); got != "x,y" {
+		t.Errorf("values @a = %s", got)
 	}
 }
 

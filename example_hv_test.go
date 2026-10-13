@@ -77,23 +77,25 @@ func ExampleHV_Delete() {
 	// false
 }
 
-func ExampleHV_Slice() {
-	h := scalar.Hash("a", 1, "b", 2)
-	fmt.Println(h.Slice("b", "a").Join(","))                     // @h{qw(b a)}
-	fmt.Println(h.Slice("missing").Get(0).Defined(), h.Length()) // undef, and not created
-	// Output:
-	// 2,1
-	// false 2
-}
-
-func ExampleHV_KeyValueSlice() {
+func ExampleHV_Pairs() {
 	h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
-	h1 := scalar.Hash(h2.KeyValueSlice("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
+	h1 := scalar.Hash(h2.Pairs("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
 	fmt.Println(h1.Keys().Sort(nil).Join(","), h1.Get("k3"))
-	fmt.Println(h2.KeyValueSlice("k2", "missing").Join(",")) // a missing key comes with undef
+	fmt.Println(h2.Pairs("k2", "missing").Join(","))      // a missing key comes with undef
+	fmt.Println(scalar.Hash("only", 1).Pairs().Join(",")) // every pair: %h in list context
 	// Output:
 	// k1,k3 3
 	// k2,2,missing,
+	// only,1
+}
+
+func ExampleHV_PairsMap() {
+	h := scalar.Hash("a", 1)
+	m := h.PairsMap() // a Go map[string]*scalar.SV of the hash's own values
+	m["a"].Set(2)
+	fmt.Println(len(m), h.Get("a"))
+	// Output:
+	// 1 2
 }
 
 func ExampleHV_Keys() {
@@ -104,13 +106,17 @@ func ExampleHV_Keys() {
 }
 
 func ExampleHV_Values() {
-	h := scalar.Hash("a", 1, "b", 2)
-	for _, v := range h.Values().All() { // $_ *= 10 for values %h
+	h := scalar.Hash("a", 1, "b", 2, "c", 3)
+	fmt.Println(h.Values("c", "a").Join(","))                     // @h{qw(c a)}
+	fmt.Println(h.Values("missing").Get(0).Defined(), h.Length()) // undef, and not created
+	for _, v := range h.Values().All() {                          // $_ *= 10 for values %h
 		v.MulInPlace(10)
 	}
-	fmt.Println(h.Get("a"), h.Get("b"))
+	fmt.Println(h.Values("a", "b", "c").Join(","))
 	// Output:
-	// 10 20
+	// 3,1
+	// false 3
+	// 10,20,30
 }
 
 func ExampleHV_KeysSlice() {
