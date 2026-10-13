@@ -272,6 +272,18 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 	var out string
 	switch r := repl.(type) {
 	case string:
+		if !strings.Contains(r, "$") {
+			// Plain text needs no expanding, so one pass replaces and counts.
+			var err error
+			out, err = rx.ReplaceFunc(str, func(regexp2.Match) string {
+				n++
+				return r
+			}, -1, limit)
+			check(rx, err)
+			break
+		}
+		// regexp2 expands $1, ${name} and so on only in Replace, which
+		// doesn't say how many it replaced, so count them first.
 		for range matches(rx, []rune(str)) {
 			n++
 			if n == limit {

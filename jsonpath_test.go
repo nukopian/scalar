@@ -231,6 +231,10 @@ func TestFindErrors(t *testing.T) {
 		"$['\\u12":                "short \\u escape",
 		"$['\\uzzzz']":            "bad \\u escape",
 		"$['\\":                   "unterminated escape",
+		"$['\\ud83d']":            "unpaired high surrogate",
+		"$['\\ud83dx']":           "unpaired high surrogate",
+		"$['\\ud83d\\u0041']":     "not a low surrogate",
+		"$['\\ude00']":            "unpaired low surrogate",
 	}
 	for path, want := range tests {
 		expectPanic(t, path, want, func() { doc.Find(path) })

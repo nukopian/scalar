@@ -924,3 +924,74 @@ func TestExistsVersusDefined(t *testing.T) {
 		t.Error("nil array")
 	}
 }
+
+// A reference that leads back to itself can't be JSON: encoding it is an
+// error, not a crash. The same hash appearing twice isn't a cycle.
+func TestMarshalJSONCycles(t *testing.T) {
+	h := Hash("a", 1)
+	h.Set("self", Scalar(h))
+	for name, v := range map[string]any{"SV": Scalar(h), "HV": h, "AV": Array(Scalar(h))} {
+		if _, err := json.Marshal(v); err == nil || !strings.Contains(err.Error(), "self-referencing HASH") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+
+	shared := Hash("x", 1)
+	twice := Hash("first", Scalar(shared), "second", Scalar(shared))
+	got, err := json.Marshal(Scalar(twice))
+	if err != nil || string(got) != `{"first":{"x":1},"second":{"x":1}}` {
+		t.Errorf("shared hash: %s, %v", got, err)
+	}
+
+	expectPanic(t, "Any on a cycle", "self-referencing HASH", func() { Scalar(h).Any() })
+}
+
+// The format verbs treat a scalar as Perl's sprintf does.
+func TestFormat(t *testing.T) {
+	for _, tt := range []struct {
+		format string
+		arg    any
+		want   string
+	}{
+		{"%d", "42 apples", "42"},
+		{"%d", 3.7, "3"},
+		{"%05.2f", "3.14159", "03.14"},
+		{"%x", 255, "ff"},
+		{"%x", "ff", "0"}, // numeric context, as in Perl
+		{"%c", 65, "A"},
+		{"%e", "1500", "1.500000e+03"},
+		{"%s", 12.5, "12.5"},
+		{"%5s|", "ab", "   ab|"},
+		{"%q", "a\"b", `"a\"b"`},
+		{"%v", nil, ""},
+		{"%t", "0", "false"},
+		{"%t", "0.0", "true"},
+	} {
+		if got := fmt.Sprintf(tt.format, Scalar(tt.arg)); got != tt.want {
+			t.Errorf("Sprintf(%q, %v) = %q, want %q", tt.format, tt.arg, got, tt.want)
+		}
+	}
+	var undef *SV
+	if got := fmt.Sprintf("%d|%s", undef, undef); got != "0|" {
+		t.Errorf("nil *SV = %q", got)
+	}
+}
+
+func TestHashSlice(t *testing.T) {
+	h := Hash("a", 1, "b", 2)
+	got := h.Slice("b", "missing", "a")
+	if got.Join(",") != "2,,1" || got.Get(1).Defined() {
+		t.Errorf("Slice = %q", got.StrSlice())
+	}
+	if h.Exists("missing") {
+		t.Error("Slice shouldn't create missing keys")
+	}
+	got.Get(0).Set(99)
+	if h.Get("b").Int() != 2 {
+		t.Error("Slice should return copies")
+	}
+	var nilHash *HV
+	if nilHash.Slice("a").Length() != 1 {
+		t.Error("Slice of a nil hash should give undef")
+	}
+}

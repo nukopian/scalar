@@ -119,14 +119,21 @@ func (s *SV) Defined() bool { return s.val() != nil }
 // with s. It panics if a reference leads back to itself, which plain Go
 // values can't represent.
 func (s *SV) Any() any {
-	return s.toAny(map[any]bool{})
+	v, err := s.toAny(map[any]bool{})
+	if err != nil {
+		panic("scalar: Any on a " + err.Error())
+	}
+	return v
 }
 
-func (s *SV) toAny(inProgress map[any]bool) any {
+// toAny is Any, returning an error for a reference that leads back to
+// itself rather than panicking. inProgress holds the arrays and hashes
+// being converted, so the same one can appear twice without being a cycle.
+func (s *SV) toAny(inProgress map[any]bool) (any, error) {
 	switch v := s.val().(type) {
 	case *AV, *HV:
 		if inProgress[v] {
-			panic("scalar: Any on a self-referencing " + s.Ref())
+			return nil, fmt.Errorf("self-referencing %s", s.Ref())
 		}
 		inProgress[v] = true
 		defer delete(inProgress, v)
@@ -136,17 +143,23 @@ func (s *SV) toAny(inProgress map[any]bool) any {
 	case *AV:
 		out := make([]any, v.Length())
 		for i, e := range v.items {
-			out[i] = e.toAny(inProgress)
+			var err error
+			if out[i], err = e.toAny(inProgress); err != nil {
+				return nil, err
+			}
 		}
-		return out
+		return out, nil
 	case *HV:
 		out := make(map[string]any, v.Length())
 		for k, e := range v.m {
-			out[k] = e.toAny(inProgress)
+			var err error
+			if out[k], err = e.toAny(inProgress); err != nil {
+				return nil, err
+			}
 		}
-		return out
+		return out, nil
 	}
-	return s.val()
+	return s.val(), nil
 }
 
 // Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s
@@ -204,6 +217,27 @@ func (s *SV) Str() string {
 
 // String implements fmt.Stringer.
 func (s *SV) String() string { return s.Str() }
+
+// Format implements fmt.Formatter, so that Go's format verbs treat s as
+// Perl's sprintf does, in the context each verb implies: %d, %b, %o, %x, %X
+// and %c in integer context (see Int), %e, %E, %f, %F, %g and %G in numeric
+// context (see Num), %t in boolean context, and %s, %q, %v and anything
+// else in string context (see Str). Widths, precisions and flags work as
+// usual, so fmt.Sprintf("%05.2f", Scalar("3.14159")) is "03.14".
+func (s *SV) Format(f fmt.State, verb rune) {
+	var arg any
+	switch verb {
+	case 'd', 'b', 'o', 'x', 'X', 'c':
+		arg = s.Int()
+	case 'e', 'E', 'f', 'F', 'g', 'G':
+		arg = s.Num()
+	case 't':
+		arg = s.Bool()
+	default:
+		arg = s.Str()
+	}
+	fmt.Fprintf(f, fmt.FormatString(f, verb), arg)
+}
 
 // Num returns s in numeric context. Values that don't look like numbers
 // numify as Perl does ("42abc" is 42, "abc" is 0); use NumOK to detect that.

@@ -163,3 +163,54 @@ func (a *AV) unique(key func(*SV) any) *AV {
 	}
 	return out
 }
+
+// Sum is List::Util's sum: the numeric sum of the elements, or undef for an
+// empty array. Integers add exactly while the total fits, as with Add.
+func (a *AV) Sum() *SV {
+	if a.Length() == 0 {
+		return &SV{}
+	}
+	return a.Sum0()
+}
+
+// Sum0 is List::Util's sum0: Sum, but 0 for an empty array.
+func (a *AV) Sum0() *SV {
+	total := &SV{v: int64(0)}
+	for _, s := range a.All() {
+		total = total.Add(s)
+	}
+	return total
+}
+
+// Product is List::Util's product: the numeric product of the elements, or
+// 1 for an empty array, as in List::Util.
+func (a *AV) Product() *SV {
+	total := &SV{v: int64(1)}
+	for _, s := range a.All() {
+		total = total.Mul(s)
+	}
+	return total
+}
+
+// Reduce is List::Util's reduce { ... } @a: f is called with the first two
+// elements, then with its result so far and each following element, as $a
+// and $b are. It returns the final result, a copy of the only element if
+// there's one, or undef if there are none. f may return a *SV or any Go
+// value, converted as by SV.Set:
+//
+//	longest := words.Reduce(func(a, b *scalar.SV) any {
+//		if b.Length() > a.Length() {
+//			return b
+//		}
+//		return a
+//	})
+func (a *AV) Reduce(f func(acc, x *SV) any) *SV {
+	if a.Length() == 0 {
+		return &SV{}
+	}
+	acc := a.Get(0).Copy()
+	for i := 1; i < a.Length(); i++ {
+		acc = operand(f(acc, a.Get(i))).Copy()
+	}
+	return acc
+}

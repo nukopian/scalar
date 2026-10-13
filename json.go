@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -33,40 +34,31 @@ func (s *SV) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. Undef encodes as null.
+// MarshalJSON implements json.Marshaler. Undef encodes as null. A
+// reference that leads back to itself is an error, as JSON can't represent
+// it; so is a NaN or infinite number, as encoding/json can't either.
 func (s *SV) MarshalJSON() ([]byte, error) {
-	switch v := s.val().(type) {
-	case nil:
-		return []byte("null"), nil
-	case *AV:
-		return v.MarshalJSON()
-	case *HV:
-		return v.MarshalJSON()
-	default:
-		return json.Marshal(v)
+	v, err := s.toAny(map[any]bool{})
+	if err != nil {
+		return nil, fmt.Errorf("scalar: can't encode a %w as JSON", err)
 	}
+	return json.Marshal(v)
 }
 
-// MarshalJSON implements json.Marshaler.
+// MarshalJSON implements json.Marshaler, as SV.MarshalJSON does.
 func (a *AV) MarshalJSON() ([]byte, error) {
 	if a == nil {
 		return []byte("null"), nil
 	}
-	if a.items == nil {
-		return []byte("[]"), nil
-	}
-	return json.Marshal(a.items)
+	return (&SV{v: a}).MarshalJSON()
 }
 
-// MarshalJSON implements json.Marshaler.
+// MarshalJSON implements json.Marshaler, as SV.MarshalJSON does.
 func (h *HV) MarshalJSON() ([]byte, error) {
 	if h == nil {
 		return []byte("null"), nil
 	}
-	if h.m == nil {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(h.m)
+	return (&SV{v: h}).MarshalJSON()
 }
 
 func normalizeJSONNumber(n json.Number) any {

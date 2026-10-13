@@ -82,6 +82,17 @@ func (h *HV) Set(key string, v any) *SV {
 	return h.Get(key).Set(v)
 }
 
+// Slice is Perl's hash slice @h{k1, k2, ...}: a new array of copies of the
+// values for those keys, in that order. Missing keys are undef, and aren't
+// created.
+func (h *HV) Slice(keys ...string) *AV {
+	out := &AV{items: make([]*SV, len(keys))}
+	for i, k := range keys {
+		out.items[i] = h.Get(k).Copy()
+	}
+	return out
+}
+
 // Exists is Perl's exists.
 func (h *HV) Exists(key string) bool {
 	if h == nil {

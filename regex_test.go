@@ -300,3 +300,23 @@ func TestCompiledRegexpTimeout(t *testing.T) {
 	RegexTimeout = old
 	expectPanic(t, "compiled timeout", "timeout", func() { Scalar(strings.Repeat("a", 40) + "!").M(re) })
 }
+
+// A replacement without $ takes a one-pass path; it must count and replace
+// exactly as a template does.
+func TestSubstPlainReplacement(t *testing.T) {
+	s := Scalar("a1b22c333")
+	if n := s.S(`\d+`, "#", "g").Int(); n != 3 || s.Str() != "a#b#c#" {
+		t.Errorf("g: n=%d, s=%q", n, s.Str())
+	}
+	s = Scalar("a1b22")
+	if n := s.S(`\d+`, "#").Int(); n != 1 || s.Str() != "a#b22" {
+		t.Errorf("once: n=%d, s=%q", n, s.Str())
+	}
+	s = Scalar("abc")
+	if n := s.S(`\d+`, "#", "g").Int(); n != 0 || s.Str() != "abc" {
+		t.Errorf("no match: n=%d, s=%q", n, s.Str())
+	}
+	if got := Scalar(`a1`).S(`\d`, `\n`, "r").Str(); got != `a\n` {
+		t.Errorf("backslashes are literal: %q", got)
+	}
+}

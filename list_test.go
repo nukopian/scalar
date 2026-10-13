@@ -213,3 +213,55 @@ func TestSplitAt(t *testing.T) {
 
 	expectPanic(t, "negative count", "SplitAt count -1 is negative", func() { list.SplitAt(-1) })
 }
+
+func TestSumAndProduct(t *testing.T) {
+	a := Array(1, "2", 3.5)
+	if got := a.Sum(); got.Num() != 6.5 || got.Kind() != Float {
+		t.Errorf("Sum = %v (%v)", got, got.Kind())
+	}
+	if got := Array(1, 2, 3).Sum(); got.Int() != 6 || got.Kind() != Int {
+		t.Errorf("integer Sum = %v (%v), want an exact integer", got, got.Kind())
+	}
+	if got := Array().Sum(); got.Defined() {
+		t.Errorf("Sum of nothing = %v, want undef", got)
+	}
+	if got := Array().Sum0(); got.Int() != 0 || !got.Defined() {
+		t.Errorf("Sum0 of nothing = %v, want 0", got)
+	}
+	if got := Array(2, 3, 4).Product(); got.Int() != 24 {
+		t.Errorf("Product = %v", got)
+	}
+	if got := Array().Product(); got.Int() != 1 {
+		t.Errorf("Product of nothing = %v, want 1", got)
+	}
+	big := Array(math.MaxInt64, 1).Sum()
+	if big.Kind() != Float {
+		t.Errorf("an overflowing Sum should become a float, got %v", big.Kind())
+	}
+}
+
+func TestReduce(t *testing.T) {
+	words := Array("go", "perl", "c")
+	longest := words.Reduce(func(a, b *SV) any {
+		if b.Length() > a.Length() {
+			return b
+		}
+		return a
+	})
+	if longest.Str() != "perl" {
+		t.Errorf("longest = %v", longest)
+	}
+	concat := Array("a", "b", "c").Reduce(func(a, b *SV) any { return a.Str() + b.Str() })
+	if concat.Str() != "abc" {
+		t.Errorf("concat = %v", concat)
+	}
+	if got := Array().Reduce(nil); got.Defined() {
+		t.Errorf("Reduce of nothing = %v, want undef", got)
+	}
+	one := Array("only")
+	got := one.Reduce(nil) // f isn't called for one element
+	got.Set("changed")
+	if got.Str() != "changed" || one.Get(0).Str() != "only" {
+		t.Error("Reduce of one element should return a copy of it")
+	}
+}

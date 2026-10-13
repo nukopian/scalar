@@ -385,9 +385,20 @@ func (p *pathParser) escape(b *strings.Builder) {
 	case '/', '\\', '\'', '"':
 		b.WriteByte(c)
 	case 'u':
+		// A character outside the Basic Multilingual Plane is written as a
+		// surrogate pair, \uD8xx\uDCxx; either half on its own is invalid.
 		r := p.hex4()
-		if 0xD800 <= r && r < 0xDC00 && p.eat(`\u`) { // surrogate pair
+		switch {
+		case 0xDC00 <= r && r < 0xE000:
+			p.fail("unpaired low surrogate \\u%04X", r)
+		case 0xD800 <= r && r < 0xDC00:
+			if !p.eat(`\u`) {
+				p.fail("unpaired high surrogate \\u%04X", r)
+			}
 			lo := p.hex4()
+			if lo < 0xDC00 || lo >= 0xE000 {
+				p.fail("high surrogate \\u%04X followed by \\u%04X, not a low surrogate", r, lo)
+			}
 			r = 0x10000 + (r-0xD800)<<10 + (lo - 0xDC00)
 		}
 		b.WriteRune(r)

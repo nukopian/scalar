@@ -365,6 +365,25 @@ for _, skill := range skills.All() {
 - `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
   scalar the way Perl's `print` would.
 
+### Formatting, as with sprintf
+
+Go's format verbs treat a scalar as Perl's `sprintf` does, in the context
+each verb implies:
+
+| Verbs | Context | Example |
+|---|---|---|
+| `%d`, `%b`, `%o`, `%x`, `%X`, `%c` | integer (see `Int`) | `fmt.Sprintf("%d", scalar.Scalar("42 apples"))` is `"42"` |
+| `%e`, `%E`, `%f`, `%F`, `%g`, `%G` | number (see `Num`) | `fmt.Sprintf("%05.2f", scalar.Scalar("3.14159"))` is `"03.14"` |
+| `%t` | boolean (see `Bool`) | `fmt.Sprintf("%t", scalar.Scalar("0"))` is `"false"` |
+| `%s`, `%q`, `%v` and the rest | string (see `Str`) | `fmt.Sprintf("%5s", scalar.Scalar("ab"))` is `"   ab"` |
+
+```go
+fmt.Printf("%d items, £%.2f each\n", count, price)   // printf "%d items, £%.2f each\n", $count, $price
+```
+
+Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
+`"ff"` formats as `0`, not as the hex of its bytes.
+
 ## Arrays
 
 ```go
@@ -496,6 +515,9 @@ where Perl takes a block:
 | `maxstr @a`, `minstr @a` | `a.MaxStr()`, `a.MinStr()` |
 | `uniqstr @a` | `a.UniqueStr()` |
 | `uniqnum @a` | `a.UniqueNum()` |
+| `sum @a`, `sum0 @a` | `a.Sum()`, `a.Sum0()` |
+| `product @a` | `a.Product()` |
+| `reduce { ... } @a` | `a.Reduce(func(acc, x *scalar.SV) any { ... })` |
 
 ```go
 remote := func(s *scalar.SV) bool { return s.M(`(?i)\bremote\b`) != nil }
@@ -504,6 +526,14 @@ if bullets.AnyMatch(remote) { ... }
 salary := chunks.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
 
 skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr()   // ignoring case
+
+total := salaries.Sum0()                                             // sum0 @salaries
+longest := words.Reduce(func(a, b *scalar.SV) any {                  // reduce { length $b > length $a ? $b : $a } @words
+	if b.Length() > a.Length() {
+		return b
+	}
+	return a
+})
 ```
 
 As in Perl:
@@ -520,6 +550,13 @@ As in Perl:
   return copies. `UniqueStr` compares as strings, with undef counting as `""`.
   `UniqueNum` compares as numbers, so `1`, `"1"` and `"1.0"` count as the same
   value. Large integers compare exactly.
+- **`Sum` of an empty array is undef; `Sum0` is 0, and `Product` is 1.**
+  They add and multiply as `Add` and `Mul` do, so integers stay exact while
+  the result fits, and become floats when it doesn't.
+- **`Reduce`** calls its function with the first two elements, then with
+  the result so far and each following element, as Perl's `$a` and `$b`.
+  With one element it returns a copy of it, without calling the function;
+  with none, undef. The function may return a scalar or any Go value.
 
 ### Sorting
 
@@ -602,6 +639,8 @@ h.Defined("age")    // defined $h{age}   (the key is there and its value isn't u
 h.Delete("age")     // delete $h{age}
 h.Length()          // scalar(keys %h)
 h.Scalar()          // scalar(%h), same as Length
+
+h.Slice("a", "b")   // @h{qw(a b)}   (copies; missing keys are undef and aren't created)
 
 h.Keys()            // keys %h
 h.Values()          // values %h
@@ -1076,6 +1115,11 @@ out, err := json.Marshal(s)      // encode
   fields in your own structs.
 - Hashes are encoded with their keys sorted, so the same data always produces
   the same JSON, even though hash order is random.
+- **Encoding can fail**, with an error rather than a panic, in two cases JSON
+  can't represent: a reference that leads back to itself (a hash that
+  contains itself, directly or further down), and a NaN or infinite number.
+  The same array or hash appearing twice, without a loop, is fine: it's
+  written out each time.
 
 ## Copies, references and in-place changes
 
@@ -1124,7 +1168,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice`, `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum` |
+| `Set`, `Delete`, `Push`, `Pop`, `Shift`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace` | `Sort`, `Reverse`, `Map`, `Grep`, `Slice` (arrays and hashes), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce` |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1149,6 +1193,8 @@ are the hash's own values, as described under [Hashes](#hashes).
     neither a string nor a `*Regexp`
   - passing something other than a string or int to `Path`, or something
     other than a string or function as an `S` replacement
+  - `Any()` on a reference that leads back to itself (encoding it as JSON
+    returns an error instead)
 
   If one bad record mustn't stop a batch, catch these with `recover` around
   the code that processes each record.
