@@ -316,3 +316,12 @@ func ExampleAV_SplitAtSlice() {
 	// Output:
 	// 2026 10 13 1
 }
+
+func ExampleAV_Clone() {
+	rows := scalar.Array(scalar.Scalar(map[string]any{"title": "Go Developer"})) // one row: a hash reference
+	mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
+	mine.Get(0).At("title").Set("Perl Developer")
+	fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
+	// Output:
+	// Go Developer / Perl Developer
+}

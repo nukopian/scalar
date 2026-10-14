@@ -71,7 +71,7 @@ func (s *SV) Set(x any) *SV {
 // Elements returned by Get, Path, All and Values are the stored values
 // themselves; Copy gives you one you can change without affecting the
 // container. Like Perl's assignment, the copy is shallow: a copied
-// reference points at the same array or hash.
+// reference points at the same array or hash. For a deep copy, use Clone.
 func (s *SV) Copy() *SV {
 	return &SV{v: s.val()}
 }

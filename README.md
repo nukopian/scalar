@@ -106,6 +106,7 @@ string and you get a string; ask for a number and you get a number.
 | Numbers and operators | `Add`, `Concat`, `Inc` (`"aa"` to `"ab"`), `AddInPlace`, `NumCmp`; `fmt` verbs as `sprintf` | `+`, `.`, `++`, `+=`, `<=>`, `sprintf` |
 | Binary data | byte strings, from a `[]byte`; `Pack` and `Unpack` for hex, bits and floats | `pack`, `unpack` |
 | JSON | `FromJSON`, and `encoding/json` for writing | |
+| Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
 | Back to plain Go | `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
 
 For a worked example of every function and method, see the
@@ -407,7 +408,8 @@ for _, skill := range skills.All() {
   `HashRef`.
 - `Ref()` works like Perl's `ref()`: it returns `"ARRAY"`, `"HASH"` or `""`.
 - `Set(x)` assigns a new value and returns the scalar.
-- `Copy()` returns a copy of the scalar. See
+- `Copy()` returns a copy of the scalar, and `Clone()` a deep copy, of the
+  arrays and hashes it refers to as well. See
   [Copies, references and in-place changes](#copies-references-and-in-place-changes).
 - `Any()` returns the scalar as a plain Go value (`nil`, `bool`, `int64`,
   `float64`, `string`, `[]any` or `map[string]any`), for code that doesn't use
@@ -1475,6 +1477,28 @@ reference to the same data.
 - Copying a reference doesn't copy the array or hash it points to. Both copies
   point at the same data, just as in Perl.
 
+### Deep copies: `Clone`
+
+`Clone` copies a scalar and everything it refers to, all the way down, as
+Perl's `Storable::dclone` does. Changing the clone never changes the
+original. Arrays and hashes have it too, as `dclone(\@a)` and `dclone(\%h)`:
+
+```go
+row := h.Get("defaults").Clone()   // my $row = dclone($h{defaults})
+row.At("tags").AV().Push("new")    // $h{defaults}{tags} is unchanged
+
+mine := rows.Clone()               // dclone(\@rows): the rows too, not just the list
+```
+
+Compare `Copy` and `scalar.Hash(h)`, which copy one level: a hash copied that
+way still shares its nested arrays and hashes with the original.
+
+As with `dclone`, the clone has the original's shape. An array or hash that
+appears twice is copied once and appears twice in the clone, a reference
+that loops back leads back into the clone, holes stay holes, and byte
+strings stay byte strings. So `Clone` is safe on any structure, where `Any()`
+panics on a loop.
+
 ### What changes in place
 
 Methods either change the value you call them on, or leave it alone and
@@ -1482,7 +1506,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
+| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1602,6 +1626,25 @@ fmt.Println(h.Get("count"))
 
 ```
 2
+```
+
+#### `SV.Clone`
+
+Clone returns a deep copy of s, as Storable's dclone does: arrays and hashes it refers to are copied too, all the way down, so changing the clone never changes the original.
+
+```go
+h := scalar.Hash("defaults", scalar.Scalar(map[string]any{"tags": []any{"go"}}))
+shallow := h.Get("defaults").Copy() // my $row = $h{defaults}: the same hash
+deep := h.Get("defaults").Clone()   // my $row = dclone($h{defaults}): its own
+deep.At("tags").AV().Push("perl")
+fmt.Println(h.Get("defaults").At("tags").AV().Join(","), deep.At("tags").AV().Join(","))
+shallow.At("tags").AV().Push("sql") // changes the original
+fmt.Println(h.Get("defaults").At("tags").AV().Join(","))
+```
+
+```
+go go,perl
+go,sql
 ```
 
 #### `SV.Kind`
@@ -3156,6 +3199,21 @@ fmt.Println(year, month, day, rest.Length())
 2026 10 13 1
 ```
 
+#### `AV.Clone`
+
+Clone returns a deep copy of a, as dclone(\@a) does; see `SV.Clone`.
+
+```go
+rows := scalar.Array(scalar.Scalar(map[string]any{"title": "Go Developer"})) // one row: a hash reference
+mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
+mine.Get(0).At("title").Set("Perl Developer")
+fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
+```
+
+```
+Go Developer / Perl Developer
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -3289,6 +3347,23 @@ fmt.Println(h.Delete("missing").Defined())
 ```
 1 false
 false
+```
+
+#### `HV.Clone`
+
+Clone returns a deep copy of h, as dclone(\%h) does; see `SV.Clone`.
+
+```go
+defaults := scalar.Hash("remote", false, "tags", scalar.Scalar([]string{"go"}))
+row := defaults.Clone() // dclone(\%defaults): nested arrays too
+row.Get("tags").AV().Push("perl")
+merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
+merged.Get("tags").AV().Push("sql")
+fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(","))
+```
+
+```
+go,sql / go,perl
 ```
 
 #### `HV.Pairs`

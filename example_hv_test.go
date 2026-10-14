@@ -89,6 +89,17 @@ func ExampleHV_Delete() {
 	// false
 }
 
+func ExampleHV_Clone() {
+	defaults := scalar.Hash("remote", false, "tags", scalar.Scalar([]string{"go"}))
+	row := defaults.Clone() // dclone(\%defaults): nested arrays too
+	row.Get("tags").AV().Push("perl")
+	merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
+	merged.Get("tags").AV().Push("sql")
+	fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(","))
+	// Output:
+	// go,sql / go,perl
+}
+
 func ExampleHV_Pairs() {
 	h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
 	h1 := scalar.Hash(h2.Pairs("k1", "k3")) // %h1 = %h2{qw(k1 k3)}

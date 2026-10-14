@@ -46,6 +46,19 @@ func ExampleSV_Copy() {
 	// 2
 }
 
+func ExampleSV_Clone() {
+	h := scalar.Hash("defaults", scalar.Scalar(map[string]any{"tags": []any{"go"}}))
+	shallow := h.Get("defaults").Copy() // my $row = $h{defaults}: the same hash
+	deep := h.Get("defaults").Clone()   // my $row = dclone($h{defaults}): its own
+	deep.At("tags").AV().Push("perl")
+	fmt.Println(h.Get("defaults").At("tags").AV().Join(","), deep.At("tags").AV().Join(","))
+	shallow.At("tags").AV().Push("sql") // changes the original
+	fmt.Println(h.Get("defaults").At("tags").AV().Join(","))
+	// Output:
+	// go go,perl
+	// go,sql
+}
+
 func ExampleSV_Kind() {
 	for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
 		switch scalar.Scalar(x).Kind() {
