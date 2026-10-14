@@ -100,6 +100,19 @@ func ExampleHV_Clone() {
 	// go,sql / go,perl
 }
 
+func ExampleHV_Apply() {
+	row := scalar.Hash("title", "go developer", "remote", true)
+	row.Apply(func(v *scalar.SV) any {
+		if v.Kind() == scalar.String {
+			return v.UcFirst()
+		}
+		return v
+	})
+	fmt.Println(row.Get("title"), row.Get("remote"))
+	// Output:
+	// Go developer 1
+}
+
 func ExampleHV_Pairs() {
 	h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
 	h1 := scalar.Hash(h2.Pairs("k1", "k3")) // %h1 = %h2{qw(k1 k3)}

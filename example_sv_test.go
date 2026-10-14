@@ -59,6 +59,20 @@ func ExampleSV_Clone() {
 	// go,sql
 }
 
+func ExampleSV_Apply() {
+	doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
+	doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc
+		if v.Kind() == scalar.String {
+			return v.Trim()
+		}
+		return v // anything else as it is
+	})
+	out, _ := doc.MarshalJSON()
+	fmt.Println(string(out))
+	// Output:
+	// {"salary":50000,"skills":["Go","SQL"],"title":"Go Developer"}
+}
+
 func ExampleSV_Kind() {
 	for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
 		switch scalar.Scalar(x).Kind() {
@@ -124,6 +138,30 @@ func ExampleSV_OrSet() {
 	fmt.Println(h.Get("retries"))
 	// Output:
 	// 3
+}
+
+func ExampleSV_Then() {
+	digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
+	figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
+	annual := func(v *scalar.SV) any { return v.Mul(12) }
+	for _, text := range []string{"£4,000 a month", "Competitive"} {
+		fmt.Println(scalar.Scalar(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+	}
+	// Output:
+	// 48000
+	// unknown
+}
+
+func ExampleSV_When() {
+	positive := func(v *scalar.SV) bool { return v.Num() > 0 }
+	doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": 0}`))
+	fmt.Println(doc.At("min").When(positive).Or("none"))
+	fmt.Println(doc.At("max").When(positive).Or("none"))   // fails the test: undef
+	fmt.Println(doc.At("bonus").When(positive).Or("none")) // missing: positive isn't called
+	// Output:
+	// 45000
+	// none
+	// none
 }
 
 func ExampleSV_Ref() {

@@ -97,6 +97,7 @@ string and you get a string; ask for a number and you get a number.
 |---|---|---|
 | Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
 | Searching nested data | `Find("$..skills[*]")`, JSONPath | |
+| Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
 | Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
@@ -105,6 +106,7 @@ string and you get a string; ask for a number and you get a number.
 | Sets and counts | `NewSet` with `Union`, `Intersection`, …; `Bag` with `Insert`, `Count`, `MostCommon` | `Set::Scalar`, `Set::Bag` |
 | Numbers and operators | `Add`, `Concat`, `Inc` (`"aa"` to `"ab"`), `AddInPlace`, `NumCmp`; `fmt` verbs as `sprintf` | `+`, `.`, `++`, `+=`, `<=>`, `sprintf` |
 | Binary data | byte strings, from a `[]byte`; `Pack` and `Unpack` for hex, bits and floats | `pack`, `unpack` |
+| Steps that may find nothing | `Then(f)` and `When(pred)`, which pass undef straight through, then `Or(default)` | `//` |
 | JSON | `FromJSON`, and `encoding/json` for writing | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
 | Back to plain Go | `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
@@ -321,6 +323,30 @@ meta.Get("location").OrSet("Unknown")                       // $meta{location} /
 - **`OrSet(def)`** is Perl's `//=`. It sets the value to `def` if it's undef,
   creating a missing hash or array element if necessary, and returns the
   scalar.
+
+### Chains that may come up empty: `Then` and `When`
+
+`Then` and `When` extend the same idea to your own steps. Each passes undef
+straight through, without calling its function, so a chain stops quietly at
+the first step that finds nothing, and `Or` supplies the default at the end:
+
+```go
+annual := posting.At("salary.text").
+	Then(parseFigure).   // undef if the text has no figure
+	When(isPositive).    // undef unless the figure is above zero
+	Then(toAnnual).      // skipped if anything before gave undef
+	Or("unknown")
+```
+
+- **`s.Then(f)`** calls `f(s)` if `s` is defined, and returns its result as a
+  new scalar. `f` may return a scalar or any Go value, and `nil` for undef.
+- **`s.When(pred)`** returns a copy of `s` if it's defined and `pred(s)` is
+  true, and undef otherwise.
+
+Both return new scalars, so writing to the result never changes the
+original or creates a missing element. For readers who know the term:
+undef is Maybe's Nothing, `Scalar` is the unit and `Then` is the bind, and
+`TestThenMonadLaws` checks that the monad laws hold.
 
 ### Length
 
@@ -1036,6 +1062,34 @@ Things to know:
 - **References that loop back on themselves are visited once,** so `..`
   can't get stuck.
 
+## Changing every value: `Apply`
+
+`Apply` calls a function on every plain value in a structure, all the way
+down, and stores what it returns in the value's place, as `Data::Rmap`'s
+`rmap` does. Scalars, arrays and hashes all have it:
+
+```go
+doc.Apply(func(v *scalar.SV) any {   // rmap { $_ = trim $_ } $doc
+	if v.Kind() == scalar.String {
+		return v.Trim()
+	}
+	return v                         // anything else as it is
+})
+```
+
+- **The function sees plain values:** strings, numbers, booleans, byte
+  strings and undef. Arrays and hashes are walked through, not passed to it,
+  and hash keys are left alone.
+- **What it returns replaces the value.** Returning `v` leaves it as it was,
+  and `nil` makes it undef. An array or hash returned is stored as a
+  reference, and isn't walked.
+- **It changes the structure in place,** and returns it. For a changed
+  copy, use `doc.Clone().Apply(f)`.
+- **Each array or hash is visited once,** as with `rmap`, so shared parts
+  and references that loop back are safe.
+- **Holes are skipped.** That's one difference from `rmap`, which visits an
+  array's holes as undef and so fills them in.
+
 ## Operators
 
 Operators return a new scalar and don't change either side. The right-hand side
@@ -1506,7 +1560,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
+| `Set`, `Apply`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Then`, `When`, `Or`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1647,6 +1701,26 @@ go go,perl
 go,sql
 ```
 
+#### `SV.Apply`
+
+Apply calls f on every plain value in s, all the way down, and stores what f returns in its place, as Data::Rmap's rmap { $_ = ...
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
+doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc
+	if v.Kind() == scalar.String {
+		return v.Trim()
+	}
+	return v // anything else as it is
+})
+out, _ := doc.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+{"salary":50000,"skills":["Go","SQL"],"title":"Go Developer"}
+```
+
 #### `SV.Kind`
 
 Kind reports what s currently holds.
@@ -1742,6 +1816,42 @@ fmt.Println(h.Get("retries"))
 
 ```
 3
+```
+
+#### `SV.Then`
+
+Then calls f with s if s is defined, and returns what f returns as a new scalar; if s is undef, f isn't called, and Then returns undef.
+
+```go
+digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
+figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
+annual := func(v *scalar.SV) any { return v.Mul(12) }
+for _, text := range []string{"£4,000 a month", "Competitive"} {
+	fmt.Println(scalar.Scalar(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+}
+```
+
+```
+48000
+unknown
+```
+
+#### `SV.When`
+
+When returns a copy of s if s is defined and pred(s) is true, and undef otherwise, without calling pred on undef.
+
+```go
+positive := func(v *scalar.SV) bool { return v.Num() > 0 }
+doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": 0}`))
+fmt.Println(doc.At("min").When(positive).Or("none"))
+fmt.Println(doc.At("max").When(positive).Or("none"))   // fails the test: undef
+fmt.Println(doc.At("bonus").When(positive).Or("none")) // missing: positive isn't called
+```
+
+```
+45000
+none
+none
 ```
 
 #### `SV.Ref`
@@ -3214,6 +3324,20 @@ fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
 Go Developer / Perl Developer
 ```
 
+#### `AV.Apply`
+
+Apply calls f on every plain value in a, all the way down, as rmap { ...
+
+```go
+prices := scalar.Array(10, scalar.Scalar([]any{20, 30}))
+prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
+fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
+```
+
+```
+12 24 36
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -3364,6 +3488,25 @@ fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(
 
 ```
 go,sql / go,perl
+```
+
+#### `HV.Apply`
+
+Apply calls f on every plain value in h, all the way down, as rmap { ...
+
+```go
+row := scalar.Hash("title", "go developer", "remote", true)
+row.Apply(func(v *scalar.SV) any {
+	if v.Kind() == scalar.String {
+		return v.UcFirst()
+	}
+	return v
+})
+fmt.Println(row.Get("title"), row.Get("remote"))
+```
+
+```
+Go developer 1
 ```
 
 #### `HV.Pairs`

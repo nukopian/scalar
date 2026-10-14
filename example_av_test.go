@@ -325,3 +325,11 @@ func ExampleAV_Clone() {
 	// Output:
 	// Go Developer / Perl Developer
 }
+
+func ExampleAV_Apply() {
+	prices := scalar.Array(10, scalar.Scalar([]any{20, 30}))
+	prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
+	fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
+	// Output:
+	// 12 24 36
+}
