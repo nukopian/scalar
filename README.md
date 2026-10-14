@@ -101,6 +101,7 @@ string and you get a string; ask for a number and you get a number.
 | Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
 | Searching nested data | `Find("$..skills[*]")`, JSONPath | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
+| Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
 | Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
@@ -1140,6 +1141,37 @@ doc.Apply(func(v *scalar.SV) any {   // rmap { $_ = trim $_ } $doc
 - **Holes are skipped.** That's one difference from `rmap`, which visits an
   array's holes as undef and so fills them in.
 
+## Comparing structures: `Equal` and `Diff`
+
+`Equal` compares two structures all the way down, as `Test::More`'s
+`is_deeply` does, and `Diff` says where they first differ, with a path for
+`At`. Scalars, arrays and hashes all have both, and the other side can be a
+scalar or a plain Go value:
+
+```go
+doc.Equal(map[string]any{"skills": []string{"Go", "SQL"}})   // is_deeply
+
+rules.Diff(model)    // skills[1]: got "SQL", want "Docker"
+```
+
+The rules are `is_deeply`'s:
+
+- **Plain values compare as strings,** as with `eq`. So `1` and `1.0` are
+  equal, but `1` and `"1.0"` aren't. A boolean true equals `1`, and a byte
+  string equals text of the same characters.
+- **Undef equals only undef,** not `""`.
+- **Arrays** must have the same length and equal elements. A hole counts as
+  undef.
+- **Hashes** must have the same keys and equal values, so a missing key isn't
+  the same as one whose value is undef.
+- **Structures that loop back on themselves** compare safely.
+
+`Diff` returns `""` when the two are equal. Otherwise it gives the path,
+then what's on each side, with `does not exist` for a missing element or key.
+Keys are taken in sorted order, so the same difference is always the one
+reported. That makes it handy in tests, and for comparing two extractions
+of the same posting.
+
 ## Operators
 
 Operators return a new scalar and don't change either side. The right-hand side
@@ -1805,6 +1837,40 @@ fmt.Println(h.Get("defaults").At("tags").AV().Join(","))
 ```
 go go,perl
 go,sql
+```
+
+#### `SV.Equal`
+
+Equal reports whether s and other hold the same data, all the way down, as Test::More's is_deeply decides it.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
+	"skills": []string{"Go", "SQL"},
+	"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
+}))
+fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Scalar(nil).Equal("")) // undef equals only undef
+```
+
+```
+true
+true false
+```
+
+#### `SV.Diff`
+
+Diff says where s and other first differ, as is_deeply reports it, or "" if they're equal (see Equal).
+
+```go
+rules, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+model, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "Docker"]}`))
+fmt.Println(rules.Diff(model)) // where they first differ, as a path for At
+fmt.Printf("%q\n", rules.Diff(rules.Clone()))
+```
+
+```
+skills[1]: got "SQL", want "Docker"
+""
 ```
 
 #### `SV.Apply`
@@ -3508,6 +3574,31 @@ fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
 Go Developer / Perl Developer
 ```
 
+#### `AV.Equal`
+
+Equal reports whether a and other hold the same data; see `SV.Equal`.
+
+```go
+a := scalar.Array("Go", 1)
+fmt.Println(a.Equal([]any{"Go", "1"}), a.Equal([]any{"Go"}))
+```
+
+```
+true false
+```
+
+#### `AV.Diff`
+
+Diff says where a and other first differ; see `SV.Diff`.
+
+```go
+fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
+```
+
+```
+[1]: got "SQL", want does not exist
+```
+
 #### `AV.Apply`
 
 Apply calls f on every plain value in a, all the way down, as rmap { ...
@@ -3704,6 +3795,32 @@ fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(
 
 ```
 go,sql / go,perl
+```
+
+#### `HV.Equal`
+
+Equal reports whether h and other hold the same data; see `SV.Equal`.
+
+```go
+h := scalar.Hash("remote", true, "days", 2)
+fmt.Println(h.Equal(map[string]any{"remote": 1, "days": "2"})) // true is 1, as in Perl
+```
+
+```
+true
+```
+
+#### `HV.Diff`
+
+Diff says where h and other first differ; see `SV.Diff`.
+
+```go
+h := scalar.Hash("bonus", nil)
+fmt.Println(h.Diff(map[string]any{})) // a key whose value is undef isn't a missing key
+```
+
+```
+bonus: got undef, want does not exist
 ```
 
 #### `HV.Apply`

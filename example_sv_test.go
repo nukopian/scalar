@@ -59,6 +59,28 @@ func ExampleSV_Clone() {
 	// go,sql
 }
 
+func ExampleSV_Equal() {
+	doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+	fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
+		"skills": []string{"Go", "SQL"},
+		"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
+	}))
+	fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Scalar(nil).Equal("")) // undef equals only undef
+	// Output:
+	// true
+	// true false
+}
+
+func ExampleSV_Diff() {
+	rules, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+	model, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "Docker"]}`))
+	fmt.Println(rules.Diff(model)) // where they first differ, as a path for At
+	fmt.Printf("%q\n", rules.Diff(rules.Clone()))
+	// Output:
+	// skills[1]: got "SQL", want "Docker"
+	// ""
+}
+
 func ExampleSV_Apply() {
 	doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
 	doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc

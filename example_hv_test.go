@@ -120,6 +120,20 @@ func ExampleHV_Clone() {
 	// go,sql / go,perl
 }
 
+func ExampleHV_Equal() {
+	h := scalar.Hash("remote", true, "days", 2)
+	fmt.Println(h.Equal(map[string]any{"remote": 1, "days": "2"})) // true is 1, as in Perl
+	// Output:
+	// true
+}
+
+func ExampleHV_Diff() {
+	h := scalar.Hash("bonus", nil)
+	fmt.Println(h.Diff(map[string]any{})) // a key whose value is undef isn't a missing key
+	// Output:
+	// bonus: got undef, want does not exist
+}
+
 func ExampleHV_Apply() {
 	row := scalar.Hash("title", "go developer", "remote", true)
 	row.Apply(func(v *scalar.SV) any {

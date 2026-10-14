@@ -343,6 +343,19 @@ func ExampleAV_Clone() {
 	// Go Developer / Perl Developer
 }
 
+func ExampleAV_Equal() {
+	a := scalar.Array("Go", 1)
+	fmt.Println(a.Equal([]any{"Go", "1"}), a.Equal([]any{"Go"}))
+	// Output:
+	// true false
+}
+
+func ExampleAV_Diff() {
+	fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
+	// Output:
+	// [1]: got "SQL", want does not exist
+}
+
 func ExampleAV_Apply() {
 	prices := scalar.Array(10, scalar.Scalar([]any{20, 30}))
 	prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
