@@ -107,3 +107,52 @@ func ExampleQuoteMeta() {
 	// C\+\+\ \(\.NET\)
 	// true
 }
+
+func ExampleSV_Interpolate() {
+	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "location": "Leeds",
+		"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+	fmt.Println(doc.Interpolate("$title in $location: @skills"))   // doc's keys are the variables
+	fmt.Println(doc.Interpolate("Up to $salary{max}"))             // subscripts, as in Perl
+	fmt.Println(doc.Interpolate("Up to ${salary.max}"))            // any At path in ${...}
+	fmt.Println(doc.Interpolate(`[$bonus] \$5 jobs\@example.com`)) // missing is ""; \$ and \@ are literal
+	// Output:
+	// Go Developer in Leeds: Go SQL
+	// Up to 55000
+	// Up to 55000
+	// [] $5 jobs@example.com
+}
+
+func ExampleHV_Interpolate() {
+	row := scalar.Hash("name", "Ada", "langs", scalar.Scalar([]string{"Go", "Perl"}))
+	fmt.Println(row.Interpolate("$name writes @langs"))
+	// Output:
+	// Ada writes Go Perl
+}
+
+func ExampleMustTemplate() {
+	var summary = scalar.MustTemplate("$title. Skills: @skills.") // parsed once
+	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+	fmt.Println(doc.Interpolate(summary))
+	// Output:
+	// Go Developer. Skills: Go SQL.
+}
+
+func ExampleCompileTemplate() {
+	t, err := scalar.CompileTemplate("Up to ${salary.max") // a template from outside the program: check it
+	fmt.Println(t == nil, err)
+	// Output:
+	// true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
+}
+
+func ExampleTemplate_ListSeparator() {
+	t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
+	fmt.Println(scalar.Hash("skills", scalar.Scalar([]string{"Go", "SQL"})).Interpolate(t))
+	// Output:
+	// Skills: Go, SQL
+}
+
+func ExampleTemplate_String() {
+	fmt.Println(scalar.MustTemplate("$title in $location"))
+	// Output:
+	// $title in $location
+}

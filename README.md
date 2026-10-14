@@ -102,6 +102,7 @@ string and you get a string; ask for a number and you get a number.
 | Searching nested data | `Find("$..skills[*]")`, JSONPath | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
+| Filling in text | `Interpolate("$title in $location: @skills")`, with `MustTemplate` to compile one and set the list separator | `"$title: @skills"`, `$"` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
 | Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
@@ -506,6 +507,48 @@ fmt.Printf("%d items, £%.2f each\n", count, price)   // printf "%d items, £%.2
 
 Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
 `"ff"` formats as `0`, not as the hex of its bytes.
+
+### Filling in templates: `Interpolate`
+
+`Interpolate` fills in a template from a hash, as Perl interpolates a
+double-quoted string, with the hash's keys as the variables:
+
+```go
+doc.Interpolate("$title in $location: @skills")   // "Go Developer in Leeds: Go SQL"
+doc.Interpolate("Up to £$salary{max}")            // $doc->{salary}{max}
+doc.Interpolate("Up to £${salary.max}")           // the same: any At path inside ${...}
+```
+
+| In the template | Gives |
+|---|---|
+| `$name` | the value of that key |
+| `$name{key}`, `$name[0]`, `$name[0]{key}` | subscripts straight after a name are part of it, as in Perl, written as for `At` |
+| `${path}` | any `At` path, dots included: `${salary.max}` |
+| `@name`, `@{path}` | an array's elements, joined with a space, as Perl's `"@a"` joins them |
+| `\$`, `\@` | a literal `$` or `@`, as in Perl |
+
+As in Perl, `$title.x` is the title followed by `.x`, and `${title}s` puts
+text straight after a value. A `$` or `@` not followed by a name or `{`, as
+in `$5`, is literal, but `@example` in an email address is an array, so
+write `me\@example.com`, as in Perl. A missing value gives `""`, and nothing
+is created. A reference gives `ARRAY(0x…)`, as in Perl, so use `@` for an
+array.
+
+A template string is parsed the first time it's used, and a malformed one
+panics, as a bad regex does. To parse one up front, use `scalar.MustTemplate`,
+or `scalar.CompileTemplate` for one that comes from outside the program, which
+returns an error instead. A compiled template can also change the separator
+for lists, as `local $" = ", "` does:
+
+```go
+var summary = scalar.MustTemplate("$title. Skills: @skills.").ListSeparator(", ")
+
+doc.Interpolate(summary)   // "Go Developer. Skills: Go, SQL."
+```
+
+There are no conditionals or loops: for text that leaves out lines with
+nothing in them, as `embedding.Text` does, use Go's `text/template`, or
+build the text in code.
 
 ## Arrays
 
@@ -1730,7 +1773,9 @@ original's own, as described under [Hashes](#hashes).
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float
   - a malformed path in `At`, `AtOK`, `DeleteAt` or `MustPath` (use
-    `CompilePath` to get an error instead)
+    `CompilePath` to get an error instead), or a malformed template in
+    `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
+    that's neither a string nor a `*Template`
   - passing something other than a string, int or `*PathExpr` to `Path`, or
     something other than a string or function as an `S` replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON
@@ -2590,6 +2635,91 @@ fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
 ```
 C\+\+\ \(\.NET\)
 true
+```
+
+#### `SV.Interpolate`
+
+Interpolate fills in a template from s, as Perl interpolates variables in a double-quoted string, with the keys of the hash s holds as the variables:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "location": "Leeds",
+	"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+fmt.Println(doc.Interpolate("$title in $location: @skills"))   // doc's keys are the variables
+fmt.Println(doc.Interpolate("Up to $salary{max}"))             // subscripts, as in Perl
+fmt.Println(doc.Interpolate("Up to ${salary.max}"))            // any At path in ${...}
+fmt.Println(doc.Interpolate(`[$bonus] \$5 jobs\@example.com`)) // missing is ""; \$ and \@ are literal
+```
+
+```
+Go Developer in Leeds: Go SQL
+Up to 55000
+Up to 55000
+[] $5 jobs@example.com
+```
+
+#### `HV.Interpolate`
+
+Interpolate fills in a template from h; see `SV.Interpolate`.
+
+```go
+row := scalar.Hash("name", "Ada", "langs", scalar.Scalar([]string{"Go", "Perl"}))
+fmt.Println(row.Interpolate("$name writes @langs"))
+```
+
+```
+Ada writes Go Perl
+```
+
+#### `MustTemplate`
+
+MustTemplate is CompileTemplate, panicking if the template is malformed.
+
+```go
+var summary = scalar.MustTemplate("$title. Skills: @skills.") // parsed once
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+fmt.Println(doc.Interpolate(summary))
+```
+
+```
+Go Developer. Skills: Go SQL.
+```
+
+#### `CompileTemplate`
+
+CompileTemplate compiles a template for Interpolate, or returns an error if it's malformed, for templates that come from outside the program.
+
+```go
+t, err := scalar.CompileTemplate("Up to ${salary.max") // a template from outside the program: check it
+fmt.Println(t == nil, err)
+```
+
+```
+true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
+```
+
+#### `Template.ListSeparator`
+
+ListSeparator returns a copy of t that joins the elements of an array with sep, as local $" = sep does in Perl.
+
+```go
+t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
+fmt.Println(scalar.Hash("skills", scalar.Scalar([]string{"Go", "SQL"})).Interpolate(t))
+```
+
+```
+Skills: Go, SQL
+```
+
+#### `Template.String`
+
+String returns the template as written.
+
+```go
+fmt.Println(scalar.MustTemplate("$title in $location"))
+```
+
+```
+$title in $location
 ```
 
 ### Reference: Operators
