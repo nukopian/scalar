@@ -5,7 +5,6 @@ package scalar_test
 // README in step when changing them.
 
 import (
-	"cmp"
 	"encoding/json"
 	"fmt"
 
@@ -38,7 +37,7 @@ func Example_readToolUse() {
 	}).Path("input")
 
 	fmt.Println(input.Path("title"))
-	fmt.Println(resp.Path("usage", "output_tokens").Or(0)) // $resp->{usage}{output_tokens} // 0
+	fmt.Println(resp.At("usage.output_tokens").Or(0)) // $resp->{usage}{output_tokens} // 0
 
 	if v, ok := input.PathOK("salaryMax"); ok && !v.Defined() {
 		fmt.Println("salaryMax: null")
@@ -78,12 +77,15 @@ func Example_cleanSkills() {
 	// Go, PostgreSQL, Docker
 }
 
+// salaryFigure is compiled once, when the program starts, as with qr//.
+var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
+
 // Pulling salary figures out of text.
 func Example_salaryFromText() {
 	text := scalar.Scalar("Salary: £45,000 - £55,000 per annum")
 
 	figures := scalar.Array()
-	for _, m := range text.M(`£([\d,]+)`, "g").All() {
+	for _, m := range text.M(salaryFigure, "g").All() {
 		figures.Push(m.AV().Get(1).S(`,`, "", "gr")) // "45,000" → "45000"
 	}
 	fmt.Println(figures.MinNum(), figures.MaxNum())
@@ -101,21 +103,15 @@ func Example_countSkills() {
 		{"GO", "Docker", "Perl"},
 	}
 
-	counts := scalar.Hash()
+	var counts scalar.Bag // the zero value is an empty bag
 	for _, skills := range postings {
 		for _, skill := range scalar.Array(skills).All() {
-			counts.Get(skill.Fc().Str()).Inc() // $counts{fc $skill}++
+			counts.Insert(skill.Fc()) // $counts{fc $skill}++
 		}
 	}
 
-	top := counts.Keys().Sort(func(x, y *scalar.SV) int {
-		return cmp.Or(
-			scalar.NumCmp(counts.Get(y.Str()), counts.Get(x.Str())), // most common first,
-			scalar.StrCmp(x, y), // then alphabetically
-		)
-	})
-	for _, skill := range top.Values(0, 1, 2).All() {
-		fmt.Println(skill, counts.Get(skill.Str()))
+	for _, skill := range counts.MostCommon(3).All() { // ties keep the order they were first seen in
+		fmt.Println(skill, counts.Count(skill))
 	}
 
 	// Output:
@@ -140,4 +136,22 @@ func Example_buildRecords() {
 
 	// Output:
 	// [{"location":"Unknown","remote":false,"title":"Go Developer"},{"location":"Unknown","remote":true,"title":"Perl Developer"}]
+}
+
+// Storing an embedding vector as bytes, 4 for each float32, and reading it
+// back.
+func Example_packEmbedding() {
+	vector := []float64{0.5, -0.25, 0.125} // from the embedding model
+
+	blob := scalar.Pack("f<*", vector) // pack("f<*", @vector): little-endian float32s
+	fmt.Println(blob.Length())         // 4 bytes each
+	fmt.Printf("%x\n", blob)           // in hex, for a log
+
+	back := scalar.Unpack("f<*", blob.Bytes()).NumSlice() // a []float64 again
+	fmt.Println(back)
+
+	// Output:
+	// 12
+	// 0000003f000080be0000003e
+	// [0.5 -0.25 0.125]
 }

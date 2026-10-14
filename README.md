@@ -29,7 +29,7 @@ Skip a check and the program panics on the first unexpected response. With
 ```go
 resp, err := scalar.FromJSON(body)
 if err != nil { ... }
-text := resp.Path("content", 0, "text").Str()
+text := resp.At("content[0].text").Str()   // or resp.Path("content", 0, "text")
 ```
 
 If anything along the path is missing or the wrong type, `text` is just `""`.
@@ -91,6 +91,23 @@ names for them (see [Sets and bags](#sets-and-bags)):
 A scalar converts itself to whatever you ask for, the way Perl does. Ask for a
 string and you get a string; ask for a number and you get a number.
 
+## What's in it
+
+| For | Use | Perl |
+|---|---|---|
+| Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
+| Searching nested data | `Find("$..skills[*]")`, JSONPath | |
+| Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
+| Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
+| Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
+| List utilities | `AnyMatch`, `FirstMatch`, `MaxNum`, `UniqueStr`, `Sum0`, `Reduce`, … | `List::Util` |
+| Hashes | `Get`, `Set`, `Push` to merge, `Values` and `Pairs` slices, `Each`, autovivification | `$h{k}`, `@h{...}`, `%h{...}`, `each` |
+| Sets and counts | `NewSet` with `Union`, `Intersection`, …; `Bag` with `Insert`, `Count`, `MostCommon` | `Set::Scalar`, `Set::Bag` |
+| Numbers and operators | `Add`, `Concat`, `Inc` (`"aa"` to `"ab"`), `AddInPlace`, `NumCmp`; `fmt` verbs as `sprintf` | `+`, `.`, `++`, `+=`, `<=>`, `sprintf` |
+| Binary data | byte strings, from a `[]byte`; `Pack` and `Unpack` for hex, bits and floats | `pack`, `unpack` |
+| JSON | `FromJSON`, and `encoding/json` for writing | |
+| Back to plain Go | `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
+
 For a worked example of every function and method, see the
 [Reference](#reference) at the end.
 
@@ -105,15 +122,17 @@ if err != nil {
 }
 
 text := resp.Path("content", 0, "text").Str() // $resp->{content}[0]{text}
-tokens := resp.Path("usage", "output_tokens").Int()
+tokens := resp.At("usage.output_tokens").Int() // the same, as one string
 ```
 
 If any step along the path is missing, you get undef back instead of a panic.
-`Str()` on undef is `""` and `Int()` is `0`.
+`Str()` on undef is `""` and `Int()` is `0`. `Path` takes keys and indices
+as separate arguments; `At` takes the route as one string, in dot, bracket
+or Perl's brace form (see [A path as one string](#a-path-as-one-string-at)).
 
 ## Recipes
 
-Five short examples from this project's work, each combining several parts of
+Six short examples from this project's work, each combining several parts of
 the package. The sections after this one explain each part in detail.
 
 These recipes are also runnable examples in `example_test.go`, so `go test`
@@ -135,7 +154,7 @@ input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
 }).Path("input")
 
 fmt.Println(input.Path("title"))                         // Senior Go Developer
-fmt.Println(resp.Path("usage", "output_tokens").Or(0))   // 0, if the model didn't say
+fmt.Println(resp.At("usage.output_tokens").Or(0))        // 0, if the model didn't say
 
 if v, ok := input.PathOK("salaryMax"); ok && !v.Defined() {
 	fmt.Println("salaryMax: null")                         // present, but null
@@ -168,11 +187,16 @@ fmt.Println(unique.Join(", "))                         // Go, PostgreSQL, Docker
 
 ### Pulling salary figures out of text
 
+The pattern is compiled once, when the program starts, as with Perl's
+`qr//`.
+
 ```go
+var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
+
 text := scalar.Scalar("Salary: £45,000 - £55,000 per annum")
 
 figures := scalar.Array()
-for _, m := range text.M(`£([\d,]+)`, "g").All() {
+for _, m := range text.M(salaryFigure, "g").All() {
 	figures.Push(m.AV().Get(1).S(`,`, "", "gr"))   // "45,000" → "45000"
 }
 fmt.Println(figures.MinNum(), figures.MaxNum())    // 45000 55000
@@ -180,7 +204,7 @@ fmt.Println(figures.MinNum(), figures.MaxNum())    // 45000 55000
 
 ### Counting skills across postings
 
-Count each skill ignoring case, then list the most common first.
+Count each skill ignoring case in a `Bag`, then list the most common first.
 
 ```go
 postings := [][]string{
@@ -189,23 +213,19 @@ postings := [][]string{
 	{"GO", "Docker", "Perl"},
 }
 
-counts := scalar.Hash()
+var counts scalar.Bag                                // the zero value is an empty bag
 for _, skills := range postings {
 	for _, skill := range scalar.Array(skills).All() {
-		counts.Get(skill.Fc().Str()).Inc()             // $counts{fc $skill}++
+		counts.Insert(skill.Fc())                      // $counts{fc $skill}++
 	}
 }
 
-top := counts.Keys().Sort(func(x, y *scalar.SV) int {
-	return cmp.Or(
-		scalar.NumCmp(counts.Get(y.Str()), counts.Get(x.Str())),   // most common first,
-		scalar.StrCmp(x, y),                                       // then alphabetically
-	)
-})
-for _, skill := range top.Values(0, 1, 2).All() {
-	fmt.Println(skill, counts.Get(skill.Str()))        // go 3, docker 2, kubernetes 1
+for _, skill := range counts.MostCommon(3).All() {   // ties keep the order they were first seen in
+	fmt.Println(skill, counts.Count(skill))            // go 3, docker 2, kubernetes 1
 }
 ```
+
+The same with a hash, `Inc` and a sort is in [Sorting](#sorting).
 
 ### Building records and writing JSON
 
@@ -229,6 +249,24 @@ out, _ := json.Marshal(rows)
 
 Each row is a separate copy of `defaults`, so changing one row changes neither
 the others nor `defaults`.
+
+### Storing an embedding vector as bytes
+
+Pack a vector into 4 bytes per float32, for a blob column or a cache, and
+unpack it again.
+
+```go
+vector := []float64{0.5, -0.25, 0.125}               // from the embedding model
+
+blob := scalar.Pack("f<*", vector)                   // pack("f<*", @vector): little-endian float32s
+blob.Length()                                        // 12: 4 bytes each
+fmt.Printf("%x\n", blob)                             // 0000003f000080be0000003e, for a log
+
+back := scalar.Unpack("f<*", blob.Bytes()).NumSlice()   // a []float64 again
+```
+
+`blob` is a [byte string](#byte-strings), and `blob.Bytes()` is the Go
+`[]byte` to store.
 
 ## Scalars
 
@@ -374,6 +412,8 @@ for _, skill := range skills.All() {
 - `Any()` returns the scalar as a plain Go value (`nil`, `bool`, `int64`,
   `float64`, `string`, `[]any` or `map[string]any`), for code that doesn't use
   `scalar`. See [Back to plain Go](#back-to-plain-go).
+- `Bytes()` returns the scalar as a Go `[]byte`: a byte string's own bytes,
+  or text's UTF-8. See [Byte strings](#byte-strings).
 - `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
   scalar the way Perl's `print` would.
 
@@ -422,7 +462,7 @@ a.Pairs(0, -1)                 // %a[0, -1]    (index/value pairs: 0, $a[0], -1,
 a.Splice(1, 2, "x", "y")       // splice @a, 1, 2, "x", "y"
 a.PopN(2)                      // splice(@a, -2)    (the last 2, in order; all of them if fewer)
 a.ShiftN(2)                    // splice(@a, 0, 2)  (the first 2; all of them if fewer)
-head, tail := a.SplitAt(2)        // my ($x, $y, @tail) = @a   (see below)
+head, tail := a.SplitAt(2)     // my ($x, $y, @tail) = @a   (see below)
 
 a.Join(", ")                   // join(", ", @a)
 a.Sort(nil)                    // sort @a                  (as strings)
@@ -438,8 +478,10 @@ for i, s := range a.All() {
 }
 ```
 
-`Sort`, `Reverse`, `Map`, `Grep`, `Slice` and `SplitAt` return new arrays and
-leave the original alone. `Splice` returns the elements it removed.
+`Sort`, `Reverse`, `Map`, `Grep` and `SplitAt` return new arrays and leave
+the original alone. `Values` and `Pairs` return new arrays too, but of the
+elements themselves (see [Hashes](#hashes)). `Splice`, `PopN` and `ShiftN`
+return the elements they removed.
 
 ### Splitting off the first few elements
 
@@ -648,15 +690,14 @@ stops at the end, so `a.Splice(2, a.Length())` removes everything from index 2.
 h := scalar.Hash("name", "Ada", "age", 36)  // %h = (name => "Ada", age => 36)
 merged := scalar.Hash(defaults, "age", 37)   // %merged = (%defaults, age => 37)
 
-h.Get("name")       // $h{name}
-h.Set("lang", "Go") // $h{lang} = "Go"
-h.Push("a", 1, "b", 2)   // $h{a} = 1; $h{b} = 2   (pairs, another hash or a Go map; later keys win)
-h.Exists("age")     // exists $h{age}    (the key is there, even if its value is undef)
-h.Defined("age")    // defined $h{age}   (the key is there and its value isn't undef)
-h.Delete("age")     // delete $h{age}
-h.Length()          // scalar(keys %h)
-h.Scalar()          // scalar(%h), same as Length
-
+h.Get("name")          // $h{name}
+h.Set("lang", "Go")    // $h{lang} = "Go"
+h.Push("a", 1, "b", 2) // $h{a} = 1; $h{b} = 2   (pairs, another hash or a Go map; later keys win)
+h.Exists("age")        // exists $h{age}    (the key is there, even if its value is undef)
+h.Defined("age")       // defined $h{age}   (the key is there and its value isn't undef)
+h.Delete("age")        // delete $h{age}
+h.Length()             // scalar(keys %h)
+h.Scalar()             // scalar(%h), same as Length
 
 h.Keys()            // keys %h
 h.Values()          // values %h
@@ -781,8 +822,8 @@ skills.Count("Go")                           // $skills->grab("Go")
 | `is_subset`, `is_proper_subset`, `is_superset`, `is_equal`, `is_disjoint` | `IsSubset`, `IsProperSubset`, `IsSuperset`, `IsEqual`, `IsDisjoint` | | | `Total`, `Counts` (a hash), `MostCommon` |
 | | `MembersSlice` (a Go `[]string`) | | | `MembersSlice` (a Go `[]string`), `CountsMap` (a Go `map[string]int`) |
 
-- **Members are compared as strings,** as Perl hash keys, and both modules,
-  compare them: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
+- **Members are compared as strings,** as Perl's hash keys are, and both
+  modules: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
   and `"go"` are each different. The first value inserted is the one kept.
   For a case-insensitive set, insert `s.Fc()`.
 - **Lists flatten,** as everywhere in `scalar`: `NewSet(array)`,
@@ -843,8 +884,16 @@ The rules are the same as Perl's:
 - Going *through* a missing key creates it, even if you are only reading.
   `h.Get("a").HV().Get("b")` creates `$h{a}` but not `$h{a}{b}`.
 
-`Path(...)` walks a mix of hash keys (strings) and array indexes (ints).
-It follows the same rules.
+`Path(...)` walks a mix of hash keys (strings) and array indexes (ints), and
+`At` takes the same route as one string. Both are methods of a scalar,
+follow the same rules, and replace a chain of `AV()` and `HV()`:
+
+```go
+var doc scalar.SV
+doc.Path("x", "y", 2, "z").Set(1)   // $doc->{x}{y}[2]{z} = 1
+doc.At("x.y[2].z").Set(1)           // the same
+doc.At("{x}{y}[2]{z}").Set(1)       // the same, written as in Perl
+```
 
 ### A path as one string: `At`
 
@@ -1390,8 +1439,8 @@ out, err := json.Marshal(s)      // encode
 
 ### Getting an element gives you the element itself
 
-`a.Get(i)`, `h.Get(k)`, `Path(...)`, `All()` and the elements of `Values()`
-give you the value that's actually stored, not a copy. Changing it changes
+`a.Get(i)`, `h.Get(k)`, `Path(...)`, `At(...)`, `All()`, the matches from
+`Find` and the elements of `Values()` give you the value that's actually stored, not a copy. Changing it changes
 the array or hash:
 
 ```go
