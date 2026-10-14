@@ -81,7 +81,7 @@ func yamlDocuments(data []byte) ([]*SV, error) {
 			if errors.Is(err, io.EOF) {
 				return docs, nil
 			}
-			return nil, fmt.Errorf("scalar: bad YAML: %w", err)
+			return nil, fmt.Errorf("scalar: bad YAML: %s", strings.TrimPrefix(err.Error(), "yaml: "))
 		}
 		if emptyYAMLDocument(&n) {
 			continue // as after a trailing ---: nothing to read

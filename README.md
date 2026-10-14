@@ -571,7 +571,9 @@ with or without trailing commas. A blessed array or hash is read as a plain
 one, since `scalar` has no classes. It reads data and never runs any Perl,
 so code (`sub { … }`), compiled regexes (`qr/…/`) and references to plain
 values (`\'x'`) give an error that says where they are, as does the
-`$VAR1 = …;` that `Data::Dumper` writes without `Terse`.
+`$VAR1 = …;` that `Data::Dumper` writes without `Terse`. Arrays and hashes
+may nest up to 10,000 levels deep, as `encoding/json` allows; deeper is an
+error, not a crash.
 
 A dump doesn't record types, so values come back with the types their text
 gives them, exactly as Perl reads a dump back:
@@ -580,7 +582,8 @@ gives them, exactly as Perl reads a dump back:
 |---|---|---|
 | a bare integer of up to 9 digits: `42` | an integer | the string `"42"` comes back as the integer 42 |
 | a quoted value: `"2.5"`, `"12345678901"` | a string | a float, and a longer integer, come back as strings |
-| a string with an octal or `\xHH` escape above 127: `"\211PNG"` | a [byte string](#byte-strings) | a byte string of plain ASCII comes back as text |
+| a string with an octal or `\xHH` escape above 127, `"\211PNG"`, or raw bytes that aren't UTF-8, as `Data::Dumper` writes binary data without `Useqq` | a [byte string](#byte-strings) | a byte string of plain ASCII comes back as text |
+| a string with characters written as they are, in UTF-8: `"café"` | text | the same |
 | `!!1`, `!!0`, `undef` | a boolean, undef | the same |
 
 Either way the value compares and calculates the same, as in Perl, so the
@@ -592,7 +595,8 @@ structures, shared parts and loops included, type by type. And
 `TestFromDumpMatchesPerl` reads what Perl's `Data::Dumper` writes for random
 structures under all 24 combinations of its layout settings, and checks that
 each value comes back as what, and as the type, Perl gets by evaluating the
-same dump.
+same dump. `TestFromDumpBytesMatchPerl` does the same for byte strings,
+escaped or raw.
 
 ### Formatting, as with sprintf
 

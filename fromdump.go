@@ -30,12 +30,15 @@ import (
 // to 9 digits, is an integer, so a string "42" comes back as the number 42;
 // a quoted value is a string, so a float, written "2.5", and a longer
 // integer, written "12345678901", come back as strings. They compare and
-// calculate the same, as in Perl. A double-quoted string with an octal or
-// \xHH escape above 127 and no \x{...} escape is a byte string, as Dump
-// writes one; any other string is text. A $ or @ in a double-quoted string
+// calculate the same, as in Perl. A string is a byte string if it has an
+// octal or \xHH escape above 127, as Dump writes one, or raw bytes that
+// aren't UTF-8, as Data::Dumper writes one without Useqq, and no \x{...}
+// escape; any other string is text, including one with characters written
+// as they are, in UTF-8, as test data might have them. A $ or @ in a double-quoted string
 // is taken as it is, not interpolated.
 //
-// It doesn't run any Perl: references to plain values (\'x'), code, regexes
+// Arrays and hashes may nest up to 10,000 levels deep, as with
+// encoding/json; deeper is an error. It doesn't run any Perl: references to plain values (\'x'), code, regexes
 // and anything else that isn't data give an error, saying where, as does
 // the "$VAR1 = ...;" that Data::Dumper writes without Terse.
 func FromDump(dump string) (s *SV, err error) {
@@ -81,11 +84,28 @@ func (e dumpError) Error() string {
 	return fmt.Sprintf("scalar: bad dump at line %d, column %d: %s", e.line, e.column, e.msg)
 }
 
+// maxDumpDepth is how deeply arrays and hashes may nest in a dump, as
+// encoding/json and the YAML package limit it: deeper would risk running
+// out of stack.
+const maxDumpDepth = 10000
+
 type dumpParser struct {
-	src  string
-	pos  int
-	root *SV // the top-level value, for $VAR1
+	src   string
+	pos   int
+	root  *SV // the top-level value, for $VAR1
+	depth int // how many arrays and hashes deep the parser is
 }
+
+// enter goes one array or hash deeper, failing past maxDumpDepth; the
+// caller defers leave.
+func (p *dumpParser) enter() {
+	p.depth++
+	if p.depth > maxDumpDepth {
+		p.fail("arrays and hashes are nested more than %d levels deep", maxDumpDepth)
+	}
+}
+
+func (p *dumpParser) leave() { p.depth-- }
 
 // fail panics with a dumpError at the current position; FromDump recovers it.
 func (p *dumpParser) fail(format string, args ...any) {
@@ -160,7 +180,11 @@ func (p *dumpParser) value(attach func(*SV)) {
 	case c == '"':
 		attach(p.doubleQuoted())
 	case c == '\'':
-		attach(&SV{v: p.singleQuoted()})
+		if str := p.singleQuoted(); utf8.ValidString(str) {
+			attach(&SV{v: str})
+		} else {
+			attach(&SV{v: []byte(str)}) // raw bytes, as Data::Dumper writes a byte string without Useqq
+		}
 	case c == '$':
 		attach(p.reference())
 	case c == '!':
@@ -217,6 +241,8 @@ func (p *dumpParser) container(sv *SV) {
 }
 
 func (p *dumpParser) hash(attach func(*SV)) {
+	p.enter()
+	defer p.leave()
 	p.pos++ // past {
 	h := newHV(0)
 	sv := &SV{v: h}
@@ -244,6 +270,8 @@ func (p *dumpParser) hash(attach func(*SV)) {
 }
 
 func (p *dumpParser) array(attach func(*SV)) {
+	p.enter()
+	defer p.leave()
 	p.pos++ // past [
 	a := &AV{}
 	sv := &SV{v: a}
@@ -402,7 +430,10 @@ func (p *dumpParser) doubleQuoted() *SV {
 		}
 		if c != '\\' {
 			r, size := utf8.DecodeRuneInString(p.src[p.pos:])
-			if r >= utf8.RuneSelf {
+			switch {
+			case r == utf8.RuneError && size == 1:
+				r, highByte = rune(c), true // a raw byte that isn't UTF-8: a byte string
+			case r >= utf8.RuneSelf:
 				wide = true // a character beyond ASCII, as written: text
 			}
 			chars = append(chars, r)
@@ -487,7 +518,7 @@ func (p *dumpParser) reference() *SV {
 		p.pos++
 		w := p.word()
 		p.pos = start
-		if w == "VAR" || strings.HasPrefix(w, "VAR") {
+		if strings.HasPrefix(w, "VAR") {
 			p.fail("only $VAR1 can be read: a dump of one value")
 		}
 		p.fail("$%s can't be read: the only variable in a dump is $VAR1", w)

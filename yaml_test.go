@@ -237,7 +237,7 @@ func TestYAMLMatchesPerl(t *testing.T) {
 	for len(cases) < 200 {
 		s := randomStructure(rng)
 		js, err := s.MarshalJSON()
-		if err != nil || strings.Contains(s.Dump(), `\`) && strings.ContainsAny(s.Dump(), "\x00") {
+		if err != nil {
 			continue
 		}
 		if hasBytesOrFloat(s) {

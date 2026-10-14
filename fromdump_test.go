@@ -1,12 +1,16 @@
 package scalar
 
 import (
+	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -257,8 +261,8 @@ func TestFromDumpMatchesPerl(t *testing.T) {
 	for range 150 {
 		s := randomStructure(rng)
 		js, err := s.MarshalJSON()
-		if err != nil || strings.Contains(s.Dump(), "$VAR1") || strings.Contains(s.Dump(), `\`) && rng.IntN(2) == 0 {
-			continue // JSON can't carry loops; and keep some of the escapes
+		if err != nil || strings.Contains(s.Dump(), "$VAR1") {
+			continue // JSON can't carry shared parts or loops
 		}
 		cases = append(cases, string(js))
 	}
@@ -276,7 +280,7 @@ for my $j (@{ decode_json(do { local $/; <STDIN> }) }) {
 	my @todo = ($d);
 	while (my $x = shift @todo) {
 		my $type = reftype($x) // next;
-		push @todo, $type eq 'ARRAY' ? @$x : values %$x;
+		push @todo, $type eq 'ARRAY' ? @$x : @{$x}{sort keys %$x}; # sorted, so the same ones are blessed every run
 		bless $x, "My::Class" if $n++ % 3 == 0;
 	}
 	for my $indent (0, 1, 2) { for my $useqq (0, 1) { for my $quotekeys (0, 1) { for my $trailing (0, 1) {
@@ -287,7 +291,7 @@ for my $j (@{ decode_json(do { local $/; <STDIN> }) }) {
 		local $Data::Dumper::Quotekeys = $quotekeys;
 		local $Data::Dumper::Trailingcomma = $trailing;
 		my $dump = Dumper($d);
-		my $back = eval $dump; # how Perl itself reads the dump back
+		my $back = eval "($dump)"; # how Perl itself reads the dump back; in parentheses, or {-1 => ...} is a block
 		die "eval: $@" if $@;
 		push @out, [$json->allow_blessed->convert_blessed->encode($back), "$indent$useqq$quotekeys$trailing", $dump];
 	} } } }
@@ -323,4 +327,132 @@ print JSON::PP->new->utf8->encode(\@out);
 		}
 	}
 	t.Logf("%d dumps from Perl read back", len(dumps))
+}
+
+// Input nested very deeply gives an error, not a fatal stack overflow, as
+// encoding/json and the YAML package refuse it. It runs in a child process
+// with a deadline, so a regression fails the test rather than the run.
+func TestFromDumpDeep(t *testing.T) {
+	if os.Getenv("SCALAR_FROMDUMP_DEEP") != "" {
+		if _, err := FromDump(strings.Repeat("[", 5_000_000)); err == nil || !strings.Contains(err.Error(), "nested more than 10000 levels deep") {
+			t.Fatalf("5,000,000 levels: %v", err)
+		}
+		ok := strings.Repeat("[", maxDumpDepth) + strings.Repeat("]", maxDumpDepth)
+		if _, err := FromDump(ok); err != nil {
+			t.Fatalf("%d levels should be fine: %v", maxDumpDepth, err)
+		}
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestFromDumpDeep$")
+	cmd.Env = append(os.Environ(), "SCALAR_FROMDUMP_DEEP=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		msg := string(out)
+		if len(msg) > 400 {
+			msg = msg[:400] + "..."
+		}
+		t.Fatalf("the child process failed (%v):\n%s", err, msg)
+	}
+}
+
+// Raw bytes inside quotes, as Data::Dumper writes a byte string without
+// Useqq, its default, read as a byte string, as Perl reads them.
+func TestFromDumpRawBytes(t *testing.T) {
+	for dump, want := range map[string]string{
+		"'\x89PNG'":         "\x89PNG",
+		"\"\x89PNG\\r\\n\"": "\x89PNG\r\n",
+		"'\xff\xfe'":        "\xff\xfe",
+	} {
+		got, err := FromDump(dump)
+		if err != nil || got.Kind() != Bytes || got.Str() != want {
+			t.Errorf("FromDump(%q) = %v %q, %v; want the bytes %q", dump, got.Kind(), got.Str(), err, want)
+		}
+	}
+	// Text written as it is, valid UTF-8, stays text.
+	if got := MustFromDump("'caf" + eAcute + "'"); got.Kind() != String || got.Str() != "caf"+eAcute {
+		t.Errorf("text: %v %q", got.Kind(), got.Str())
+	}
+}
+
+// Byte strings come back as the same bytes, whichever way Perl's
+// Data::Dumper writes them: escaped with Useqq, or raw without it. It needs
+// perl, and is skipped without it.
+func TestFromDumpBytesMatchPerl(t *testing.T) {
+	if _, err := exec.LookPath("perl"); err != nil {
+		t.Skip("perl isn't installed")
+	}
+	rng := rand.New(rand.NewPCG(21, 4))
+	type item struct {
+		Hex  string `json:"hex,omitempty"`  // a byte string, in hex
+		Text string `json:"text,omitempty"` // or text
+	}
+	var lists [][]item
+	for range 100 {
+		var list []item
+		for range 1 + rng.IntN(5) {
+			if rng.IntN(2) == 0 {
+				b := make([]byte, 1+rng.IntN(6))
+				for i := range b {
+					b[i] = byte(rng.IntN(256))
+				}
+				b[rng.IntN(len(b))] = 0xff // never UTF-8, so never mistaken for text
+				list = append(list, item{Hex: hex.EncodeToString(b)})
+			} else {
+				list = append(list, item{Text: []string{"Go", "caf" + eAcute, smiley + " x", "it's", "a\nb"}[rng.IntN(5)]})
+			}
+		}
+		lists = append(lists, list)
+	}
+	in, _ := json.Marshal(lists)
+	const script = `
+use v5.36; use Data::Dumper; use JSON::PP;
+my @out;
+for my $list (@{ decode_json(do { local $/; <STDIN> }) }) {
+	my @data = map { exists $_->{hex} ? pack("H*", $_->{hex}) : $_->{text} } @$list;
+	for my $indent (0, 1, 2) { for my $useqq (0, 1) { for my $quotekeys (0, 1) { for my $trailing (0, 1) {
+		local $Data::Dumper::Terse = 1;
+		local $Data::Dumper::Indent = $indent;
+		local $Data::Dumper::Useqq = $useqq;
+		local $Data::Dumper::Quotekeys = $quotekeys;
+		local $Data::Dumper::Trailingcomma = $trailing;
+		my $dump = Dumper(\@data);
+		utf8::encode($dump) if utf8::is_utf8($dump); # as bytes, the way it would be written to a file
+		push @out, unpack("H*", $dump);
+	} } } }
+}
+print encode_json(\@out);
+`
+	cmd := exec.Command("perl", "-e", script)
+	cmd.Stdin = strings.NewReader(string(in))
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("perl: %v: %s", err, stderr.String())
+	}
+	var dumps []string
+	if err := json.Unmarshal(out, &dumps); err != nil {
+		t.Fatalf("perl's output: %v", err)
+	}
+	for i, h := range dumps {
+		list := lists[i/24]
+		raw, _ := hex.DecodeString(h)
+		got, err := FromDump(string(raw))
+		if err != nil {
+			t.Errorf("dump %d: %v\n%q", i, err, raw)
+			continue
+		}
+		for j, it := range list {
+			v := got.AV().Get(j)
+			if it.Hex != "" {
+				want, _ := hex.DecodeString(it.Hex)
+				if v.Kind() != Bytes || v.Str() != string(want) {
+					t.Errorf("dump %d, element %d: %v %q, want the bytes %q\n%q", i, j, v.Kind(), v.Str(), want, raw)
+				}
+			} else if v.Kind() != String || v.Str() != it.Text {
+				t.Errorf("dump %d, element %d: %v %q, want the text %q\n%q", i, j, v.Kind(), v.Str(), it.Text, raw)
+			}
+		}
+	}
 }
