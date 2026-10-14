@@ -25,12 +25,15 @@ import (
 // bless(..., 'Class') gives the array or hash inside it: scalar has no
 // classes, so the class is dropped.
 //
-// A double-quoted string with an octal or \xHH escape above 127 and no
-// \x{...} escape is a byte string, as Dump writes one; any other string is
-// text. Data::Dumper quotes numbers that aren't small integers, such as
-// "2.5", so those come back as strings, which compare and calculate the
-// same, as in Perl. A $ or @ in a double-quoted string is taken as it is,
-// not interpolated.
+// A dump doesn't record types, so values come back with the types their
+// text gives them, as Perl reads a dump back: an integer written bare, up
+// to 9 digits, is an integer, so a string "42" comes back as the number 42;
+// a quoted value is a string, so a float, written "2.5", and a longer
+// integer, written "12345678901", come back as strings. They compare and
+// calculate the same, as in Perl. A double-quoted string with an octal or
+// \xHH escape above 127 and no \x{...} escape is a byte string, as Dump
+// writes one; any other string is text. A $ or @ in a double-quoted string
+// is taken as it is, not interpolated.
 //
 // It doesn't run any Perl: references to plain values (\'x'), code, regexes
 // and anything else that isn't data give an error, saying where, as does

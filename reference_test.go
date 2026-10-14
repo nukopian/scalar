@@ -19,6 +19,7 @@ var referenceGroups = []docref.Group{
 	{File: "example_regex_test.go", Title: "Regular expressions"},
 	{File: "example_pack_test.go", Title: "Pack and unpack"},
 	{File: "example_json_test.go", Title: "JSON and JSONPath"},
+	{File: "example_yaml_test.go", Title: "YAML"},
 	{File: "example_to_test.go", Title: "Into Go values"},
 }
 

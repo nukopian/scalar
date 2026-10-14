@@ -2,10 +2,12 @@ package scalar
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand/v2"
 	"os/exec"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 var (
@@ -120,6 +122,59 @@ func TestFromDumpErrors(t *testing.T) {
 	expectPanic(t, "MustFromDump", "bad dump", func() { MustFromDump("[") })
 }
 
+// typedDump is s's Dump with each plain value's kind written beside it, so
+// that comparing two of them catches a value read back as the wrong type,
+// such as the string "42" for the integer 42, which Equal and Dump alone
+// can't tell apart.
+// Holes are filled first, as undef, since both dump as undef and a round
+// trip gives undef for a hole.
+func typedDump(s *SV) string {
+	c := s.Clone()
+	fillAllHoles(c, map[any]bool{})
+	return c.Apply(func(v *SV) any {
+		return fmt.Sprintf("%s:%s", kindNames[v.Kind()], v.Dump())
+	}).Dump()
+}
+
+// fillAllHoles makes every hole in s, all the way down, an undef element.
+func fillAllHoles(s *SV, seen map[any]bool) {
+	c := s.val()
+	if !isRef(c) || seen[c] {
+		return
+	}
+	seen[c] = true
+	switch v := c.(type) {
+	case *AV:
+		v.fillHoles()
+		for _, e := range v.items {
+			fillAllHoles(e, seen)
+		}
+	case *HV:
+		for _, e := range v.m {
+			fillAllHoles(e, seen)
+		}
+	}
+}
+
+// asDumped is s with each plain value as FromDump reads it back from Dump,
+// which doesn't record types: a float, and an integer too long to write
+// bare, are quoted, so they come back as strings; a string that looks like
+// a small integer is written bare, so it comes back as an integer; and a
+// byte string with no byte above 127 is written as text.
+func asDumped(s *SV) *SV {
+	return s.Clone().Apply(func(v *SV) any {
+		switch k, str := v.Kind(), v.Str(); {
+		case k == Float, k == Int && !bareNumber.MatchString(str):
+			return str
+		case k == String && bareNumber.MatchString(str):
+			return v.Int()
+		case k == Bytes && !strings.ContainsFunc(str, func(r rune) bool { return r >= 0x80 || r == utf8.RuneError }):
+			return str
+		}
+		return v
+	})
+}
+
 // randomStructure builds a random structure, with shared parts and loops,
 // byte strings, text, numbers, booleans, undef and holes.
 func randomStructure(rng *rand.Rand) *SV {
@@ -182,8 +237,8 @@ func TestFromDumpRoundTrip(t *testing.T) {
 			if !got.Equal(orig) {
 				t.Fatalf("case %d: %s\n%s", i, got.Diff(orig), dump)
 			}
-			if again := got.Dump(); again != orig.Dump() {
-				t.Fatalf("case %d dumps differently:\n%s\nwas:\n%s", i, again, orig.Dump())
+			if again, want := typedDump(got), typedDump(asDumped(orig)); again != want {
+				t.Fatalf("case %d reads back differently:\n%s\nwant:\n%s", i, again, want)
 			}
 		}
 	}
@@ -191,7 +246,8 @@ func TestFromDumpRoundTrip(t *testing.T) {
 
 // FromDump reads what Perl's Data::Dumper writes, with blessed arrays and
 // hashes, under every combination of its layout settings, for hundreds of
-// random structures. It needs perl, and is skipped without it.
+// random structures, and gets what Perl gets by evaluating the dump, types
+// included. It needs perl, and is skipped without it.
 func TestFromDumpMatchesPerl(t *testing.T) {
 	if _, err := exec.LookPath("perl"); err != nil {
 		t.Skip("perl isn't installed")
@@ -209,7 +265,9 @@ func TestFromDumpMatchesPerl(t *testing.T) {
 	in, _ := json.Marshal(cases)
 	const script = `
 use v5.36; use Data::Dumper; use JSON::PP; use Scalar::Util qw(reftype);
-my $json = JSON::PP->new->boolean_values(builtin::false, builtin::true); # the outer decode_json has made characters already
+my $json = JSON::PP->new->canonical->boolean_values(builtin::false, builtin::true); # the outer decode_json has made characters already
+# A blessed array or hash goes into JSON as the plain one it is.
+sub My::Class::TO_JSON { reftype($_[0]) eq 'ARRAY' ? [@{$_[0]}] : {%{$_[0]}} }
 my @out;
 my $n = 0;
 for my $j (@{ decode_json(do { local $/; <STDIN> }) }) {
@@ -228,7 +286,10 @@ for my $j (@{ decode_json(do { local $/; <STDIN> }) }) {
 		local $Data::Dumper::Useqq = $useqq;
 		local $Data::Dumper::Quotekeys = $quotekeys;
 		local $Data::Dumper::Trailingcomma = $trailing;
-		push @out, [$j, "$indent$useqq$quotekeys$trailing", Dumper($d)];
+		my $dump = Dumper($d);
+		my $back = eval $dump; # how Perl itself reads the dump back
+		die "eval: $@" if $@;
+		push @out, [$json->allow_blessed->convert_blessed->encode($back), "$indent$useqq$quotekeys$trailing", $dump];
 	} } } }
 }
 print JSON::PP->new->utf8->encode(\@out);
@@ -257,6 +318,8 @@ print JSON::PP->new->utf8->encode(\@out);
 		}
 		if diff := got.Diff(want); diff != "" {
 			t.Errorf("settings %s: %s\n%s", d[1], diff, d[2])
+		} else if typedDump(got) != typedDump(want) {
+			t.Errorf("settings %s: a value came back as a different type from Perl's:\n%s\nPerl:\n%s\ndump:\n%s", d[1], typedDump(got), typedDump(want), d[2])
 		}
 	}
 	t.Logf("%d dumps from Perl read back", len(dumps))

@@ -183,6 +183,7 @@ string and you get a string; ask for a number and you get a number.
 | Binary data | byte strings, from a `[]byte`; `Pack` and `Unpack` for hex, bits and floats | `pack`, `unpack` |
 | Steps that may find nothing | `Then(f)` and `When(pred)`, which pass undef straight through, then `Or(default)` | `//` |
 | JSON | `FromJSON`, and `encoding/json` for writing | |
+| YAML: config, Kubernetes, Helm, CloudFormation | `FromYAML`, `FromYAMLAll` for several documents, `ToYAML` | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
 | Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it, and `FromDump` to read it back; `fmt.Println` of an array or hash, on one line | `Dumper` |
 | Back to plain Go | `To[T]` for any Go type you name, checked; `Decode(&v)` to fill one you have; `StrSlice`, `IntSlice` and `NumSlice` in Perl's contexts; `Any`, `Bytes` | |
@@ -567,16 +568,26 @@ so code (`sub { … }`), compiled regexes (`qr/…/`) and references to plain
 values (`\'x'`) give an error that says where they are, as does the
 `$VAR1 = …;` that `Data::Dumper` writes without `Terse`.
 
-Two things follow from how dumps are written. A string comes back as a
-[byte string](#byte-strings) when it has an octal or `\xHH` escape above 127,
-as `Dump` writes bytes, and as text otherwise. And `Data::Dumper` quotes
-numbers that aren't small integers, such as `"2.5"`, so those come back as
-strings, which compare and calculate the same, as they would in Perl.
+A dump doesn't record types, so values come back with the types their text
+gives them, exactly as Perl reads a dump back:
+
+| Written in the dump | Comes back as | So, from `Dump` |
+|---|---|---|
+| a bare integer of up to 9 digits: `42` | an integer | the string `"42"` comes back as the integer 42 |
+| a quoted value: `"2.5"`, `"12345678901"` | a string | a float, and a longer integer, come back as strings |
+| a string with an octal or `\xHH` escape above 127: `"\211PNG"` | a [byte string](#byte-strings) | a byte string of plain ASCII comes back as text |
+| `!!1`, `!!0`, `undef` | a boolean, undef | the same |
+
+Either way the value compares and calculates the same, as in Perl, so the
+structure read back is `Equal` to the one dumped. Where the exact types
+matter, use JSON or YAML, which record them.
 
 `TestFromDumpRoundTrip` checks the round trip for hundreds of random
-structures, shared parts and loops included, and `TestFromDumpMatchesPerl`
-reads what Perl's `Data::Dumper` writes for random structures under all 24
-combinations of its layout settings.
+structures, shared parts and loops included, type by type. And
+`TestFromDumpMatchesPerl` reads what Perl's `Data::Dumper` writes for random
+structures under all 24 combinations of its layout settings, and checks that
+each value comes back as what, and as the type, Perl gets by evaluating the
+same dump.
 
 ### Formatting, as with sprintf
 
@@ -1753,6 +1764,86 @@ out, err := json.Marshal(s)      // encode
   The same array or hash appearing twice, without a loop, is fine: it's
   written out each time.
 
+## YAML
+
+`scalar.FromYAML` reads a YAML document, as `FromJSON` reads JSON, and
+`ToYAML` writes one, for config files, Kubernetes manifests, Helm values and
+the like:
+
+```go
+values, err := scalar.FromYAML(data)
+replicas := values.At("production.replicas").Int()
+
+out, err := values.ToYAML()
+```
+
+Reading follows YAML 1.2:
+
+| In the YAML | Becomes |
+|---|---|
+| a mapping, a sequence | a hash, an array |
+| `null`, `~`, or nothing | undef |
+| `true`, `false` | a boolean |
+| `42`, `0x1F`, `0o17` | an integer (a float if it's too big for an `int64`) |
+| `2.5`, `1e3`, `.inf`, `.nan` | a float |
+| `!!binary aGk=` | a [byte string](#byte-strings) |
+| anything else, including `"42"`, `'007'`, `no`, `yes` and `2026-10-15` | a string, as written |
+| `&base` … `*base` | the same array or hash at each place: shared parts, and loops |
+| `<<: *base`, `<<: [*a, *b]` | merge keys: the keys the mapping doesn't have itself, the earlier mapping winning |
+
+A few details:
+
+- **`no` is the string `"no"`.** YAML 1.2 reads only `true` and `false` as
+  booleans; YAML 1.1 also took `yes`, `no`, `on`, `off`, `y` and `n`, which is
+  how Norway's country code once became `false`.
+- **A key is its text as written,** so `1: one` gives the key `"1"`. A key
+  that's a mapping or a sequence is an error.
+- **Tags YAML doesn't define are dropped,** keeping the value they're on, as
+  `FromDump` drops a class. For CloudFormation, that means `!Ref MyBucket`
+  reads as `"MyBucket"`, and `!GetAtt Bucket.Arn` as `"Bucket.Arn"`: the
+  values are there, but not that they were references.
+- **Several documents,** separated by `---`, as in a Kubernetes manifest or
+  Helm's output, need `FromYAMLAll`, which returns them as an array.
+  `FromYAML` returns an error for more than one, rather than reading just the
+  first. Empty documents, such as after a trailing `---`, are skipped, as
+  `kubectl` skips them.
+
+```go
+docs, err := scalar.FromYAMLAll(manifest)
+for _, d := range docs.All() {
+	fmt.Println(d.At("kind"), d.At("metadata.name"))
+}
+```
+
+Writing is careful to be read back the same way by every YAML reader, not
+just YAML 1.2 ones:
+
+- **Strings that any reader could take as something else are quoted:**
+  `"1.0"`, `"007"` and `"true"`, and also `"no"`, `"on"`, `"y"`, `"1_000"`
+  and `"1:30"`, which YAML 1.1 readers, such as Kubernetes' Go library and
+  Python's PyYAML, read as booleans or numbers. That goes for keys as well.
+- **Floats always look like floats,** so `1.0` is written `1.0`, not `1`,
+  which would read back as an integer. Infinity and NaN are `.inf` and
+  `.nan`, which JSON can't write at all.
+- **A byte string is written as `!!binary`,** in base64.
+- **An array or hash that appears more than once** is given an anchor, `&1`,
+  where it first appears, and is an alias, `*1`, after that, so shared parts,
+  and structures that refer back to themselves, come back as they were.
+- **Keys are sorted,** so the same data always gives the same YAML, and the
+  indent is two spaces, as Kubernetes and Helm use.
+
+Scalars, arrays and hashes also work with the YAML package itself
+(`go.yaml.in/yaml/v3`), as they do with `encoding/json`: a `*scalar.SV`
+field in a struct you read with `yaml.Unmarshal` takes whatever part of the
+document is there, for the parts whose shape varies.
+
+`TestYAMLRoundTrip` checks that what `ToYAML` writes reads back the same,
+type by type, for hundreds of random structures, shared parts and loops
+included. `TestYAMLMatchesPerl` checks against Perl's `YAML::PP`, both ways:
+`FromYAML` reads what `YAML::PP` writes, and `YAML::PP` reads what `ToYAML`
+writes, with the same values and types. It runs when `YAML::PP` is
+installed.
+
 ## Into Go values: `To` and `Decode`
 
 Once you know the shape of some data, leave `scalar` for ordinary Go types,
@@ -2051,6 +2142,7 @@ example here works and prints what it says. Edit the examples, not this section,
 - [Regular expressions](#reference-regular-expressions)
 - [Pack and unpack](#reference-pack-and-unpack)
 - [JSON and JSONPath](#reference-json-and-jsonpath)
+- [YAML](#reference-yaml)
 - [Into Go values](#reference-into-go-values)
 
 ### Reference: Scalars
@@ -5532,6 +5624,185 @@ Go,Perl
 30,45
 Perl
 true
+```
+
+### Reference: YAML
+
+#### `FromYAML`
+
+FromYAML reads a YAML document and returns it, as FromJSON reads JSON: mappings become hashes, sequences arrays, and plain values scalars.
+
+```go
+values, err := scalar.FromYAML([]byte(`
+defaults: &defaults
+  replicas: 2
+  image: {repository: web, tag: "1.0"}
+production:
+  <<: *defaults        # a merge key: production gets the defaults
+  replicas: 5
+country: no            # YAML 1.2: the string "no", not false
+`))
+if err != nil {
+	panic(err)
+}
+fmt.Println(values.At("production.replicas"), values.At("production.image.tag"))
+fmt.Println(values.At("production.image").HV() == values.At("defaults.image").HV()) // one hash, shared
+fmt.Println(values.At("country"))
+```
+
+```
+5 1.0
+true
+no
+```
+
+#### `FromYAMLAll`
+
+FromYAMLAll reads a stream of YAML documents, separated by ---, as in a Kubernetes manifest or Helm's output, and returns them as an array, in order.
+
+```go
+manifest := []byte(`
+apiVersion: v1
+kind: Service
+metadata: {name: web}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web}
+spec: {replicas: 3}
+---
+`)
+docs, err := scalar.FromYAMLAll(manifest) // several documents, as kubectl takes them
+if err != nil {
+	panic(err)
+}
+for _, d := range docs.All() {
+	fmt.Println(d.At("kind"), d.At("metadata.name"), d.At("spec.replicas").Or("-"))
+}
+```
+
+```
+Service web -
+Deployment web 3
+```
+
+#### `SV.ToYAML`
+
+ToYAML writes s as a YAML document, with two-space indentation, as Kubernetes and Helm use:
+
+```go
+cfg := scalar.Hash("name", "web", "replicas", 3, "country", "no", "version", "1.0",
+	"ports", scalar.Scalar([]int{80, 443}))
+out, _ := scalar.Scalar(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
+fmt.Print(string(out))
+```
+
+```
+country: "no"
+name: web
+ports:
+  - 80
+  - 443
+replicas: 3
+version: "1.0"
+```
+
+#### `AV.ToYAML`
+
+ToYAML writes a as a YAML sequence; see `SV.ToYAML`.
+
+```go
+out, _ := scalar.Array("go", 1.0, nil, true).ToYAML()
+fmt.Print(string(out))
+```
+
+```
+- go
+- 1.0
+- null
+- true
+```
+
+#### `HV.ToYAML`
+
+ToYAML writes h as a YAML mapping; see `SV.ToYAML`.
+
+```go
+shared := scalar.Scalar(scalar.Hash("cpu", "500m"))
+h := scalar.Hash("requests", shared, "limits", shared) // the same hash twice
+out, _ := h.ToYAML()
+fmt.Print(string(out)) // an anchor, then an alias
+```
+
+```
+limits: &1
+  cpu: 500m
+requests: *1
+```
+
+#### `SV.UnmarshalYAML`
+
+UnmarshalYAML lets a scalar be a field of a struct read with the YAML package's Unmarshal, for a part of a document whose shape varies; it reads as FromYAML does.
+
+```go
+var cfg struct {
+	Name  string     `yaml:"name"`
+	Extra *scalar.SV `yaml:"extra"` // a part whose shape varies
+}
+err := yaml.Unmarshal([]byte("name: web\nextra: {ports: [80, 443]}\n"), &cfg)
+fmt.Println(err, cfg.Name, cfg.Extra.At("ports[1]"))
+```
+
+```
+<nil> web 443
+```
+
+#### `SV.MarshalYAML`
+
+MarshalYAML lets a scalar be a field of a struct written with the YAML package's Marshal; it writes as ToYAML does.
+
+```go
+out, _ := yaml.Marshal(struct {
+	Name  string     `yaml:"name"`
+	Extra *scalar.SV `yaml:"extra"`
+}{"web", scalar.Scalar(map[string]any{"ports": []int{80}})})
+fmt.Print(string(out))
+```
+
+```
+name: web
+extra:
+    ports:
+        - 80
+```
+
+#### `AV.MarshalYAML`
+
+MarshalYAML lets an array be written with the YAML package's Marshal.
+
+```go
+out, _ := yaml.Marshal(map[string]any{"ports": scalar.Array(80, 443)})
+fmt.Print(string(out))
+```
+
+```
+ports:
+    - 80
+    - 443
+```
+
+#### `HV.MarshalYAML`
+
+MarshalYAML lets a hash be written with the YAML package's Marshal.
+
+```go
+out, _ := yaml.Marshal(map[string]any{"labels": scalar.Hash("app", "web")})
+fmt.Print(string(out))
+```
+
+```
+labels:
+    app: web
 ```
 
 ### Reference: Into Go values
