@@ -98,7 +98,7 @@ string and you get a string; ask for a number and you get a number.
 
 | For | Use | Perl |
 |---|---|---|
-| Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
+| Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
 | Searching nested data | `Find("$..skills[*]")`, JSONPath | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
@@ -979,6 +979,7 @@ doc.At("meta{log.level}")        // a key with dots in it, in braces
 doc.At(`meta["log.level"]`)      // or quoted
 doc.At("rules[0].name").Set("x") // writing autovivifies
 v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anything
+doc.DeleteAt("salary.bonus")     // delete $doc->{salary}{bonus}
 ```
 
 | Step | Means |
@@ -994,6 +995,13 @@ backslash escapes the next character in a key, as in `["say \"hi\""]` or
 `{a\}b}`, and the forms mix freely: `content[0]{tags}.1`. A leading `$` is
 allowed, as in JSONPath (`$.content[0]`), and an empty path is the scalar
 itself. A malformed path panics, as a bad regex does.
+
+`DeleteAt` removes what a path leads to, and returns its value, or undef if
+there was nothing there. As with `HV.Delete` and `AV.Delete`, an element in
+the middle of an array leaves a hole, and deleting the last shrinks the
+array. Unlike Perl, which creates the levels on the way to what it deletes,
+`DeleteAt` never creates anything, so deleting a path that isn't there leaves
+the data exactly as it was.
 
 `Path` itself never splits strings: `doc.Path("log.level")` is the single
 key `log.level`, as it should be, since real keys contain dots.
@@ -1658,7 +1666,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Apply`, `Delete`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Then`, `When`, `Or`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
+| `Set`, `Apply`, `Delete`, `DeleteAt`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Then`, `When`, `Or`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -1689,8 +1697,8 @@ original's own, as described under [Hashes](#hashes).
   - a malformed JSONPath in `Find`
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float
-  - a malformed path in `At`, `AtOK` or `MustPath` (use `CompilePath` to get
-    an error instead)
+  - a malformed path in `At`, `AtOK`, `DeleteAt` or `MustPath` (use
+    `CompilePath` to get an error instead)
   - passing something other than a string, int or `*PathExpr` to `Path`, or
     something other than a string or function as an `S` replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON
@@ -2249,6 +2257,32 @@ fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
 ```
 true
 false false
+```
+
+#### `SV.DeleteAt`
+
+DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route written as for At: it removes the last step's key or element, and returns its value, or undef if there was nothing there.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "bonus": "TBC"}, "skills": ["Go", "SQL"]}`))
+fmt.Println(doc.DeleteAt("salary.bonus")) // delete $doc->{salary}{bonus}: its value
+fmt.Println(doc.DeleteAt("skills[-1]"))   // the last element: the array shrinks
+fmt.Println(doc.DeleteAt("benefits.car")) // nothing there: undef, and nothing created
+fmt.Println(doc.Dump())
+```
+
+```
+TBC
+SQL
+
+{
+  salary => {
+    min => 45000,
+  },
+  skills => [
+    "Go",
+  ],
+}
 ```
 
 #### `MustPath`

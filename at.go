@@ -93,6 +93,43 @@ func (s *SV) AtOK(path string) (v *SV, ok bool) {
 	return s.PathOK(&PathExpr{steps: compileAt(path)})
 }
 
+// DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route
+// written as for At: it removes the last step's key or element, and returns
+// its value, or undef if there was nothing there.
+//
+//	doc.DeleteAt("salary.bonus")    // delete $doc->{salary}{bonus}
+//	doc.DeleteAt("skills[-1]")      // delete $doc->{skills}[-1]
+//
+// As with HV.Delete and AV.Delete, an element in the middle of an array
+// leaves a hole, and deleting the last shrinks the array. Unlike Perl,
+// which creates the levels on the way to what it deletes, DeleteAt never
+// creates anything: if a step on the way is missing, or isn't an array or
+// hash, there's nothing to delete. A malformed path panics, as for At.
+func (s *SV) DeleteAt(path string) *SV {
+	steps := compileAt(path)
+	if len(steps) == 0 {
+		return &SV{} // s itself can't be deleted
+	}
+	cur := s
+	for _, st := range steps[:len(steps)-1] {
+		if cur = st.peek(cur); cur == nil {
+			return &SV{}
+		}
+	}
+	last := steps[len(steps)-1]
+	switch v := cur.val().(type) {
+	case *HV:
+		if last.kind != stepIndex {
+			return v.Delete(last.key)
+		}
+	case *AV:
+		if last.kind != stepKey {
+			return v.Delete(last.index)
+		}
+	}
+	return &SV{}
+}
+
 // PathExpr is a compiled At path, like a compiled regex: Path and PathOK
 // accept one among their keys, so a path used often is parsed once, and a
 // fixed prefix can be combined with keys that vary:

@@ -148,3 +148,45 @@ func TestPathExpr(t *testing.T) {
 	}
 	expectPanic(t, "MustPath on a bad path", "bad path", func() { MustPath("a..b") })
 }
+
+func TestDeleteAt(t *testing.T) {
+	doc := atDoc(t)
+	if got := doc.DeleteAt("content[0].rule_set"); got.Str() != "A" {
+		t.Errorf("DeleteAt returned %q", got.Str())
+	}
+	if doc.At("content[0]").HV().Exists("rule_set") {
+		t.Error("the key should be gone")
+	}
+	if got := doc.DeleteAt(`meta{log.level}`); got.Str() != "debug" || doc.At("meta").HV().Exists("log.level") {
+		t.Error("braces: a key with a dot")
+	}
+	if got := doc.DeleteAt("meta.0"); got.Str() != "zero" {
+		t.Error(".0 into a hash deletes the key")
+	}
+
+	// Arrays: the last element shrinks the array; one before it leaves a hole.
+	if got := doc.DeleteAt("content[0].tags[-1]"); got.Str() != "y" || doc.At("content[0].tags").AV().Length() != 1 {
+		t.Error("deleting the last element should shrink the array")
+	}
+	doc.At("list").AV().Push(1, 2, 3)
+	doc.DeleteAt("list.0")
+	if a := doc.At("list").AV(); a.Length() != 3 || a.Exists(0) {
+		t.Error("deleting an element before the end should leave a hole")
+	}
+
+	// Nothing to delete: nothing created, and undef returned.
+	before, _ := doc.MarshalJSON()
+	for _, path := range []string{"missing.deeper[0]", "meta.missing", "content[9].x", "meta[0]",
+		`content["0"]`, "content[0].rule_set.x", "meta.n.x", ""} {
+		if got := doc.DeleteAt(path); got.Defined() {
+			t.Errorf("DeleteAt(%q) = %q, want undef", path, got.Str())
+		}
+	}
+	if after, _ := doc.MarshalJSON(); string(after) != string(before) {
+		t.Errorf("DeleteAt of missing paths changed the document:\n%s\n%s", before, after)
+	}
+	if got := doc.DeleteAt("meta.n"); got.Defined() || doc.At("meta").HV().Exists("n") {
+		t.Error("deleting a null removes the key and returns undef")
+	}
+	expectPanic(t, "a malformed path", "bad path", func() { doc.DeleteAt("a..b") })
+}

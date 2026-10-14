@@ -361,6 +361,26 @@ func ExampleSV_AtOK() {
 	// false false
 }
 
+func ExampleSV_DeleteAt() {
+	doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "bonus": "TBC"}, "skills": ["Go", "SQL"]}`))
+	fmt.Println(doc.DeleteAt("salary.bonus")) // delete $doc->{salary}{bonus}: its value
+	fmt.Println(doc.DeleteAt("skills[-1]"))   // the last element: the array shrinks
+	fmt.Println(doc.DeleteAt("benefits.car")) // nothing there: undef, and nothing created
+	fmt.Println(doc.Dump())
+	// Output:
+	// TBC
+	// SQL
+	//
+	// {
+	//   salary => {
+	//     min => 45000,
+	//   },
+	//   skills => [
+	//     "Go",
+	//   ],
+	// }
+}
+
 func ExampleMustPath() {
 	rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
 	doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
