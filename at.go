@@ -11,7 +11,7 @@ import (
 type stepKind int
 
 const (
-	stepKey    stepKind = iota // a hash key: name, or ["quoted"]
+	stepKey    stepKind = iota // a hash key: name, {key} or ["quoted"]
 	stepIndex                  // an array index: [0]
 	stepEither                 // .0 after a dot: an index into an array, or a key into a hash
 )
@@ -22,20 +22,24 @@ type atStep struct {
 	index int    // for stepIndex and stepEither
 }
 
-// At is Path with the route as one string, in dot or bracket form:
+// At is Path with the route as one string, in dot, bracket or Perl's brace
+// form:
 //
 //	s.At("content[0].rule_set")     // $s->{content}[0]{rule_set}
+//	s.At("{content}[0]{rule_set}")  // the same, written as in Perl
 //	s.At("content.0.rule_set")      // the same, if content holds an array
-//	s.At(`meta["log.level"]`)       // a key with dots in it, quoted
+//	s.At("meta{log.level}")         // a key with dots in it, in braces
+//	s.At(`meta["log.level"]`)       // or quoted
 //	s.At("items[-1].name")          // negative indices count from the end
 //
-// A name, or a quoted ["key"] or ['key'], is a hash key; a backslash in a
-// quoted key escapes the next character, as in ["say \"hi\""]. [n] is an
-// array index. A number after a dot, as in content.0, is whichever the
+// A name, a {key} or a quoted ["key"] or ['key'] is a hash key; [n] is an
+// array index. Inside braces, everything up to the closing } is the key,
+// spaces included, and {"key"} and {'key'} may be quoted too, as in Perl. A
+// backslash escapes the next character, as in ["say \"hi\""] or {a\}b}. A number after a dot, as in content.0, is whichever the
 // container is: an index into an array, or the key "0" into a hash; writing
 // through one that doesn't exist yet creates an array, so quote a hash key
 // that looks like a number: ["0"]. A leading $ is allowed, so $.a[0] works,
-// as in JSONPath. An empty path is s itself.
+// as in JSONPath. An empty path is s itself. A name ends at a ., [ or {.
 //
 // It walks as Path does: intermediate levels autovivify, the final element
 // doesn't until it's written to, and a missing step reads as undef. A
@@ -170,9 +174,13 @@ func parseAt(path string) (steps []atStep, err error) {
 			step, end := parseBracket(path, i, fail)
 			steps = append(steps, step)
 			i = end
+		case path[i] == '{':
+			step, end := parseBrace(path, i, fail)
+			steps = append(steps, step)
+			i = end
 		case afterDot:
 			end := i
-			for end < len(path) && path[end] != '.' && path[end] != '[' {
+			for end < len(path) && path[end] != '.' && path[end] != '[' && path[end] != '{' {
 				end++
 			}
 			name := path[i:end]
@@ -186,7 +194,7 @@ func parseAt(path string) (steps []atStep, err error) {
 			}
 			i = end
 		default:
-			fail(i, "expected . or [")
+			fail(i, "expected ., [ or {")
 		}
 		afterDot = false
 		if i < len(path) && path[i] == '.' {
@@ -195,8 +203,8 @@ func parseAt(path string) (steps []atStep, err error) {
 			if i == len(path) {
 				fail(i, "expected a name after .")
 			}
-			if path[i] == '[' {
-				fail(i, "expected a name after ., not [")
+			if path[i] == '[' || path[i] == '{' {
+				fail(i, "expected a name after ., not %c", path[i])
 			}
 		}
 	}
@@ -208,24 +216,7 @@ func parseAt(path string) (steps []atStep, err error) {
 func parseBracket(path string, i int, fail func(int, string, ...any)) (atStep, int) {
 	i++ // past [
 	if i < len(path) && (path[i] == '"' || path[i] == '\'') {
-		quote := path[i]
-		var key strings.Builder
-		for i++; ; i++ {
-			switch {
-			case i >= len(path):
-				fail(i, "unterminated quoted key")
-			case path[i] == '\\' && i+1 < len(path):
-				i++
-				key.WriteByte(path[i])
-			case path[i] == quote:
-				if i+1 >= len(path) || path[i+1] != ']' {
-					fail(i+1, "expected ] after the quoted key")
-				}
-				return atStep{kind: stepKey, key: key.String()}, i + 2
-			default:
-				key.WriteByte(path[i])
-			}
-		}
+		return parseQuoted(path, i, ']', fail)
 	}
 	end := strings.IndexByte(path[i:], ']')
 	if end < 0 {
@@ -237,6 +228,56 @@ func parseBracket(path string, i int, fail func(int, string, ...any)) (atStep, i
 		fail(i, "expected an index or a quoted key in [...], got %q", digits)
 	}
 	return atStep{kind: stepIndex, index: n}, i + end + 1
+}
+
+// parseBrace parses {key}, {"key"} or {'key'} starting at path[i], and
+// returns the step and the offset just after the closing brace.
+func parseBrace(path string, i int, fail func(int, string, ...any)) (atStep, int) {
+	i++ // past {
+	if i < len(path) && (path[i] == '"' || path[i] == '\'') {
+		return parseQuoted(path, i, '}', fail)
+	}
+	var key strings.Builder
+	for start := i; ; i++ {
+		switch {
+		case i >= len(path):
+			fail(i, "expected }")
+		case path[i] == '\\' && i+1 < len(path):
+			i++
+			key.WriteByte(path[i])
+		case path[i] == '}':
+			if i == start {
+				fail(i, "expected a key in {...}")
+			}
+			return atStep{kind: stepKey, key: key.String()}, i + 1
+		default:
+			key.WriteByte(path[i])
+		}
+	}
+}
+
+// parseQuoted parses a quoted key starting at path[i], the quote, which must
+// be followed by closer, and returns the step and the offset just after the
+// closer.
+func parseQuoted(path string, i int, closer byte, fail func(int, string, ...any)) (atStep, int) {
+	quote := path[i]
+	var key strings.Builder
+	for i++; ; i++ {
+		switch {
+		case i >= len(path):
+			fail(i, "unterminated quoted key")
+		case path[i] == '\\' && i+1 < len(path):
+			i++
+			key.WriteByte(path[i])
+		case path[i] == quote:
+			if i+1 >= len(path) || path[i+1] != closer {
+				fail(i+1, "expected %c after the quoted key", closer)
+			}
+			return atStep{kind: stepKey, key: key.String()}, i + 2
+		default:
+			key.WriteByte(path[i])
+		}
+	}
 }
 
 // isInteger reports whether s is an optional minus sign and digits, nothing

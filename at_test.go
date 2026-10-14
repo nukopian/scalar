@@ -32,7 +32,16 @@ func TestAt(t *testing.T) {
 		`meta["0"]`:                "zero",
 		`meta["say \"hi\""]`:       "1",
 		"$.content[1].rule_set":    "B", // JSONPath style
-		"content[9].rule_set":      "",  // missing: undef
+		"{content}[0]{rule_set}":   "A", // Perl style
+		"content[0]{tags}[-1]":     "y", // mixed
+		"{content}.0.rule_set":     "A",
+		"meta{log.level}":          "debug", // braces need no quotes
+		"meta{0}":                  "zero",  // always a key, as in Perl
+		`meta{"0"}`:                "zero",
+		`meta{'say "hi"'}`:         "1",
+		`meta{say "hi"}`:           "1", // spaces and quotes inside are the key
+		"${meta}{n}":               "",
+		"content[9].rule_set":      "", // missing: undef
 		"meta.missing.deeper[0].x": "",
 	} {
 		// A fresh document each time: reading through a missing step
@@ -60,8 +69,10 @@ func TestAt(t *testing.T) {
 	s.At("a.b[1].c").Set(1)
 	s.At("list.0").Set("first")
 	s.At(`h["0"]`).Set("key")
+	s.At("{g}{0}[0]").Set("braced") // {0} makes a hash, as $s->{g}{0}[0] does
 	if s.Path("a", "b", 1, "c").Int() != 1 || s.Path("list").Ref() != "ARRAY" ||
-		s.Path("list", 0).Str() != "first" || s.Path("h").Ref() != "HASH" || s.Path("h", "0").Str() != "key" {
+		s.Path("list", 0).Str() != "first" || s.Path("h").Ref() != "HASH" || s.Path("h", "0").Str() != "key" ||
+		s.Path("g").Ref() != "HASH" || s.Path("g", "0", 0).Str() != "braced" {
 		out, _ := s.MarshalJSON()
 		t.Errorf("after writing: %s", out)
 	}
@@ -92,16 +103,22 @@ func TestAtOK(t *testing.T) {
 
 func TestAtErrors(t *testing.T) {
 	for path, want := range map[string]string{
-		"a..b":   "expected a name",
-		"a.":     "expected a name after .",
-		"a.[0]":  "expected a name after ., not [",
-		"a[":     "expected ]",
-		"a[x]":   "expected an index or a quoted key",
-		"a[1.5]": "expected an index or a quoted key",
-		`a["x`:   "unterminated quoted key",
-		`a["x"`:  "expected ] after the quoted key",
-		"a[0]b":  "expected . or [",
-		".a":     "expected a name",
+		"a..b":    "expected a name",
+		"a.":      "expected a name after .",
+		"a.[0]":   "expected a name after ., not [",
+		"a[":      "expected ]",
+		"a[x]":    "expected an index or a quoted key",
+		"a[1.5]":  "expected an index or a quoted key",
+		`a["x`:    "unterminated quoted key",
+		`a["x"`:   "expected ] after the quoted key",
+		"a[0]b":   "expected ., [ or {",
+		"a.{b}":   "expected a name after ., not {",
+		"a{":      "expected }",
+		"a{b":     "expected }",
+		"a{}":     "expected a key in {...}",
+		`a{"b"x}`: "expected } after the quoted key",
+		"a{b}c":   "expected ., [ or {",
+		".a":      "expected a name",
 	} {
 		expectPanic(t, path, want, func() { Scalar(nil).At(path) })
 		if _, err := CompilePath(path); err == nil || !strings.Contains(err.Error(), want) {

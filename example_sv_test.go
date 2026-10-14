@@ -264,6 +264,8 @@ func ExampleSV_At() {
 	fmt.Println(doc.At("content[-1].rule_set"))        // from the end
 	fmt.Println(doc.At(`meta["log.level"]`))           // a key with a dot in it, quoted
 	fmt.Println(doc.At("meta.0"), doc.At(`meta["0"]`)) // into a hash, the number is a key
+	fmt.Println(doc.At("{content}[1]{rule_set}"))      // Perl's braces: always a hash key
+	fmt.Println(doc.At("meta{log.level}"))             // inside braces, dots are part of the key
 
 	var s scalar.SV
 	s.At("rules[0].name").Set("first") // writing autovivifies: [0] makes an array
@@ -275,6 +277,8 @@ func ExampleSV_At() {
 	// B
 	// debug
 	// zero zero
+	// B
+	// debug
 	// {"rules":[{"name":"first"}]}
 }
 

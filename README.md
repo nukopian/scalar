@@ -848,14 +848,16 @@ It follows the same rules.
 
 ### A path as one string: `At`
 
-`At` takes the whole route as one string, in dot or bracket form, and walks
-it exactly as `Path` does:
+`At` takes the whole route as one string, in dot, bracket or Perl's brace
+form, and walks it exactly as `Path` does:
 
 ```go
 doc.At("content[0].rule_set")    // $doc->{content}[0]{rule_set}
+doc.At("{content}[0]{rule_set}") // the same, written as in Perl
 doc.At("content.0.rule_set")     // the same, when content is an array
 doc.At("items[-1].name")         // negative indices count from the end
-doc.At(`meta["log.level"]`)      // a key with dots or brackets in it, quoted
+doc.At("meta{log.level}")        // a key with dots in it, in braces
+doc.At(`meta["log.level"]`)      // or quoted
 doc.At("rules[0].name").Set("x") // writing autovivifies
 v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anything
 ```
@@ -864,10 +866,13 @@ v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anythin
 |---|---|
 | `name` | a hash key |
 | `[0]`, `[-1]` | an array index |
-| `["key"]`, `['key']` | a hash key, however it's spelt; `\` escapes a quote or backslash inside |
+| `{key}` | a hash key, always, as in Perl: everything up to the `}`, dots and spaces included, so `{0}` is the key `"0"` |
+| `["key"]`, `['key']`, `{"key"}`, `{'key'}` | a hash key, however it's spelt |
 | `.0` (a number after a dot) | an index if the container is an array, the key `"0"` if it's a hash; writing to nothing yet creates an array |
 
-So `["0"]` is how to say "the hash key 0" unambiguously. A leading `$` is
+So `{0}` or `["0"]` is how to say "the hash key 0" unambiguously. A
+backslash escapes the next character in a key, as in `["say \"hi\""]` or
+`{a\}b}`, and the forms mix freely: `content[0]{tags}.1`. A leading `$` is
 allowed, as in JSONPath (`$.content[0]`), and an empty path is the scalar
 itself. A malformed path panics, as a bad regex does.
 
@@ -1874,7 +1879,7 @@ false false
 
 #### `SV.At`
 
-At is Path with the route as one string, in dot or bracket form:
+At is Path with the route as one string, in dot, bracket or Perl's brace form:
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{
@@ -1886,6 +1891,8 @@ fmt.Println(doc.At("content.1.rule_set"))          // a number after a dot: an i
 fmt.Println(doc.At("content[-1].rule_set"))        // from the end
 fmt.Println(doc.At(`meta["log.level"]`))           // a key with a dot in it, quoted
 fmt.Println(doc.At("meta.0"), doc.At(`meta["0"]`)) // into a hash, the number is a key
+fmt.Println(doc.At("{content}[1]{rule_set}"))      // Perl's braces: always a hash key
+fmt.Println(doc.At("meta{log.level}"))             // inside braces, dots are part of the key
 
 var s scalar.SV
 s.At("rules[0].name").Set("first") // writing autovivifies: [0] makes an array
@@ -1899,6 +1906,8 @@ B
 B
 debug
 zero zero
+B
+debug
 {"rules":[{"name":"first"}]}
 ```
 
