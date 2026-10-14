@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 // Decode stores s in the Go value v points to, as json.Unmarshal would
@@ -41,10 +42,14 @@ import (
 // doesn't fill a number or string field, where Perl would make it 1 or "":
 // it's a sign the data has the wrong shape. A bool field takes a boolean, 0
 // or 1, or "true" or "false", but not Perl's other true and false values,
-// since "false" would be true. A []byte field takes a byte
-// string's bytes, or decodes text as base64, as encoding/json does. Undef
-// sets a pointer, slice, map or interface to nil, and leaves anything else
-// as it is, as JSON's null does.
+// since "false" would be true. A []byte field takes a byte string's bytes,
+// or decodes text as base64, as encoding/json does. Undef sets a pointer,
+// slice, map or interface to nil, and leaves anything else as it is, as
+// JSON's null does.
+//
+// Data that refers back to itself, decoded into a type that can hold it
+// only by recursing, such as a struct with a pointer to its own type, gives
+// an error rather than recursing for ever.
 //
 // v must be a non-nil pointer. Decode stops at the first value it can't
 // store, and returns a *DecodeError saying where, as a path for At. It takes
@@ -55,7 +60,21 @@ func (s *SV) Decode(v any) error {
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return fmt.Errorf("scalar: Decode needs a non-nil pointer, not %T", v)
 	}
-	return decodeValue(s, rv.Elem(), "")
+	d := decoder{inProgress: map[decodeStep]bool{}}
+	return d.value(s, rv.Elem(), "")
+}
+
+// decoder decodes one value, remembering which arrays and hashes it's in
+// the middle of decoding into which Go types, so that data that refers back
+// to itself gives an error rather than recursing until the stack runs out.
+type decoder struct {
+	inProgress map[decodeStep]bool
+}
+
+// decodeStep is an array or hash being decoded into a Go type.
+type decodeStep struct {
+	container any
+	typ       reflect.Type
 }
 
 // DecodeError is the error Decode returns for a value it can't store: where
@@ -81,10 +100,13 @@ var (
 // plainKey is a hash key At can take after a dot without brackets or braces.
 var plainKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// braceEscaper escapes a key for At's braces.
+var braceEscaper = strings.NewReplacer(`\`, `\\`, `}`, `\}`)
+
 // keyPath adds a hash key to an At path: .name, or {key} for any other key.
 func keyPath(path, key string) string {
 	if !plainKey.MatchString(key) {
-		return path + "{" + strings.NewReplacer(`\`, `\\`, `}`, `\}`).Replace(key) + "}"
+		return path + "{" + braceEscaper.Replace(key) + "}"
 	}
 	if path == "" {
 		return key
@@ -114,7 +136,7 @@ func describe(s *SV) string {
 	return d
 }
 
-func decodeValue(s *SV, v reflect.Value, path string) error {
+func (d decoder) value(s *SV, v reflect.Value, path string) error {
 	fail := func(want string) error {
 		return &DecodeError{Path: path, Msg: fmt.Sprintf("want %s, got %s", want, describe(s))}
 	}
@@ -176,12 +198,23 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 		return nil
 	}
 
+	// An array or hash met again on the way down, into the same type: the
+	// data refers back to itself, and decoding it would never end.
+	if c := s.val(); isRef(c) {
+		step := decodeStep{c, v.Type()}
+		if d.inProgress[step] {
+			return &DecodeError{Path: path, Msg: "the data refers back to itself here, so it can't be decoded"}
+		}
+		d.inProgress[step] = true
+		defer delete(d.inProgress, step)
+	}
+
 	switch v.Kind() {
 	case reflect.Pointer:
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}
-		return decodeValue(s, v.Elem(), path)
+		return d.value(s, v.Elem(), path)
 
 	case reflect.Interface:
 		if v.NumMethod() > 0 {
@@ -257,7 +290,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 		items := s.AV().items
 		out := reflect.MakeSlice(v.Type(), len(items), len(items))
 		for i, e := range items {
-			if err := decodeValue(e, out.Index(i), path+"["+strconv.Itoa(i)+"]"); err != nil {
+			if err := d.value(e, out.Index(i), path+"["+strconv.Itoa(i)+"]"); err != nil {
 				return err
 			}
 		}
@@ -274,7 +307,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 				v.Index(i).SetZero()
 				continue
 			}
-			if err := decodeValue(items[i], v.Index(i), path+"["+strconv.Itoa(i)+"]"); err != nil {
+			if err := d.value(items[i], v.Index(i), path+"["+strconv.Itoa(i)+"]"); err != nil {
 				return err
 			}
 		}
@@ -300,7 +333,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 					return &DecodeError{Path: path, Msg: fmt.Sprintf("want %s keys, got %q", t.Key(), k)}
 				}
 				key.SetInt(n)
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 				n, err := strconv.ParseUint(k, 10, 64)
 				if err != nil || key.OverflowUint(n) {
 					return &DecodeError{Path: path, Msg: fmt.Sprintf("want %s keys, got %q", t.Key(), k)}
@@ -310,7 +343,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 				return &DecodeError{Path: path, Msg: fmt.Sprintf("can't decode into a map with %s keys", t.Key())}
 			}
 			elem := reflect.New(t.Elem()).Elem()
-			if err := decodeValue(e, elem, keyPath(path, k)); err != nil {
+			if err := d.value(e, elem, keyPath(path, k)); err != nil {
 				return err
 			}
 			v.SetMapIndex(key, elem)
@@ -325,12 +358,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 		for _, k := range sortedKeys(s.HV()) {
 			f, ok := fields.byName[k]
 			if !ok {
-				for name, ff := range fields.byName {
-					if strings.EqualFold(name, k) {
-						f, ok = ff, true
-						break
-					}
-				}
+				f, ok = fields.byFold[foldKey(k)]
 			}
 			if !ok {
 				continue // a key with no field
@@ -339,7 +367,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 			if err != nil {
 				return &DecodeError{Path: keyPath(path, k), Msg: err.Error()}
 			}
-			if err := decodeValue(s.HV().m[k], fv, keyPath(path, k)); err != nil {
+			if err := d.value(s.HV().m[k], fv, keyPath(path, k)); err != nil {
 				return err
 			}
 		}
@@ -406,28 +434,40 @@ type fieldInfo struct {
 	index []int
 }
 
+// fieldSet is the fields of a struct type, by the name a key must have, and
+// by that name folded, for a key that matches only ignoring case.
 type fieldSet struct {
 	byName map[string]fieldInfo
+	byFold map[string]fieldInfo
 }
 
 var fieldCache sync.Map // reflect.Type → fieldSet
 
 // structFields lists the fields of t that Decode fills, by the names
-// encoding/json gives them: the json tag's name, or the field's own, with
-// the fields of embedded structs promoted, a shallower field winning over a
-// deeper one, and a tagged one over an untagged one at the same depth.
+// encoding/json gives them and by its rules: the json tag's name, or the
+// field's own; the fields of embedded structs promoted; and where several
+// fields have a name, the shallowest wins, then the one that's tagged, and
+// if that leaves more than one, none does. A name that matches only ignoring
+// case goes to the first such field in the struct's order.
 func structFields(t reflect.Type) fieldSet {
 	if fs, ok := fieldCache.Load(t); ok {
 		return fs.(fieldSet)
 	}
 	type candidate struct {
-		info   fieldInfo
+		index  []int
 		depth  int
 		tagged bool
 	}
-	best := map[string]candidate{}
+	byName := map[string][]candidate{}
+	var names []string // in the order first seen
+	walking := map[reflect.Type]bool{}
 	var walk func(t reflect.Type, index []int, depth int)
 	walk = func(t reflect.Type, index []int, depth int) {
+		if walking[t] {
+			return // a struct that embeds itself: its fields are already here, shallower
+		}
+		walking[t] = true
+		defer delete(walking, t)
 		for i := range t.NumField() {
 			f := t.Field(i)
 			tag := f.Tag.Get("json")
@@ -451,19 +491,66 @@ func structFields(t reflect.Type) fieldSet {
 			if !tagged {
 				name = f.Name
 			}
-			c := candidate{fieldInfo{idx}, depth, tagged}
-			if old, ok := best[name]; !ok || depth < old.depth || depth == old.depth && tagged && !old.tagged {
-				best[name] = c
+			if _, seen := byName[name]; !seen {
+				names = append(names, name)
 			}
+			byName[name] = append(byName[name], candidate{idx, depth, tagged})
 		}
 	}
 	walk(t, nil, 0)
-	fs := fieldSet{byName: make(map[string]fieldInfo, len(best))}
-	for name, c := range best {
-		fs.byName[name] = c.info
+
+	// The field each name goes to, if any, and those fields in the struct's
+	// order, for the case-insensitive matches.
+	type field struct {
+		name  string
+		index []int
+	}
+	var chosen []field
+	for _, name := range names {
+		cs := byName[name]
+		depth := slices.MinFunc(cs, func(a, b candidate) int { return a.depth - b.depth }).depth
+		var best []candidate
+		for _, c := range cs {
+			if c.depth == depth {
+				best = append(best, c)
+			}
+		}
+		if len(best) > 1 {
+			var tagged []candidate
+			for _, c := range best {
+				if c.tagged {
+					tagged = append(tagged, c)
+				}
+			}
+			best = tagged
+		}
+		if len(best) == 1 {
+			chosen = append(chosen, field{name, best[0].index})
+		}
+	}
+	slices.SortFunc(chosen, func(a, b field) int { return slices.Compare(a.index, b.index) })
+	fs := fieldSet{byName: map[string]fieldInfo{}, byFold: map[string]fieldInfo{}}
+	for _, c := range chosen {
+		fs.byName[c.name] = fieldInfo{c.index}
+		if k := foldKey(c.name); fs.byFold[k].index == nil {
+			fs.byFold[k] = fieldInfo{c.index} // the first in the struct's order
+		}
 	}
 	fieldCache.Store(t, fs)
 	return fs
+}
+
+// foldKey is s with each character replaced by the smallest that equals it
+// ignoring case, so that two names that strings.EqualFold says are equal
+// have the same foldKey.
+func foldKey(s string) string {
+	return strings.Map(func(r rune) rune {
+		least := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			least = min(least, f)
+		}
+		return least
+	}, s)
 }
 
 // fieldByIndex is v.FieldByIndex, allocating any nil embedded pointers on

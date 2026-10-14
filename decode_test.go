@@ -1,8 +1,11 @@
 package scalar
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -99,22 +102,19 @@ func TestDecode(t *testing.T) {
 
 	// A byte string fills a []byte as it is.
 	var b struct{ Blob []byte }
-	if err := Hash("Blob", []byte{0x89, 'P'}).decodeVia(&b); err != nil || string(b.Blob) != "\x89P" {
+	if err := Scalar(Hash("Blob", []byte{0x89, 'P'})).Decode(&b); err != nil || string(b.Blob) != "\x89P" {
 		t.Errorf("bytes: %q %v", b.Blob, err)
 	}
 
 	// Undef: nil for pointers, slices and maps; anything else left alone.
 	q := posting{Title: "kept", Skills: []string{"x"}, Salary: &salary{}, Tags: map[string]int{}}
-	if err := Hash("title", nil, "skills", nil, "salary", nil, "tags", nil, "list", nil).decodeVia(&q); err != nil {
+	if err := Scalar(Hash("title", nil, "skills", nil, "salary", nil, "tags", nil, "list", nil)).Decode(&q); err != nil {
 		t.Fatal(err)
 	}
 	if q.Title != "kept" || q.Skills != nil || q.Salary != nil || q.Tags != nil || q.List != nil {
 		t.Errorf("undef: %+v", q)
 	}
 }
-
-// decodeVia decodes a hash through a scalar holding it.
-func (h *HV) decodeVia(v any) error { return Scalar(h).Decode(v) }
 
 func TestDecodeErrors(t *testing.T) {
 	type target struct {
@@ -181,7 +181,7 @@ func TestDecodeErrors(t *testing.T) {
 	type two struct{ A, B int }
 	for range 20 {
 		var v two
-		if err := Hash("b", "x", "a", "y").decodeVia(&v); err == nil || err.Error() != `scalar: Decode: a: want int, got "y"` {
+		if err := Scalar(Hash("b", "x", "a", "y")).Decode(&v); err == nil || err.Error() != `scalar: Decode: a: want int, got "y"` {
 			t.Fatalf("with two bad values: %v", err)
 		}
 	}
@@ -214,5 +214,100 @@ func TestDecodeMatchesJSON(t *testing.T) {
 	want.Any = []any{int64(1), "two", nil}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Decode and encoding/json differ:\nDecode %+v\njson   %+v", got, want)
+	}
+}
+
+type loopNode struct {
+	Name string    `json:"name"`
+	Next *loopNode `json:"next"`
+}
+
+type selfEmbed struct {
+	*selfEmbed
+	V int
+}
+
+// Data that refers back to itself, decoded into a type that can recurse,
+// gives an error, not a fatal stack overflow; a type that embeds itself
+// doesn't send the field scan round for ever. Each runs in a child process
+// with a deadline, so a regression fails the test rather than the run.
+func TestDecodeLoops(t *testing.T) {
+	if os.Getenv("SCALAR_DECODE_LOOP") != "" {
+		h := Hash("name", "a")
+		h.Set("next", Scalar(h))
+		var n loopNode
+		err := Scalar(h).Decode(&n)
+		var de *DecodeError
+		if !errors.As(err, &de) || de.Path != "next" || !strings.Contains(err.Error(), "refers back to itself") {
+			t.Fatalf("a loop into a recursive type: %v", err)
+		}
+		if _, err := To[loopNode](h); err == nil {
+			t.Fatal("To should give the same error")
+		}
+
+		// The same hash twice, without a loop, is fine.
+		leaf := Scalar(Hash("name", "leaf"))
+		pair := Hash("name", "top", "next", Scalar(Hash("name", "mid", "next", leaf)))
+		if n, err := To[loopNode](pair); err != nil || n.Next.Next.Name != "leaf" {
+			t.Fatalf("a chain: %+v, %v", n, err)
+		}
+		twice := Array(leaf, leaf)
+		if ns, err := To[[]loopNode](twice); err != nil || len(ns) != 2 || ns[1].Name != "leaf" {
+			t.Fatalf("one hash twice: %v, %v", ns, err)
+		}
+
+		var s selfEmbed
+		if err := Scalar(Hash("V", 7)).Decode(&s); err != nil || s.V != 7 || s.selfEmbed != nil {
+			t.Fatalf("a self-embedding struct: %+v, %v", s, err)
+		}
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestDecodeLoops$", "-test.v")
+	cmd.Env = append(os.Environ(), "SCALAR_DECODE_LOOP=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := string(out)
+		if len(msg) > 600 {
+			msg = msg[:600] + "..."
+		}
+		t.Fatalf("the child process failed (%v):\n%s", err, msg)
+	}
+}
+
+// Struct fields match keys as encoding/json matches them: a name that two
+// fields share at the same depth, neither tagged, matches neither; a
+// case-insensitive match is the first field in order, every time.
+func TestDecodeFieldMatching(t *testing.T) {
+	type A struct{ Name string }
+	type B struct{ Name string }
+	type both struct {
+		A
+		B
+		Other string
+	}
+	var v both
+	if err := Scalar(Hash("Name", "x", "Other", "y")).Decode(&v); err != nil || v.A.Name != "" || v.B.Name != "" || v.Other != "y" {
+		t.Errorf("an ambiguous name should match neither field: %+v, %v", v, err)
+	}
+	var w both
+	if err := json.Unmarshal([]byte(`{"Name": "x", "Other": "y"}`), &w); err != nil || !reflect.DeepEqual(v, w) {
+		t.Errorf("encoding/json gives %+v", w)
+	}
+
+	type cased struct {
+		Title string
+		TITLE string
+	}
+	for range 50 {
+		var c cased
+		if err := Scalar(Hash("title", "x")).Decode(&c); err != nil || c.Title != "x" || c.TITLE != "" {
+			t.Fatalf("a case-insensitive match should be the first field: %+v, %v", c, err)
+		}
+	}
+
+	if m, err := To[map[uintptr]string](Scalar(Hash("7", "x"))); err != nil || m[7] != "x" {
+		t.Errorf("uintptr keys: %v, %v", m, err)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"iter"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dlclark/regexp2"
@@ -18,7 +17,8 @@ import (
 // Regex helpers use github.com/dlclark/regexp2, a backtracking engine with
 // near-Perl syntax: lookahead, lookbehind, backreferences, atomic groups and
 // named captures all work. Patterns are compiled on first use and cached, so
-// they can be written inline as in Perl. They can also be compiled up front,
+// they can be written inline as in Perl. The cache holds 4,096 patterns, so
+// patterns built from data can't make it grow without end. They can also be compiled up front,
 // as with Perl's qr//, with Compile or MustCompile: M, Named, S and Split
 // take either a pattern string or a *Regexp.
 //
@@ -37,7 +37,7 @@ import (
 // first use; patterns already compiled keep the timeout they were built with.
 var RegexTimeout = 100 * time.Millisecond
 
-var regexCache sync.Map // cacheKey → *regexp2.Regexp
+var regexCache = boundedCache[cacheKey, *regexp2.Regexp]{limit: cacheLimit}
 
 type cacheKey struct {
 	pattern string
@@ -87,16 +87,15 @@ func compileErr(pattern string, f flagSet) (*regexp2.Regexp, error) {
 	}
 
 	key := cacheKey{pattern, opts, RegexTimeout}
-	if re, ok := regexCache.Load(key); ok {
-		return re.(*regexp2.Regexp), nil
+	if re, ok := regexCache.load(key); ok {
+		return re, nil
 	}
 	re, err := regexp2.Compile(pattern, opts)
 	if err != nil {
 		return nil, fmt.Errorf("bad regex %q: %v", pattern, err)
 	}
 	re.MatchTimeout = RegexTimeout
-	actual, _ := regexCache.LoadOrStore(key, re)
-	return actual.(*regexp2.Regexp), nil
+	return regexCache.store(key, re), nil
 }
 
 // Regexp is a compiled pattern, like the result of Perl's qr//. Its flags

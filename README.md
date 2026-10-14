@@ -1350,6 +1350,10 @@ doesn't. To match those, fold both sides first with `Fc`.
 You write patterns inline, as in Perl. Each pattern is compiled the first time
 it's used and then reused. You can also compile a pattern up front, as with
 Perl's `qr//`; see [Compiling patterns up front](#compiling-patterns-up-front).
+The cache of compiled patterns holds 4,096, and starts again when it's full,
+so patterns built from data, such as one for each skill name, can't make it
+grow without end. `At` paths and `Interpolate` templates are cached the same
+way.
 
 | Perl | Go |
 |------|-----|
@@ -1682,8 +1686,8 @@ counts, err := scalar.To[map[string]int](bag)          // a bag's counts
 same rules, set out below. Use `To` for a new value, and `Decode` to fill in
 one that's partly set already (see [Decode](#decode-filling-in-a-value-you-have)).
 
-With a struct, it's the step from loosely shaped data to a typed value, as
-the README's rule says to take as early as you can:
+With a struct, `To` takes you from loosely shaped data to a typed value,
+which [What it costs](#what-it-costs) recommends doing as early as you can:
 
 ```go
 type Posting struct {
@@ -1740,10 +1744,12 @@ for an `*AV`, as does `scalar.To[[]string]([]any{"Go", "SQL"})` for a Go value.
   string either, where Perl would make it `1` or `""`: it means the data has
   the wrong shape.
 - **Struct fields match keys as `encoding/json` matches them:** by the json
-  tag's name, or the field's own, exactly or else ignoring case. Fields of
-  embedded structs are promoted, unexported fields and fields tagged `"-"`
-  are skipped, keys with no field are ignored, and fields with no key are
-  left as they are.
+  tag's name, or the field's own, exactly or else ignoring case, and then
+  the first such field in the struct. Fields of embedded structs are
+  promoted; where two have the same name at the same depth and neither is
+  tagged, the name matches neither. Unexported fields and fields tagged
+  `"-"` are skipped, keys with no field are ignored, and fields with no key
+  are left as they are.
 - **The result is a copy.** It shares nothing with the data it came from, so
   changing one never changes the other.
 
@@ -1784,6 +1790,11 @@ if errors.As(err, &de) {
 
 Paths look like `salary.max`, `skills[2]` or `meta{log.level}`, the last for
 a key that isn't a plain word. An empty path means the value itself.
+
+Data that refers back to itself is an error too, where decoding it into a
+type such as `type Node struct{ Next *Node }` would otherwise go round for
+ever: the path says where the loop closes. Into a `*scalar.SV` or an `any`,
+which can hold such data, it's fine.
 
 ### `Decode`: filling in a value you have
 

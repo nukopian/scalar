@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // stepKind is what a step of an At path is.
@@ -162,20 +161,19 @@ func MustPath(path string) *PathExpr {
 // String returns the path as written.
 func (p *PathExpr) String() string { return p.src }
 
-var atCache sync.Map // string → []atStep
+var atCache = boundedCache[string, []atStep]{limit: cacheLimit}
 
 // compileAt parses an At path, from the cache if it's been seen before. A
 // malformed path panics, as a bad regex does.
 func compileAt(path string) []atStep {
-	if steps, ok := atCache.Load(path); ok {
-		return steps.([]atStep)
+	if steps, ok := atCache.load(path); ok {
+		return steps
 	}
 	steps, err := parseAt(path)
 	if err != nil {
 		panic(err.Error())
 	}
-	atCache.Store(path, steps)
-	return steps
+	return atCache.store(path, steps)
 }
 
 // atError is how parseAt reports a malformed path: fail panics with one,

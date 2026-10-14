@@ -3,7 +3,6 @@ package scalar
 import (
 	"fmt"
 	"strings"
-	"sync"
 )
 
 // Interpolate fills in a template from s, as Perl interpolates variables in
@@ -100,15 +99,13 @@ func (t *Template) ListSeparator(sep string) *Template {
 // String returns the template as written.
 func (t *Template) String() string { return t.src }
 
-var templateCache sync.Map // string → *Template
+var templateCache = boundedCache[string, *Template]{limit: cacheLimit}
 
 func cachedTemplate(src string) *Template {
-	if t, ok := templateCache.Load(src); ok {
-		return t.(*Template)
+	if t, ok := templateCache.load(src); ok {
+		return t
 	}
-	t := MustTemplate(src)
-	templateCache.Store(src, t)
-	return t
+	return templateCache.store(src, MustTemplate(src))
 }
 
 func (t *Template) fill(s *SV) string {

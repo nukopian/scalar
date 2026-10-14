@@ -2,6 +2,7 @@ package scalar
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -64,7 +65,11 @@ func (d *dumper) sv(s *SV, path string, depth int) {
 	case nil:
 		d.b.WriteString("undef")
 	case bool:
-		d.b.WriteString(map[bool]string{true: "!!1", false: "!!0"}[v])
+		if v {
+			d.b.WriteString("!!1")
+		} else {
+			d.b.WriteString("!!0")
+		}
 	case *AV:
 		d.av(v, path, depth)
 	case *HV:
@@ -129,7 +134,11 @@ func (d *dumper) av(a *AV, path string, depth int) {
 	}
 	for i, e := range a.items {
 		d.item(i, depth)
-		d.sv(e, child(path, "["+strconv.Itoa(i)+"]"), depth+1) // a hole is undef
+		var p string // only an array or hash needs its path
+		if isRef(e.val()) {
+			p = child(path, "["+strconv.Itoa(i)+"]")
+		}
+		d.sv(e, p, depth+1) // a hole is undef
 	}
 	d.close(len(a.items), depth, "]")
 }
@@ -142,24 +151,26 @@ func (d *dumper) hv(h *HV, path string, depth int) {
 	if !d.open(h, path, "{") {
 		return
 	}
-	keys := slices.Sorted(func(yield func(string) bool) {
-		for k := range h.m {
-			if !yield(k) {
-				return
-			}
-		}
-	})
+	keys := slices.Sorted(maps.Keys(h.m))
 	for i, k := range keys {
 		d.item(i, depth)
 		key := k
 		if !bareKey.MatchString(k) {
 			key = qquote(k, false)
 		}
-		d.b.WriteString(key + " => ")
-		d.sv(h.m[k], child(path, "{"+key+"}"), depth+1)
+		d.b.WriteString(key)
+		d.b.WriteString(" => ")
+		var p string // only an array or hash needs its path
+		if isRef(h.m[k].val()) {
+			p = child(path, "{"+key+"}")
+		}
+		d.sv(h.m[k], p, depth+1)
 	}
 	d.close(len(keys), depth, "}")
 }
+
+// cEscapes are the control characters qquote writes as C escapes.
+var cEscapes = map[rune]string{'\a': `\a`, '\b': `\b`, '\t': `\t`, '\n': `\n`, '\f': `\f`, '\r': `\r`, '\x1b': `\e`}
 
 // qquote double-quotes s as Data::Dumper's qquote does with Useqq: \, ", $
 // and @ are escaped, control characters get their C escape or octal, and
@@ -184,9 +195,8 @@ func qquote(s string, isBytes bool) string {
 		case c == '\\' || c == '"' || c == '$' || c == '@':
 			b.WriteByte('\\')
 			b.WriteRune(c)
-		case strings.ContainsRune("\a\b\t\n\f\r\x1b", c):
-			b.WriteString(map[rune]string{'\a': `\a`, '\b': `\b`, '\t': `\t`, '\n': `\n`,
-				'\f': `\f`, '\r': `\r`, '\x1b': `\e`}[c])
+		case cEscapes[c] != "":
+			b.WriteString(cEscapes[c])
 		case c < 0x20 && !nextDigit:
 			fmt.Fprintf(&b, `\%o`, c) // the shortest octal, unless a digit follows
 		case c < 0x20 || c == 0x7f:
