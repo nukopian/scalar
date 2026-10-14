@@ -177,6 +177,15 @@ func TestDecodeErrors(t *testing.T) {
 		t.Errorf("at the top: %v", err)
 	}
 
+	// Several values that don't fit: always the first in sorted key order.
+	type two struct{ A, B int }
+	for range 20 {
+		var v two
+		if err := Hash("b", "x", "a", "y").decodeVia(&v); err == nil || err.Error() != `scalar: Decode: a: want int, got "y"` {
+			t.Fatalf("with two bad values: %v", err)
+		}
+	}
+
 	// A loop can't go into an any.
 	loop := Hash()
 	loop.Set("self", Scalar(loop))

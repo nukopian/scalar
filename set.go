@@ -156,14 +156,6 @@ func (s *Set) Members() *AV {
 	return s.c.members()
 }
 
-// MembersSlice is Members as a Go []string: the members' string forms, in
-// the order they were first inserted. The slice is new, so changing it
-// doesn't change s. Use Members for the original values (a number stays a
-// number there).
-func (s *Set) MembersSlice() []string {
-	return slices.Clone(s.cs().keys())
-}
-
 // All iterates over copies of the members, in the order they were first
 // inserted.
 func (s *Set) All() iter.Seq[*SV] {
@@ -364,22 +356,6 @@ func (b *Bag) Members() *AV {
 		return &AV{}
 	}
 	return b.c.members()
-}
-
-// MembersSlice is Members as a Go []string: the distinct members' string
-// forms, in the order they were first inserted.
-func (b *Bag) MembersSlice() []string {
-	return slices.Clone(b.cs().keys())
-}
-
-// CountsMap is Counts as a Go map[string]int, from each member (as a
-// string) to its count. The map is new, so changing it doesn't change b.
-func (b *Bag) CountsMap() map[string]int {
-	out := make(map[string]int, b.Length())
-	for _, k := range b.cs().keys() {
-		out[k] = b.c.n[k]
-	}
-	return out
 }
 
 // Counts returns the bag as a new hash from each member (as a string) to its

@@ -375,10 +375,6 @@ func (a *AV) IntSlice() []int64 { return convertSlice(a, (*SV).Int) }
 // (see SV.Num).
 func (a *AV) NumSlice() []float64 { return convertSlice(a, (*SV).Num) }
 
-// AnySlice returns the elements as plain Go values (see SV.Any), for code
-// that doesn't use this package.
-func (a *AV) AnySlice() []any { return convertSlice(a, (*SV).Any) }
-
 // convertSlice applies f to every element of a, holes included. The result
 // is never nil, so it encodes as [] in JSON.
 func convertSlice[T any](a *AV, f func(*SV) T) []T {

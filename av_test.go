@@ -371,17 +371,17 @@ func TestAny(t *testing.T) {
 		t.Error("Any should copy")
 	}
 
-	// AnySlice converts all the way down; holes are nil.
+	// To[[]any] converts all the way down; holes are nil.
 	a := Array(1, Scalar(Hash("k", "v")))
 	a.Set(3, "z")
-	if got := a.AnySlice(); !reflect.DeepEqual(got, []any{int64(1), map[string]any{"k": "v"}, nil, "z"}) {
-		t.Errorf("AnySlice = %#v", got)
+	if got, err := To[[]any](a); err != nil || !reflect.DeepEqual(got, []any{int64(1), map[string]any{"k": "v"}, nil, "z"}) {
+		t.Errorf("To[[]any] = %#v, %v", got, err)
 	}
 
 	// The same array twice (not a cycle) is fine; a cycle panics.
 	shared := Array(1)
 	twice := Array(Scalar(shared), Scalar(shared))
-	if got := twice.AnySlice(); !reflect.DeepEqual(got, []any{[]any{int64(1)}, []any{int64(1)}}) {
+	if got, err := To[[]any](twice); err != nil || !reflect.DeepEqual(got, []any{[]any{int64(1)}, []any{int64(1)}}) {
 		t.Errorf("shared = %#v", got)
 	}
 	loop := Hash("name", "x")

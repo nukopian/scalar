@@ -5,9 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +47,9 @@ import (
 // as it is, as JSON's null does.
 //
 // v must be a non-nil pointer. Decode stops at the first value it can't
-// store, and returns a *DecodeError saying where, as a path for At.
+// store, and returns a *DecodeError saying where, as a path for At. It takes
+// a hash's keys in sorted order, so when several values don't fit, the
+// error is always about the same one.
 func (s *SV) Decode(v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
@@ -284,7 +288,8 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 		if v.IsNil() {
 			v.Set(reflect.MakeMap(t))
 		}
-		for k, e := range s.HV().m {
+		for _, k := range sortedKeys(s.HV()) {
+			e := s.HV().m[k]
 			key := reflect.New(t.Key()).Elem()
 			switch t.Key().Kind() {
 			case reflect.String:
@@ -317,7 +322,7 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 			return fail("a hash for " + v.Type().String())
 		}
 		fields := structFields(v.Type())
-		for _, k := range s.HV().keys() {
+		for _, k := range sortedKeys(s.HV()) {
 			f, ok := fields.byName[k]
 			if !ok {
 				for name, ff := range fields.byName {
@@ -341,6 +346,13 @@ func decodeValue(s *SV, v reflect.Value, path string) error {
 		return nil
 	}
 	return fail(v.Type().String() + ", which Decode can't fill")
+}
+
+// sortedKeys is h's keys in sorted order, so that Decode takes them in the
+// same order every time: when several values don't fit, the error is always
+// about the same one.
+func sortedKeys(h *HV) []string {
+	return slices.Sorted(maps.Keys(h.m))
 }
 
 // decodeBool is s as a bool field takes it: a boolean, 0 or 1, or "true"

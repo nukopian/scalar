@@ -70,8 +70,9 @@ package is:
 > structs as soon as you know the shape, and keep the core of the program
 > typed.**
 
-`Decode` is that conversion, in one step: see
-[Into Go structs](#into-go-structs-decode).
+`To` is that conversion, in one step: `scalar.To[Posting](doc)` gives you a
+`Posting`, or an error saying which value didn't fit. See
+[Into Go values](#into-go-values-to-and-decode).
 
 ## The types
 
@@ -116,7 +117,7 @@ string and you get a string; ask for a number and you get a number.
 | JSON | `FromJSON`, and `encoding/json` for writing | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
 | Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it; `fmt.Println` of an array or hash, on one line | `Dumper` |
-| Back to plain Go | `Decode(&v)` into a struct; `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
+| Back to plain Go | `To[T]` for any Go type you name, checked; `Decode(&v)` to fill one you have; `StrSlice`, `IntSlice` and `NumSlice` in Perl's contexts; `Any`, `Bytes` | |
 
 For a worked example of every function and method, see the
 [Reference](#reference) at the end.
@@ -133,6 +134,8 @@ if err != nil {
 
 text := resp.Path("content", 0, "text").Str() // $resp->{content}[0]{text}
 tokens := resp.At("usage.output_tokens").Int() // the same, as one string
+
+usage, err := scalar.To[Usage](resp.At("usage")) // into your own struct, checked
 ```
 
 If any step along the path is missing, you get undef back instead of a panic.
@@ -446,7 +449,8 @@ for _, skill := range skills.All() {
   [Copies, references and in-place changes](#copies-references-and-in-place-changes).
 - `Any()` returns the scalar as a plain Go value (`nil`, `bool`, `int64`,
   `float64`, `string`, `[]any` or `map[string]any`), for code that doesn't use
-  `scalar`. See [Back to plain Go](#back-to-plain-go).
+  `scalar`. For a value of a type you choose, use `To`: see
+  [Into Go values](#into-go-values-to-and-decode).
 - `Bytes()` returns the scalar as a Go `[]byte`: a byte string's own bytes,
   or text's UTF-8. See [Byte strings](#byte-strings).
 - `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
@@ -623,23 +627,26 @@ As with Perl's list assignment:
 
 ### Back to plain Go
 
-When an array's contents need to go to code that doesn't use `scalar`, convert
-it to a Go slice:
+To turn an array into a Go slice of any type, checking each element, use
+`scalar.To`: `scalar.To[[]int](a)`. See
+[Into Go values](#into-go-values-to-and-decode).
+
+Three methods convert every element as Perl's string or numeric context
+would instead, and never fail:
 
 | Method | Returns | Each element |
 |---|---|---|
 | `a.StrSlice()` | `[]string` | as a string: undef and holes become `""` |
 | `a.IntSlice()` | `[]int64` | as an integer: anything that isn't a number becomes `0` |
 | `a.NumSlice()` | `[]float64` | as a number |
-| `a.AnySlice()` | `[]any` | as a plain Go value, nested arrays and hashes included |
-
-`AnySlice` uses the same shapes as `encoding/json`: `nil`, `bool`, `int64`,
-`float64`, `string`, `[]any` and `map[string]any`. For a single value, use
-`s.Any()`. The results are copies, so changing them doesn't change the array.
 
 ```go
 skills := scalar.Array(raw).Grep(notBlank).StrSlice()   // back to a []string
+scalar.Array("3", "five").IntSlice()                     // [3 0]: "five" is 0, as in Perl
+scalar.To[[]int](scalar.Array("3", "five"))              // an error: [1]: want int, got "five"
 ```
+
+The results are copies, so changing them doesn't change the array.
 
 ### Lists flatten, as in Perl
 
@@ -975,7 +982,6 @@ skills.Count("Go")                           // $skills->grab("Go")
 | `has`, `size`, `members` | `Has`, `Length`, `Members` | | `grab(a)`, `elements` | `Count`, `Members` |
 | `union`, `intersection`, `difference`, `symmetric_difference` | `Union`, `Intersection`, `Difference`, `SymmetricDifference` | | `sum`, `union`, `intersection`, `difference` | `Sum`, `Union`, `Intersection`, `Difference` |
 | `is_subset`, `is_proper_subset`, `is_superset`, `is_equal`, `is_disjoint` | `IsSubset`, `IsProperSubset`, `IsSuperset`, `IsEqual`, `IsDisjoint` | | | `Total`, `Counts` (a hash), `MostCommon` |
-| | `MembersSlice` (a Go `[]string`) | | | `MembersSlice` (a Go `[]string`), `CountsMap` (a Go `map[string]int`) |
 
 - **Members are compared as strings,** as Perl's hash keys are, and both
   modules: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
@@ -1004,11 +1010,13 @@ Two additions to the modules:
   follows the mathematics.
 
 A set encodes as a JSON array, and a bag as an object from member to count.
-For Go code that doesn't use `scalar`, `MembersSlice()` gives a set's or a
-bag's members as a `[]string`, in insertion order, and a bag's `CountsMap()`
-gives its counts as a `map[string]int`. Both are new, so changing them doesn't
-change the set or bag. `Members()` keeps the original values instead, so a
-number stays a number.
+For Go code that doesn't use `scalar`, `To` converts them: a set gives its
+members and a bag its counts, so `scalar.To[[]string](set)` is a `[]string` of
+the members, in insertion order, and `scalar.To[map[string]int](bag)` a map of
+the counts. A bag's members, without their counts, are
+`scalar.To[[]string](bag.Members())`. The results are new, so changing them
+doesn't change the set or bag. `Members()` keeps the original values instead,
+so a number stays a number.
 
 Sets and bags can't be stored inside a scalar, as arrays and hashes can,
 because Perl has no references to them: to store one in a hash, store its
@@ -1657,61 +1665,159 @@ out, err := json.Marshal(s)      // encode
   The same array or hash appearing twice, without a loop, is fine: it's
   written out each time.
 
-## Into Go structs: `Decode`
+## Into Go values: `To` and `Decode`
 
-`Decode` stores a scalar in a Go value, usually a struct, as `json.Unmarshal`
-would store the same data, but converting each value as Perl would. It's the
-way out of `scalar` once you know the shape:
+Once you know the shape of some data, leave `scalar` for ordinary Go types,
+which the compiler checks. `scalar.To` converts a scalar, array, hash, set or
+bag into the Go type you name in brackets, and returns it:
 
 ```go
-var posting struct {
+skills, err := scalar.To[[]string](doc.At("skills"))   // a []string
+max, err := scalar.To[int](doc.At("salary.max"))       // an int, even from "55000"
+posting, err := scalar.To[Posting](doc)                // your own struct
+counts, err := scalar.To[map[string]int](bag)          // a bag's counts
+```
+
+`s.Decode(&v)` does the same into a value you already have. Both follow the
+same rules, set out below. Use `To` for a new value, and `Decode` to fill in
+one that's partly set already (see [Decode](#decode-filling-in-a-value-you-have)).
+
+With a struct, it's the step from loosely shaped data to a typed value, as
+the README's rule says to take as early as you can:
+
+```go
+type Posting struct {
 	Title  string   `json:"title"`
 	Skills []string `json:"skills"`
 	Salary struct {
 		Min int `json:"min"`      // "45000" fills it, as Perl would numify it
 		Max int `json:"max"`
 	} `json:"salary"`
-	Extra *scalar.SV `json:"extra"` // a part that stays loose
+	Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar
 }
-err := doc.Decode(&posting)
+
+p, err := scalar.To[Posting](doc)
+if err != nil {
+	return err   // scalar: Decode: salary.max: want int, got "competitive"
+}
+fmt.Println(p.Title, p.Salary.Max)
 ```
 
-- **Structs, maps, slices, arrays and pointers** fill as with
-  `encoding/json`: keys match the json tag's name or the field's, exactly or
-  else ignoring case, and fields of embedded structs are promoted. Keys with
-  no field are ignored, and fields with no key are left alone. Undef, like
-  JSON's `null`, sets a pointer, slice, map or interface to nil, and leaves
-  anything else as it is.
-- **Numbers and strings convert as in Perl, where Perl wouldn't warn:** `"42"`
-  and `" 42 "` fill an `int`; `"42abc"`, `"45,000"`, `""` and `2.5` don't, nor
-  does a number too big for the field.
-- **Booleans are stricter than Perl.** A bool field takes a boolean, `0` or
-  `1`, or `"true"` or `"false"`. Perl's truthiness would make `"false"` true.
-  A boolean doesn't fill a number or string field either, where Perl would
-  make it `1` or `""`: it means the data has the wrong shape.
-- **Loose parts stay loose.** A `*scalar.SV`, `SV`, `*scalar.AV` or
-  `*scalar.HV` field takes a deep copy (see `Clone`) of whatever is there.
-- **Types that decode themselves,** with `UnmarshalJSON` or `UnmarshalText`,
-  such as `time.Time`, do.
-- **A `[]byte` field** takes a byte string's bytes, or decodes text as
-  base64, as `encoding/json` does, so bytes written out as JSON come back.
+`To` is a function rather than a method, `scalar.To[T](x)` rather than
+`x.To[T]()`, because Go's methods can't take a type in brackets.
 
-`Decode` returns an error rather than panicking, and stops at the first value
-it can't store. The error is a `*scalar.DecodeError`, whose `Path` is written
-as `At` takes it, so it leads straight to the value:
+### What can go in the brackets
+
+| Type | Takes | Example |
+|---|---|---|
+| a struct | a hash: each key fills the field with that name (see below) | `scalar.To[Posting](doc)` |
+| a slice, `[]T`, or an array, `[N]T` | an array, or a set's members | `scalar.To[[]string](doc.At("skills"))` |
+| a map, `map[string]T` or `map[int]T` | a hash, or a bag's counts | `scalar.To[map[string]int](bag)` |
+| `string` | any plain value, as its string | `scalar.To[string](doc.At("title"))` |
+| `int`, `int64`, `uint`, … | a whole number, or a string holding one, that fits | `scalar.To[int](doc.At("salary.max"))` |
+| `float64`, `float32` | a number, or a string holding one | `scalar.To[float64](doc.At("rate"))` |
+| `bool` | a boolean, `0` or `1`, or `"true"` or `"false"` | `scalar.To[bool](doc.At("remote"))` |
+| a pointer, `*T` | what `T` takes; undef gives nil | `scalar.To[*int](doc.At("bonus"))` |
+| `any` | anything, as plain Go values, as `Any()` gives them | `scalar.To[any](doc)` |
+| `*scalar.SV`, `*scalar.AV`, `*scalar.HV` | a deep copy (see `Clone`) of whatever is there | a struct field for a part that stays loose |
+| a type with `UnmarshalJSON` or `UnmarshalText`, such as `time.Time` | whatever it accepts | `scalar.To[time.Time](doc.At("posted"))` |
+| `[]byte` | a byte string's bytes, or text in base64, as `encoding/json` takes it | `scalar.To[[]byte](doc.At("blob"))` |
+
+These nest as you'd expect: `[]Posting` takes an array of hashes,
+`map[string][]string` a hash of arrays. The source can be a scalar holding an
+array or hash, or the array or hash itself: `scalar.To[[]string](a)` works
+for an `*AV`, as does `scalar.To[[]string]([]any{"Go", "SQL"})` for a Go value.
+
+### How values convert
+
+- **Numbers and strings convert as in Perl, but only where Perl wouldn't
+  warn.** `"42"` and `" 42 "` fill an `int`; `"42abc"`, `"45,000"`, `""` and
+  `2.5` don't, nor does a number too big for the type, such as `300` for an
+  `int8`.
+- **Booleans are stricter than Perl.** A `bool` takes a boolean, `0` or `1`,
+  or `"true"` or `"false"`, but not Perl's other true and false values,
+  since `"false"` would be true. A boolean doesn't fill a number or a
+  string either, where Perl would make it `1` or `""`: it means the data has
+  the wrong shape.
+- **Struct fields match keys as `encoding/json` matches them:** by the json
+  tag's name, or the field's own, exactly or else ignoring case. Fields of
+  embedded structs are promoted, unexported fields and fields tagged `"-"`
+  are skipped, keys with no field are ignored, and fields with no key are
+  left as they are.
+- **The result is a copy.** It shares nothing with the data it came from, so
+  changing one never changes the other.
+
+### Missing and null
+
+Undef, whether it came from a missing key or a JSON `null`, isn't an error.
+`To` gives the zero value: `nil` for a pointer, slice or map, `0`, `""` and
+so on otherwise. Inside a struct, undef sets a pointer, slice, map or
+interface field to nil and leaves any other field as it is, as `null` does
+with `json.Unmarshal`. To tell a missing value from a zero, ask for a
+pointer:
 
 ```go
-err := doc.Decode(&posting)
+bonus, err := scalar.To[*int](doc.At("bonus"))   // nil if there's no bonus, or it's null
+```
+
+`To` never creates anything, so asking for a path that isn't there leaves
+the data as it was.
+
+### When a value doesn't fit
+
+`To` and `Decode` return an error rather than panicking, and stop at the
+first value that doesn't fit, taking a hash's keys in sorted order, so when
+several values don't fit, the error is always about the same one. On an
+error, `To` returns the zero value. The
+error is a `*scalar.DecodeError`, whose `Path` is written as `At` takes it,
+so it leads straight to the value:
+
+```go
+p, err := scalar.To[Posting](doc)
 // scalar: Decode: salary.max: want int, got "competitive"
 
 var de *scalar.DecodeError
 if errors.As(err, &de) {
-	log.Printf("%s is %s", de.Path, doc.At(de.Path).Dump())
+	log.Printf("%s is %s", de.Path, doc.At(de.Path).Dump())   // salary.max is "competitive"
 }
 ```
 
+Paths look like `salary.max`, `skills[2]` or `meta{log.level}`, the last for
+a key that isn't a plain word. An empty path means the value itself.
+
+### `Decode`: filling in a value you have
+
+`Decode` takes a pointer to a value and fills it in, by the same rules. Since
+fields with no key are left alone, it can fill in a struct whose defaults
+are already set:
+
+```go
+p := Posting{Title: "Untitled"}          // the default
+if err := doc.Decode(&p); err != nil {   // a title in doc replaces it; none leaves it
+	return err
+}
+```
+
+On an error, `Decode` leaves in place whatever it filled in before the value
+that didn't fit, taking keys in sorted order, where `To` gives the zero
+value. `Decode` needs a non-nil
+pointer, and returns an error otherwise.
+
+### Which way out?
+
+`To` and `Decode` check every value. The package's other ways out of
+`scalar` do different jobs:
+
+| You want | Use | A value that doesn't fit |
+|---|---|---|
+| a Go value of a type you choose, checked | `scalar.To[T](x)`, `x.Decode(&v)` | an error, with its path |
+| each element in Perl's string or numeric context | `a.StrSlice()`, `a.IntSlice()`, `a.NumSlice()` | converted anyway, as Perl would: `"five"` is `0` |
+| a Go slice or map of the stored scalars themselves, to change them in place | `h.ValuesSlice()`, `h.PairsMap()`, `a.SplitAtSlice(n)`, and `h.KeysSlice()` for the keys | no conversion, so nothing to fit |
+| everything as plain Go values, for code that takes `any` | `x.Any()`, or `scalar.To[any](x)` | `Any` panics on a structure that loops back on itself, where `To` returns an error |
+| a byte string's bytes | `x.Bytes()` | text gives its UTF-8 |
+
 `TestDecodeMatchesJSON` checks that on data that's already the right shape,
-`Decode` gives what `encoding/json` gives.
+`To` and `Decode` give what `encoding/json` gives.
 
 ## Copies, references and in-place changes
 
@@ -1849,6 +1955,7 @@ example here works and prints what it says. Edit the examples, not this section,
 - [Regular expressions](#reference-regular-expressions)
 - [Pack and unpack](#reference-pack-and-unpack)
 - [JSON and JSONPath](#reference-json-and-jsonpath)
+- [Into Go values](#reference-into-go-values)
 
 ### Reference: Scalars
 
@@ -3558,18 +3665,6 @@ fmt.Println(scalar.Array("1.5", 2).NumSlice())
 [1.5 2]
 ```
 
-#### `AV.AnySlice`
-
-AnySlice returns the elements as plain Go values (see `SV.Any`), for code that doesn't use this package.
-
-```go
-fmt.Println(scalar.Array("a", 1, scalar.Scalar(scalar.Array(2))).AnySlice())
-```
-
-```
-[a 1 [2]]
-```
-
 #### `AV.Each`
 
 Each is Perl's each @a (Perl 5.12 and later): the next index and element, with ok true, or ok false once every element has been returned, after which it starts again from the beginning.
@@ -4569,19 +4664,6 @@ c,a,b
 a,b,c
 ```
 
-#### `Set.MembersSlice`
-
-MembersSlice is Members as a Go []string: the members' string forms, in the order they were first inserted.
-
-```go
-langs := scalar.NewSet("Go", "Perl", 5)
-fmt.Printf("%q\n", langs.MembersSlice()) // a Go []string, in insertion order
-```
-
-```
-["Go" "Perl" "5"]
-```
-
 #### `Set.All`
 
 All iterates over copies of the members, in the order they were first inserted.
@@ -4881,31 +4963,6 @@ fmt.Println(scalar.NewBag("b", "a", "b").Members().Join(",")) // distinct, in in
 
 ```
 b,a
-```
-
-#### `Bag.MembersSlice`
-
-MembersSlice is Members as a Go []string: the distinct members' string forms, in the order they were first inserted.
-
-```go
-fmt.Printf("%q\n", scalar.NewBag("b", "a", "b").MembersSlice()) // distinct, as a Go []string
-```
-
-```
-["b" "a"]
-```
-
-#### `Bag.CountsMap`
-
-CountsMap is Counts as a Go map[string]int, from each member (as a string) to its count.
-
-```go
-counts := scalar.NewBag("Go", "Go", "Perl").CountsMap() // a Go map[string]int
-fmt.Println(counts["Go"], counts["Perl"], counts["Rust"])
-```
-
-```
-2 1 0
 ```
 
 #### `Bag.Counts`
@@ -5321,6 +5378,206 @@ fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
 1 a,b
 ```
 
+#### `SV.Find`
+
+Find runs a JSONPath query (RFC 9535) on s and returns every match, or nil if nothing matched.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"store": {"book": [
+		{"title": "Go", "price": 30},
+		{"title": "Perl", "price": 45}
+	]}
+}`))
+fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
+fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
+fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
+fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
+```
+
+```
+Go,Perl
+30,45
+Perl
+true
+```
+
+### Reference: Into Go values
+
+#### `To`
+
+To converts v into a Go value of type T, the type in brackets: the way out of scalar into ordinary Go, once you know the shape you want.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"title": "Go Developer",
+	"skills": ["Go", "SQL"],
+	"salary": {"min": "45000", "max": 55000}
+}`))
+type Posting struct {
+	Title  string   `json:"title"`
+	Skills []string `json:"skills"`
+	Salary struct {
+		Min int `json:"min"` // "45000" fills it, as Perl would numify it
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+p, err := scalar.To[Posting](doc) // the type you want, in brackets
+if err != nil {
+	panic(err)
+}
+fmt.Println(p.Title, p.Skills, p.Salary.Min, p.Salary.Max)
+```
+
+```
+Go Developer [Go SQL] 45000 55000
+```
+
+#### `To.slice`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "years": [3, "5"]}`))
+skills, _ := scalar.To[[]string](doc.At("skills")) // from a scalar holding an array
+years, _ := scalar.To[[]int](doc.At("years").AV()) // or from the array itself
+fmt.Printf("%q %v\n", skills, years)
+```
+
+```
+["Go" "SQL"] [3 5]
+```
+
+#### `To.number`
+
+```go
+salary, err := scalar.To[int](scalar.Scalar(" 55000 ")) // a numeric string, as Perl reads it
+fmt.Println(salary, err)
+rate, err := scalar.To[float64](scalar.Scalar("37.5"))
+fmt.Println(rate, err)
+```
+
+```
+55000 <nil>
+37.5 <nil>
+```
+
+#### `To.map`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"go": 3, "perl": "2"}`))
+counts, _ := scalar.To[map[string]int](doc) // a hash fills a map
+fmt.Println(counts["go"], counts["perl"])
+```
+
+```
+3 2
+```
+
+#### `To.set`
+
+```go
+langs := scalar.NewSet("Go", "Perl", 5)
+members, _ := scalar.To[[]string](langs) // a set gives its members, in insertion order
+fmt.Printf("%q\n", members)
+```
+
+```
+["Go" "Perl" "5"]
+```
+
+#### `To.bag`
+
+```go
+skills := scalar.NewBag("Go", "Go", "Perl")
+counts, _ := scalar.To[map[string]int](skills)    // a bag gives its counts
+names, _ := scalar.To[[]string](skills.Members()) // and Members its distinct members
+fmt.Println(counts["Go"], counts["Perl"], names)
+```
+
+```
+2 1 [Go Perl]
+```
+
+#### `To.any`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"tags": ["go", 1]}`))
+plain, _ := scalar.To[any](doc) // the plain Go form, as Any gives it
+fmt.Printf("%v\n", plain)
+```
+
+```
+map[tags:[go 1]]
+```
+
+#### `To.missing`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"bonus": null}`))
+bonus, err := scalar.To[*int](doc.At("bonus")) // null, or missing: the zero value, here nil
+fmt.Println(bonus, err)
+perks, err := scalar.To[[]string](doc.At("perks"))
+fmt.Println(perks == nil, err)
+```
+
+```
+<nil> <nil>
+true <nil>
+```
+
+#### `To.error`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
+type Posting struct {
+	Salary struct {
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+p, err := scalar.To[Posting](doc)
+fmt.Println(err)
+fmt.Println(p.Salary.Max) // on an error, the zero value
+var de *scalar.DecodeError
+if errors.As(err, &de) {
+	fmt.Println(doc.At(de.Path)) // the path leads At to the value
+}
+```
+
+```
+scalar: Decode: salary.max: want int, got "competitive"
+0
+competitive
+```
+
+#### `To.strict`
+
+```go
+years := scalar.Array("3", "five", 7)
+fmt.Println(years.IntSlice())     // Perl's numeric context: never fails, "five" is 0
+_, err := scalar.To[[]int](years) // To checks
+fmt.Println(err)
+```
+
+```
+[3 0 7]
+scalar: Decode: [1]: want int, got "five"
+```
+
+#### `To.loose`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "extra": {"benefits": ["Pension"]}}`))
+type Posting struct {
+	Title string     `json:"title"`
+	Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar: a deep copy
+}
+p, _ := scalar.To[Posting](doc)
+fmt.Println(p.Title, p.Extra.At("benefits[0]"))
+```
+
+```
+Go Developer Pension
+```
+
 #### `SV.Decode`
 
 Decode stores s in the Go value v points to, as `json.Unmarshal` would store the same data, but converting each value as Perl would, so a number that came as a string, "45000", fills an int field.
@@ -5373,30 +5630,6 @@ if errors.As(err, &de) {
 ```
 scalar: Decode: salary.max: want int, got "competitive"
 competitive
-```
-
-#### `SV.Find`
-
-Find runs a JSONPath query (RFC 9535) on s and returns every match, or nil if nothing matched.
-
-```go
-doc, _ := scalar.FromJSON([]byte(`{
-	"store": {"book": [
-		{"title": "Go", "price": 30},
-		{"title": "Perl", "price": 45}
-	]}
-}`))
-fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
-fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
-fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
-fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
-```
-
-```
-Go,Perl
-30,45
-Perl
-true
 ```
 
 <!-- reference:end -->

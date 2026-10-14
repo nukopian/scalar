@@ -234,12 +234,6 @@ func ExampleAV_NumSlice() {
 	// [1.5 2]
 }
 
-func ExampleAV_AnySlice() {
-	fmt.Println(scalar.Array("a", 1, scalar.Scalar(scalar.Array(2))).AnySlice())
-	// Output:
-	// [a 1 [2]]
-}
-
 func ExampleAV_Each() {
 	a := scalar.Array("x", "y")
 	for i, v, ok := a.Each(); ok; i, v, ok = a.Each() { // while (my ($i, $v) = each @a)

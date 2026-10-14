@@ -173,33 +173,36 @@ func TestBagExtras(t *testing.T) {
 	expectPanic(t, "negative MostCommon", "is negative", func() { NewBag("a").MostCommon(-1) })
 }
 
-func TestSetAndBagGoForms(t *testing.T) {
+func TestSetAndBagTo(t *testing.T) {
 	s := NewSet("c", 1, "a")
-	got := s.MembersSlice()
-	if !slices.Equal(got, []string{"c", "1", "a"}) {
-		t.Errorf("Set.MembersSlice = %q", got)
+	got, err := To[[]string](s)
+	if err != nil || !slices.Equal(got, []string{"c", "1", "a"}) {
+		t.Errorf("To[[]string](set) = %q, %v", got, err)
 	}
 	got[0] = "changed"
 	if !s.Has("c") {
-		t.Error("changing MembersSlice's result shouldn't change the set")
+		t.Error("changing To's result shouldn't change the set")
 	}
 
 	b := NewBag("Go", "Perl", "Go")
-	if got := b.MembersSlice(); !slices.Equal(got, []string{"Go", "Perl"}) {
-		t.Errorf("Bag.MembersSlice = %q", got)
+	if got, err := To[[]string](b.Members()); err != nil || !slices.Equal(got, []string{"Go", "Perl"}) {
+		t.Errorf("To[[]string](bag.Members()) = %q, %v", got, err)
 	}
-	m := b.CountsMap()
-	if len(m) != 2 || m["Go"] != 2 || m["Perl"] != 1 {
-		t.Errorf("CountsMap = %v", m)
+	m, err := To[map[string]int](b)
+	if err != nil || len(m) != 2 || m["Go"] != 2 || m["Perl"] != 1 {
+		t.Errorf("To[map[string]int](bag) = %v, %v", m, err)
 	}
 	m["Go"] = 99
 	if b.Count("Go") != 2 {
-		t.Error("changing CountsMap's result shouldn't change the bag")
+		t.Error("changing To's result shouldn't change the bag")
 	}
 
 	var nilSet *Set
 	var nilBag *Bag
-	if len(nilSet.MembersSlice()) != 0 || len(nilBag.MembersSlice()) != 0 || nilBag.CountsMap() == nil {
-		t.Error("nil sets and bags should give empty Go values, and CountsMap a usable map")
+	if got, err := To[[]string](nilSet); err != nil || len(got) != 0 {
+		t.Errorf("a nil set: %q, %v", got, err)
+	}
+	if got, err := To[map[string]int](nilBag); err != nil || got == nil || len(got) != 0 {
+		t.Errorf("a nil bag should give an empty, usable map: %v, %v", got, err)
 	}
 }

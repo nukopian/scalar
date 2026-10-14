@@ -5,7 +5,6 @@ package scalar_test
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/nukopian/job-meta/internal/scalar"
@@ -61,50 +60,6 @@ func ExampleSV_UnmarshalJSON() {
 	fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
 	// Output:
 	// 1 a,b
-}
-
-func ExampleSV_Decode() {
-	doc, _ := scalar.FromJSON([]byte(`{
-		"title": "Go Developer",
-		"skills": ["Go", "SQL"],
-		"salary": {"min": "45000", "max": 55000},
-		"extra": {"benefits": ["Pension"]}
-	}`))
-	var posting struct {
-		Title  string   `json:"title"`
-		Skills []string `json:"skills"`
-		Salary struct {
-			Min int `json:"min"` // "45000" fills it, as Perl would numify it
-			Max int `json:"max"`
-		} `json:"salary"`
-		Extra *scalar.SV `json:"extra"` // a part that stays loose
-	}
-	if err := doc.Decode(&posting); err != nil {
-		panic(err)
-	}
-	fmt.Println(posting.Title, posting.Skills, posting.Salary.Min, posting.Salary.Max)
-	fmt.Println(posting.Extra.At("benefits[0]"))
-	// Output:
-	// Go Developer [Go SQL] 45000 55000
-	// Pension
-}
-
-func ExampleDecodeError_Error() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
-	var posting struct {
-		Salary struct {
-			Max int `json:"max"`
-		} `json:"salary"`
-	}
-	err := doc.Decode(&posting)
-	fmt.Println(err)
-	var de *scalar.DecodeError
-	if errors.As(err, &de) {
-		fmt.Println(doc.At(de.Path)) // the path leads At to the value
-	}
-	// Output:
-	// scalar: Decode: salary.max: want int, got "competitive"
-	// competitive
 }
 
 func ExampleSV_Find() {
