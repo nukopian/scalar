@@ -432,7 +432,8 @@ func (s *SV) HV() *HV {
 
 // Path walks a chain of hash keys (string) and array indices (int), so
 // s.Path("content", 0, "text") is $s->{content}[0]{text}. Intermediate
-// levels autovivify, as they do in Perl; the final element does not.
+// levels autovivify, as they do in Perl; the final element does not. A key
+// may also be a compiled path (see MustPath), whose steps are taken in turn.
 func (s *SV) Path(keys ...any) *SV {
 	cur := s
 	for _, k := range keys {
@@ -441,8 +442,12 @@ func (s *SV) Path(keys ...any) *SV {
 			cur = cur.HV().Get(k)
 		case int:
 			cur = cur.AV().Get(k)
+		case *PathExpr:
+			for _, st := range k.steps {
+				cur = st.walk(cur)
+			}
 		default:
-			panic(fmt.Sprintf("scalar: Path key must be string or int, got %T", k))
+			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
 		}
 	}
 	return cur
@@ -459,25 +464,22 @@ func (s *SV) PathOK(keys ...any) (v *SV, ok bool) {
 		return &SV{}, false
 	}
 	for _, k := range keys {
-		var next *SV
+		var steps []atStep
 		switch k := k.(type) {
 		case string:
-			if h, isHash := cur.v.(*HV); isHash {
-				next = h.m[k]
-			}
+			steps = []atStep{{kind: stepKey, key: k}}
 		case int:
-			if a, isArray := cur.v.(*AV); isArray {
-				if i, inRange := a.index(k); inRange && i < len(a.items) {
-					next = a.items[i] // nil for a hole, which doesn't exist
-				}
-			}
+			steps = []atStep{{kind: stepIndex, index: k}}
+		case *PathExpr:
+			steps = k.steps
 		default:
-			panic(fmt.Sprintf("scalar: Path key must be string or int, got %T", k))
+			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
 		}
-		if next == nil {
-			return &SV{}, false
+		for _, st := range steps {
+			if cur = st.peek(cur); cur == nil {
+				return &SV{}, false
+			}
 		}
-		cur = next
 	}
 	return cur, true
 }

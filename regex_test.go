@@ -216,7 +216,7 @@ func TestRegexPanics(t *testing.T) {
 	expectPanic(t, "bad flag", `doesn't support flag 'r'`, func() { Scalar("x").M(`x`, "r") })
 	expectPanic(t, "bad tr flag", `doesn't support flag 'g'`, func() { Scalar("x").Tr("x", "y", "g") })
 	expectPanic(t, "bad repl type", "S replacement", func() { Scalar("x").S(`x`, 42) })
-	expectPanic(t, "bad Path key", "Path key must be string or int", func() { Scalar(nil).Path(1.5) })
+	expectPanic(t, "bad Path key", "Path key must be a string, an int or a *PathExpr", func() { Scalar(nil).Path(1.5) })
 }
 
 func TestRegexTimeout(t *testing.T) {

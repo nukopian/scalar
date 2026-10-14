@@ -254,6 +254,67 @@ func ExampleSV_PathOK() {
 	// false false
 }
 
+func ExampleSV_At() {
+	doc, _ := scalar.FromJSON([]byte(`{
+		"content": [{"rule_set": "A"}, {"rule_set": "B"}],
+		"meta": {"log.level": "debug", "0": "zero"}
+	}`))
+	fmt.Println(doc.At("content[0].rule_set"))         // $doc->{content}[0]{rule_set}
+	fmt.Println(doc.At("content.1.rule_set"))          // a number after a dot: an index into an array
+	fmt.Println(doc.At("content[-1].rule_set"))        // from the end
+	fmt.Println(doc.At(`meta["log.level"]`))           // a key with a dot in it, quoted
+	fmt.Println(doc.At("meta.0"), doc.At(`meta["0"]`)) // into a hash, the number is a key
+
+	var s scalar.SV
+	s.At("rules[0].name").Set("first") // writing autovivifies: [0] makes an array
+	out, _ := s.MarshalJSON()
+	fmt.Println(string(out))
+	// Output:
+	// A
+	// B
+	// B
+	// debug
+	// zero zero
+	// {"rules":[{"name":"first"}]}
+}
+
+func ExampleSV_AtOK() {
+	doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "max": null}}`))
+	_, ok := doc.AtOK("salary.max") // present, but null
+	fmt.Println(ok)
+	_, ok = doc.AtOK("salary.bonus") // missing: and nothing is created
+	fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
+	// Output:
+	// true
+	// false false
+}
+
+func ExampleMustPath() {
+	rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
+	doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
+	fmt.Println(doc.Path(rule, "name"))   // a compiled path, then more keys
+	fmt.Println(doc.Path(rule, "ids", 1)) // ...{ids}[1]
+	_, ok := doc.PathOK(rule, "missing")
+	fmt.Println(ok)
+	// Output:
+	// A
+	// 8
+	// false
+}
+
+func ExampleCompilePath() {
+	p, err := scalar.CompilePath("content..rule_set") // a path from outside the program: check it
+	fmt.Println(p == nil, err)
+	// Output:
+	// true scalar: bad path "content..rule_set" at offset 8: expected a name
+}
+
+func ExamplePathExpr_String() {
+	fmt.Println(scalar.MustPath(`meta["log.level"]`))
+	// Output:
+	// meta["log.level"]
+}
+
 func ExampleStrCmp() {
 	fmt.Println(scalar.Array("b", "10", "a", "9").Sort(scalar.StrCmp).Join(" ")) // sort { $a cmp $b }
 	// Output:

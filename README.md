@@ -846,6 +846,48 @@ The rules are the same as Perl's:
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints).
 It follows the same rules.
 
+### A path as one string: `At`
+
+`At` takes the whole route as one string, in dot or bracket form, and walks
+it exactly as `Path` does:
+
+```go
+doc.At("content[0].rule_set")    // $doc->{content}[0]{rule_set}
+doc.At("content.0.rule_set")     // the same, when content is an array
+doc.At("items[-1].name")         // negative indices count from the end
+doc.At(`meta["log.level"]`)      // a key with dots or brackets in it, quoted
+doc.At("rules[0].name").Set("x") // writing autovivifies
+v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anything
+```
+
+| Step | Means |
+|---|---|
+| `name` | a hash key |
+| `[0]`, `[-1]` | an array index |
+| `["key"]`, `['key']` | a hash key, however it's spelt; `\` escapes a quote or backslash inside |
+| `.0` (a number after a dot) | an index if the container is an array, the key `"0"` if it's a hash; writing to nothing yet creates an array |
+
+So `["0"]` is how to say "the hash key 0" unambiguously. A leading `$` is
+allowed, as in JSONPath (`$.content[0]`), and an empty path is the scalar
+itself. A malformed path panics, as a bad regex does.
+
+`Path` itself never splits strings: `doc.Path("log.level")` is the single
+key `log.level`, as it should be, since real keys contain dots.
+
+For a path used often, or one built from parts, compile it once with
+`scalar.MustPath`, and pass it to `Path` or `PathOK` like any key, as
+`qr//` is passed to a match:
+
+```go
+var rule = scalar.MustPath("content[0].rule_set")
+
+doc.Path(rule)              // doc.At("content[0].rule_set")
+doc.Path(rule, "name", 2)   // ...{name}[2]
+```
+
+`scalar.CompilePath` does the same but returns an error instead of
+panicking, for paths that come from outside the program.
+
 ### Missing or null?
 
 Both a missing key and a JSON `null` read as undef. To tell them apart, use
@@ -1417,8 +1459,10 @@ original's own, as described under [Hashes](#hashes).
   - a malformed JSONPath in `Find`
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float
-  - passing something other than a string or int to `Path`, or something
-    other than a string or function as an `S` replacement
+  - a malformed path in `At`, `AtOK` or `MustPath` (use `CompilePath` to get
+    an error instead)
+  - passing something other than a string, int or `*PathExpr` to `Path`, or
+    something other than a string or function as an `S` replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON
     returns an error instead)
 
@@ -1826,6 +1870,97 @@ fmt.Println(ok, doc.HV().Exists("bonus"))
 ```
 true
 false false
+```
+
+#### `SV.At`
+
+At is Path with the route as one string, in dot or bracket form:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"content": [{"rule_set": "A"}, {"rule_set": "B"}],
+	"meta": {"log.level": "debug", "0": "zero"}
+}`))
+fmt.Println(doc.At("content[0].rule_set"))         // $doc->{content}[0]{rule_set}
+fmt.Println(doc.At("content.1.rule_set"))          // a number after a dot: an index into an array
+fmt.Println(doc.At("content[-1].rule_set"))        // from the end
+fmt.Println(doc.At(`meta["log.level"]`))           // a key with a dot in it, quoted
+fmt.Println(doc.At("meta.0"), doc.At(`meta["0"]`)) // into a hash, the number is a key
+
+var s scalar.SV
+s.At("rules[0].name").Set("first") // writing autovivifies: [0] makes an array
+out, _ := s.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+A
+B
+B
+debug
+zero zero
+{"rules":[{"name":"first"}]}
+```
+
+#### `SV.AtOK`
+
+AtOK is PathOK with the route as one string, written as for At: ok reports whether every step exists, so a value that's present but null gives ok true.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "max": null}}`))
+_, ok := doc.AtOK("salary.max") // present, but null
+fmt.Println(ok)
+_, ok = doc.AtOK("salary.bonus") // missing: and nothing is created
+fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
+```
+
+```
+true
+false false
+```
+
+#### `MustPath`
+
+MustPath is CompilePath, panicking if the path is malformed.
+
+```go
+rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
+doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
+fmt.Println(doc.Path(rule, "name"))   // a compiled path, then more keys
+fmt.Println(doc.Path(rule, "ids", 1)) // ...{ids}[1]
+_, ok := doc.PathOK(rule, "missing")
+fmt.Println(ok)
+```
+
+```
+A
+8
+false
+```
+
+#### `CompilePath`
+
+CompilePath compiles an At path, or returns an error if it's malformed, for paths that come from outside the program.
+
+```go
+p, err := scalar.CompilePath("content..rule_set") // a path from outside the program: check it
+fmt.Println(p == nil, err)
+```
+
+```
+true scalar: bad path "content..rule_set" at offset 8: expected a name
+```
+
+#### `PathExpr.String`
+
+String returns the path as written.
+
+```go
+fmt.Println(scalar.MustPath(`meta["log.level"]`))
+```
+
+```
+meta["log.level"]
 ```
 
 #### `StrCmp`
