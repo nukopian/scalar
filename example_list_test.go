@@ -119,3 +119,81 @@ func ExampleAV_Reduce() {
 	// Output:
 	// perl go+perl+c
 }
+
+func ExampleAV_SortByStr() {
+	titles := scalar.Array("data engineer", "Go Developer", "Analyst")
+	byTitle := titles.SortByStr(func(t *scalar.SV) any { return t.Fc() }) // sort_by { fc } @titles
+	fmt.Println(byTitle.Join(", "))
+	// Output:
+	// Analyst, data engineer, Go Developer
+}
+
+func ExampleAV_SortByNum() {
+	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+	bySalary := jobs.AV().SortByNum(func(j *scalar.SV) any { return j.At("salary") }) // nsort_by { $_->{salary} }
+	fmt.Println(bySalary.Get(0).At("title"), bySalary.Get(1).At("title"))
+	// Output:
+	// SQL Go
+}
+
+func ExampleAV_RevSortByStr() {
+	words := scalar.Array("bb", "a", "dd", "e")
+	fmt.Println(words.RevSortByStr(func(w *scalar.SV) any { return w.Length() }).Join(" ")) // equal keys keep their order
+	// Output:
+	// bb dd a e
+}
+
+func ExampleAV_RevSortByNum() {
+	jobs, _ := scalar.FromJSON([]byte(`[{"title": "SQL", "salary": 30000}, {"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}]`))
+	best := jobs.AV().RevSortByNum(func(j *scalar.SV) any { return j.At("salary") }) // the best paid first
+	fmt.Println(best.Get(0).At("title"), best.Get(1).At("title"), best.Get(2).At("title"))
+	// Output:
+	// Go Perl SQL
+}
+
+func ExampleAV_MaxBy() {
+	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+	best := jobs.AV().MaxBy(func(j *scalar.SV) any { return j.At("salary") }) // max_by { $_->{salary} }
+	fmt.Println(best.At("title"))                                             // the first of the best paid
+	// Output:
+	// Go
+}
+
+func ExampleAV_MinBy() {
+	words := scalar.Array("ccc", "a", "bb", "e")
+	fmt.Println(words.MinBy(func(w *scalar.SV) any { return w.Length() })) // min_by { length } @words
+	// Output:
+	// a
+}
+
+func ExampleAV_UniqueBy() {
+	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "level": "Senior"}, {"title": "SQL", "level": "Junior"}, {"title": "Perl", "level": "Senior"}]`))
+	oneEach := jobs.AV().UniqueBy(func(j *scalar.SV) any { return j.At("level") }) // the first job at each level
+	fmt.Println(oneEach.Length(), oneEach.Get(0).At("title"), oneEach.Get(1).At("title"))
+	// Output:
+	// 2 Go SQL
+}
+
+func ExampleAV_PartitionBy() {
+	words := scalar.Array("bb", "a", "ccc", "dd", "e")
+	byLength := words.PartitionBy(func(w *scalar.SV) any { return w.Length() }) // partition_by { length } @words
+	fmt.Println(byLength)
+	// Output:
+	// {1 => ["a","e"],2 => ["bb","dd"],3 => ["ccc"]}
+}
+
+func ExampleAV_CountBy() {
+	places := scalar.Array("Leeds", "London", "leeds", "LEEDS")
+	where := places.CountBy(func(p *scalar.SV) any { return p.Fc() }) // a Bag: count_by's counts, with MostCommon
+	fmt.Println(where.MostCommon(1).Get(0), where.Count("leeds"), where.Counts())
+	// Output:
+	// leeds 3 {leeds => 3,london => 1}
+}
+
+func ExampleAV_ExtractBy() {
+	words := scalar.Array("bb", "a", "ccc", "e")
+	long := words.ExtractBy(func(w *scalar.SV) bool { return w.Length() > 1 }) // moved out of words
+	fmt.Println(long.Join(" "), "|", words.Join(" "))
+	// Output:
+	// bb ccc | a e
+}

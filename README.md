@@ -107,6 +107,7 @@ string and you get a string; ask for a number and you get a number.
 | Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
 | List utilities | `AnyMatch`, `FirstMatch`, `MaxNum`, `UniqueStr`, `Sum0`, `Reduce`, … | `List::Util` |
+| Sorting, grouping and counting by a key | `SortByNum`, `RevSortByNum`, `MaxBy`, `UniqueBy`, `PartitionBy`, `CountBy`, `ExtractBy`, … | `List::UtilsBy` |
 | Hashes | `Get`, `Set`, `Push` to merge, `Values` and `Pairs` slices, `Each`, autovivification | `$h{k}`, `@h{...}`, `%h{...}`, `each` |
 | Sets and counts | `NewSet` with `Union`, `Intersection`, …; `Bag` with `Insert`, `Count`, `MostCommon` | `Set::Scalar`, `Set::Bag` |
 | Numbers and operators | `Add`, `Concat`, `Inc` (`"aa"` to `"ab"`), `AddInPlace`, `NumCmp`; `fmt` verbs as `sprintf` | `+`, `.`, `++`, `+=`, `<=>`, `sprintf` |
@@ -729,6 +730,46 @@ As in Perl:
   the result so far and each following element, as Perl's `$a` and `$b`.
   With one element it returns a copy of it, without calling the function;
   with none, undef. The function may return a scalar or any Go value.
+
+### By a key: `List::UtilsBy`
+
+These follow CPAN's `List::UtilsBy`. Each takes a function that gives a key
+for an element, calls it once for each element, and works on the keys:
+
+```go
+salary := func(p *scalar.SV) any { return p.At("salary.max") }
+
+postings.SortByNum(salary)        // nsort_by { $_->{salary}{max} } @postings
+postings.RevSortByNum(salary)     // rev_nsort_by: the best paid first
+postings.MaxBy(salary)            // max_by: the best paid posting itself
+postings.PartitionBy(func(p *scalar.SV) any { return p.At("seniority") })   // partition_by
+postings.CountBy(func(p *scalar.SV) any { return p.At("location") }).MostCommon(5)
+```
+
+| `List::UtilsBy` | Go | Gives |
+|---|---|---|
+| `sort_by`, `nsort_by` | `SortByStr`, `SortByNum` | a sorted copy, comparing the keys as strings or as numbers |
+| `rev_sort_by`, `rev_nsort_by` | `RevSortByStr`, `RevSortByNum` | the same, largest first |
+| `max_by`, `min_by` | `MaxBy`, `MinBy` | the element with the largest or smallest numeric key, itself, or undef if the array is empty |
+| `uniq_by` | `UniqueBy` | copies of the first element with each key, as a string |
+| `partition_by` | `PartitionBy` | a hash from each key to an array of copies of the elements with it |
+| `count_by` | `CountBy` | a [bag](#sets-and-bags) of the keys, so `MostCommon` lists the commonest first; `Counts()` gives Perl's hash |
+| `extract_by` | `ExtractBy` | the elements for which a test is true, removed from the array |
+
+As in Perl:
+
+- **The key function is called once for each element,** not once for each
+  comparison, so an expensive key costs one call per element.
+- **Equal keys keep their order,** whichever way the sort goes. So
+  `RevSortByNum(f)` isn't the same as `SortByNum(f).Reverse()`, which would
+  reverse elements with equal keys too.
+- **`MaxBy` and `MinBy` compare numbers,** and return the first of several
+  elements with the same key.
+- **`ExtractBy` changes the array,** and its function returns a bool, not a
+  key. The elements it returns are the originals, moved out.
+
+`TestListByMatchesPerl` checks all of these against `List::UtilsBy` itself,
+for hundreds of random lists, when it's installed.
 
 ### Sorting
 
@@ -1741,7 +1782,7 @@ return something new:
 
 | Changes in place | Returns something new, original untouched |
 |---|---|
-| `Set`, `Apply`, `Delete`, `DeleteAt`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Then`, `When`, `Or`, `Sort`, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
+| `Set`, `Apply`, `Delete`, `DeleteAt`, `ExtractBy`, `Push` (arrays and hashes), `Pop`, `PopN`, `Shift`, `ShiftN`, `Unshift`, `Splice`, `SetLastIndex`, `SortInPlace`, `ReverseInPlace`, set and bag `Insert`, `InsertN`, `Delete` and `DeleteN` | `Copy`, `Clone`, `Then`, `When`, `Or`, `Sort`, `SortByStr` and the other `List::UtilsBy` methods, `Reverse`, `Map`, `Grep`, `Pairs` (whose values are the originals, as with `Values`), `Keys`, `SplitAt`, `SplitAtSlice`, `UniqueStr`, `UniqueNum`, `Sum`, `Sum0`, `Product`, `Reduce`, set and bag operations (`Union`, `Intersection`, …) |
 | `SubstrReplace` | `Substr`, `Lc`, `Uc`, `Fc`, `UcFirst`, `LcFirst`, `Trim` |
 | `Inc`, `Dec`, `AddInPlace` and the other assignment operators | Operators: `Add`, `Concat`, `Neg`, … |
 | `S`, `Tr` | `S` and `Tr` with the `r` flag |
@@ -4299,6 +4340,144 @@ fmt.Println(longest, joined)
 
 ```
 perl go+perl+c
+```
+
+#### `AV.SortByStr`
+
+SortByStr is List::UtilsBy's sort_by: a sorted copy of a, ordered by the string keys f gives, as sort { $a cmp $b } would order them.
+
+```go
+titles := scalar.Array("data engineer", "Go Developer", "Analyst")
+byTitle := titles.SortByStr(func(t *scalar.SV) any { return t.Fc() }) // sort_by { fc } @titles
+fmt.Println(byTitle.Join(", "))
+```
+
+```
+Analyst, data engineer, Go Developer
+```
+
+#### `AV.SortByNum`
+
+SortByNum is List::UtilsBy's nsort_by: as SortByStr, but comparing the keys as numbers.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+bySalary := jobs.AV().SortByNum(func(j *scalar.SV) any { return j.At("salary") }) // nsort_by { $_->{salary} }
+fmt.Println(bySalary.Get(0).At("title"), bySalary.Get(1).At("title"))
+```
+
+```
+SQL Go
+```
+
+#### `AV.RevSortByStr`
+
+RevSortByStr is List::UtilsBy's rev_sort_by: SortByStr, in descending order.
+
+```go
+words := scalar.Array("bb", "a", "dd", "e")
+fmt.Println(words.RevSortByStr(func(w *scalar.SV) any { return w.Length() }).Join(" ")) // equal keys keep their order
+```
+
+```
+bb dd a e
+```
+
+#### `AV.RevSortByNum`
+
+RevSortByNum is List::UtilsBy's rev_nsort_by: SortByNum, in descending order, with elements of equal keys keeping their order.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "SQL", "salary": 30000}, {"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}]`))
+best := jobs.AV().RevSortByNum(func(j *scalar.SV) any { return j.At("salary") }) // the best paid first
+fmt.Println(best.Get(0).At("title"), best.Get(1).At("title"), best.Get(2).At("title"))
+```
+
+```
+Go Perl SQL
+```
+
+#### `AV.MaxBy`
+
+MaxBy is List::UtilsBy's max_by: the element with the largest numeric key, the first of them if several share it, or undef for an empty array.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+best := jobs.AV().MaxBy(func(j *scalar.SV) any { return j.At("salary") }) // max_by { $_->{salary} }
+fmt.Println(best.At("title"))                                             // the first of the best paid
+```
+
+```
+Go
+```
+
+#### `AV.MinBy`
+
+MinBy is List::UtilsBy's min_by: the element with the smallest numeric key; see MaxBy.
+
+```go
+words := scalar.Array("ccc", "a", "bb", "e")
+fmt.Println(words.MinBy(func(w *scalar.SV) any { return w.Length() })) // min_by { length } @words
+```
+
+```
+a
+```
+
+#### `AV.UniqueBy`
+
+UniqueBy is List::UtilsBy's uniq_by: a new array of copies of the elements, keeping only the first with each key, in order.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "level": "Senior"}, {"title": "SQL", "level": "Junior"}, {"title": "Perl", "level": "Senior"}]`))
+oneEach := jobs.AV().UniqueBy(func(j *scalar.SV) any { return j.At("level") }) // the first job at each level
+fmt.Println(oneEach.Length(), oneEach.Get(0).At("title"), oneEach.Get(1).At("title"))
+```
+
+```
+2 Go SQL
+```
+
+#### `AV.PartitionBy`
+
+PartitionBy is List::UtilsBy's partition_by: a hash from each key f gives to an array of copies of the elements with that key, in order.
+
+```go
+words := scalar.Array("bb", "a", "ccc", "dd", "e")
+byLength := words.PartitionBy(func(w *scalar.SV) any { return w.Length() }) // partition_by { length } @words
+fmt.Println(byLength)
+```
+
+```
+{1 => ["a","e"],2 => ["bb","dd"],3 => ["ccc"]}
+```
+
+#### `AV.CountBy`
+
+CountBy is List::UtilsBy's count_by: how many elements have each key f gives, as a Bag, so MostCommon lists the commonest first.
+
+```go
+places := scalar.Array("Leeds", "London", "leeds", "LEEDS")
+where := places.CountBy(func(p *scalar.SV) any { return p.Fc() }) // a Bag: count_by's counts, with MostCommon
+fmt.Println(where.MostCommon(1).Get(0), where.Count("leeds"), where.Counts())
+```
+
+```
+leeds 3 {leeds => 3,london => 1}
+```
+
+#### `AV.ExtractBy`
+
+ExtractBy is List::UtilsBy's extract_by: it removes the elements for which f returns true from a, and returns them, in order, as a new array.
+
+```go
+words := scalar.Array("bb", "a", "ccc", "e")
+long := words.ExtractBy(func(w *scalar.SV) bool { return w.Length() > 1 }) // moved out of words
+fmt.Println(long.Join(" "), "|", words.Join(" "))
+```
+
+```
+bb ccc | a e
 ```
 
 ### Reference: Sets and bags
