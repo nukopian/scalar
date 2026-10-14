@@ -255,6 +255,137 @@ func ExampleMustFromDump() {
 	// ""
 }
 
+func ExampleMustFromDump_testData() {
+	// The expected value in a test: shorter than JSON, with comments where
+	// they help.
+	want := scalar.MustFromDump(`{
+		title     => "Senior Go Developer",
+		seniority => "Senior",
+		salary    => { min => 60000, max => undef },   # max: not stated
+		skills    => ["Go", "PostgreSQL", "Docker"],
+		remote    => !!1,
+	}`)
+	got, _ := scalar.FromJSON([]byte(`{"title": "Senior Go Developer", "seniority": "Senior",
+		"salary": {"min": 60000, "max": null}, "skills": ["Go", "PostgreSQL", "Docker"], "remote": true}`))
+	fmt.Printf("%q\n", got.Diff(want))
+	got.At("skills[2]").Set("Kubernetes")
+	fmt.Println(got.Diff(want)) // where they differ, as a path for At
+	// Output:
+	// ""
+	// skills[2]: got "Kubernetes", want "Docker"
+}
+
+func ExampleMustFromDump_toStruct() {
+	// Test data straight into the struct a function under test takes.
+	type Salary struct{ Min, Max int }
+	type Posting struct {
+		Title  string
+		Salary Salary
+		Skills []string
+	}
+	p, err := scalar.To[Posting](scalar.MustFromDump(`{
+		Title  => 'Data Engineer',
+		Salary => { Min => 45_000, Max => 55_000 },   # underscores, as in Perl
+		Skills => ['Python', 'SQL'],
+	}`))
+	fmt.Printf("%+v %v\n", p, err)
+	// Output:
+	// {Title:Data Engineer Salary:{Min:45000 Max:55000} Skills:[Python SQL]} <nil>
+}
+
+func ExampleFromDump_keysAndStrings() {
+	doc := scalar.MustFromDump(`{
+		bare_word   => 1,
+		'single'    => 'it\'s \n literal',   # only \\ and \' are escapes here
+		"double"    => "tab\there\x{263a}",   # Perl's escapes
+		42          => "a number as a key",
+		-1          => "so is a negative one",
+		"log.level" => "debug",
+		email       => "jo@example.com",       # $ and @ aren't interpolated
+	}`)
+	fmt.Println(doc.HV().Keys().Sort(nil).Join(" "))
+	fmt.Printf("%q\n", doc.At("single").Str())
+	fmt.Printf("%q\n", doc.At("double").Str())
+	fmt.Println(doc.At("{42}"), "|", doc.At("{-1}"), "|", doc.At("{log.level}"), "|", doc.At("email"))
+	// Output:
+	// -1 42 bare_word double email log.level single
+	// "it's \\n literal"
+	// "tab\there☺"
+	// a number as a key | so is a negative one | debug | jo@example.com
+}
+
+func ExampleFromDump_bytes() {
+	doc := scalar.MustFromDump(`["\211PNG\r\n", "caf\x{e9}", "caf\351"]`)
+	for _, s := range doc.AV().All() {
+		fmt.Println(s.Kind() == scalar.Bytes, s.Length()) // octal above 127: bytes; \x{...}: text
+	}
+	fmt.Println(doc.At("[1]").Eq(doc.At("[2]"))) // the same characters, so eq
+	// Output:
+	// true 6
+	// false 4
+	// true 4
+	// true
+}
+
+func ExampleFromDump_shared() {
+	// $VAR1 paths are the arrays and hashes already read: shared parts, and loops.
+	doc := scalar.MustFromDump(`{
+		defaults => { cpu => "500m" },
+		web      => { limits => $VAR1->{defaults} },
+		worker   => { limits => $VAR1->{defaults} },
+		parent   => $VAR1,
+	}`)
+	doc.At("defaults.cpu").Set("1")
+	fmt.Println(doc.At("web.limits.cpu"), doc.At("worker.limits.cpu")) // one hash, seen from two places
+	fmt.Println(doc.At("parent.parent.parent.web.limits.cpu"))         // a loop back to the top
+	// Output:
+	// 1 1
+	// 1
+}
+
+func ExampleFromDump_fromPerl() {
+	// Data::Dumper's default layout, pasted from a Perl debugging session,
+	// with a blessed object: read as the plain hash it is.
+	dump := `bless( {
+                 'name' => 'Ada',
+                 'langs' => [
+                              'Perl',
+                              'Go'
+                            ],
+                 'since' => 1843
+               }, 'Person' )`
+	p, err := scalar.FromDump(dump)
+	fmt.Println(err, p.At("name"), p.At("langs").AV().Join("/"), p.At("since").Add(183))
+	// Output:
+	// <nil> Ada Perl/Go 2026
+}
+
+func ExampleFromDump_types() {
+	// A dump doesn't record types: each value comes back as its text says,
+	// as Perl reads a dump back.
+	doc := scalar.MustFromDump(`[42, "42", "2.5", 2.5, "12345678901", !!1, undef]`)
+	names := map[scalar.Kind]string{scalar.Int: "int", scalar.String: "string", scalar.Float: "float",
+		scalar.Bool: "bool", scalar.Undef: "undef"}
+	fmt.Println(doc.AV().Map(func(v *scalar.SV) any { return names[v.Kind()] }).Join(" "))
+	fmt.Println(scalar.Scalar("42").Dump(), scalar.Scalar(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
+	// Output:
+	// int string string float string bool undef
+	// 42 "2.5"
+}
+
+func ExampleFromDump_errors() {
+	_, err := scalar.FromDump(`{
+		title  => "Go Developer",
+		skills => ["Go" "SQL"],
+	}`)
+	fmt.Println(err) // a line and column to look at
+	_, err = scalar.FromDump(`{ handler => sub { "DUMMY" } }`)
+	fmt.Println(err) // data only: no Perl is ever run
+	// Output:
+	// scalar: bad dump at line 3, column 19: expected a comma or "]", found '"'
+	// scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, not Perl code
+}
+
 func ExampleSV_Bytes() {
 	png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
 	fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
