@@ -21,6 +21,7 @@ import (
 // An array or hash that appears twice is printed in full the first time
 // and as its path afterwards, as $VAR1->{"tags"}, so a reference that leads
 // back into s is safe. Unlike Dumper, there's no newline at the end.
+// FromDump reads it back.
 func (s *SV) Dump() string { return dump(s, true) }
 
 // Dump returns a as Data::Dumper prints \@a; see SV.Dump.

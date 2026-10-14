@@ -231,6 +231,30 @@ func ExampleSV_Dump() {
 	// }
 }
 
+func ExampleFromDump() {
+	tags := scalar.Scalar(scalar.Array("go"))
+	doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
+	back, err := scalar.FromDump(scalar.Scalar(doc).Dump())                          // a round trip
+	fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
+
+	perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
+	fmt.Println(err, perl.At("name"), perl.At("langs[1]"))
+	// Output:
+	// <nil> true true
+	// <nil> Ada Go
+}
+
+func ExampleMustFromDump() {
+	want := scalar.MustFromDump(`{
+		title  => "Go Developer",
+		skills => ["Go", "SQL"],   # test data, as Perl would write it
+	}`)
+	got, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+	fmt.Printf("%q\n", got.Diff(want))
+	// Output:
+	// ""
+}
+
 func ExampleSV_Bytes() {
 	png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
 	fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes

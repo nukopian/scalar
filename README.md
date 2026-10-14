@@ -184,7 +184,7 @@ string and you get a string; ask for a number and you get a number.
 | Steps that may find nothing | `Then(f)` and `When(pred)`, which pass undef straight through, then `Or(default)` | `//` |
 | JSON | `FromJSON`, and `encoding/json` for writing | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
-| Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it; `fmt.Println` of an array or hash, on one line | `Dumper` |
+| Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it, and `FromDump` to read it back; `fmt.Println` of an array or hash, on one line | `Dumper` |
 | Back to plain Go | `To[T]` for any Go type you name, checked; `Decode(&v)` to fill one you have; `StrSlice`, `IntSlice` and `NumSlice` in Perl's contexts; `Any`, `Bytes` | |
 
 For a worked example of every function and method, see the
@@ -540,6 +540,43 @@ there's no newline at the end, since `fmt.Println` adds one.
 Arrays and hashes also have `String()`, which gives the same on one line, so
 `fmt.Println(a)` shows `["Go",1,[2,3]]` and `fmt.Println(h)` shows
 `{title => "Go Developer"}`.
+
+### Reading a dump back: `FromDump`
+
+`scalar.FromDump` reads what `Dump` writes, as `FromJSON` reads JSON, and
+returns the structure. The round trip is exact: `FromDump(s.Dump())` is equal
+to `s`, and dumps the same, with shared parts and loops rebuilt from their
+`$VAR1` paths, which JSON can't carry. It also makes test data quick to
+write, in the form you'd write it in Perl:
+
+```go
+want := scalar.MustFromDump(`{
+	title  => "Go Developer",
+	skills => ["Go", "SQL"],   # comments are fine
+}`)
+if d := got.Diff(want); d != "" {
+	t.Error(d)
+}
+```
+
+It reads Perl's own `Data::Dumper` output too, under any of its layout
+settings: any indentation, double or single quotes, keys quoted or bare,
+with or without trailing commas. A blessed array or hash is read as a plain
+one, since `scalar` has no classes. It reads data and never runs any Perl,
+so code (`sub { … }`), compiled regexes (`qr/…/`) and references to plain
+values (`\'x'`) give an error that says where they are, as does the
+`$VAR1 = …;` that `Data::Dumper` writes without `Terse`.
+
+Two things follow from how dumps are written. A string comes back as a
+[byte string](#byte-strings) when it has an octal or `\xHH` escape above 127,
+as `Dump` writes bytes, and as text otherwise. And `Data::Dumper` quotes
+numbers that aren't small integers, such as `"2.5"`, so those come back as
+strings, which compare and calculate the same, as they would in Perl.
+
+`TestFromDumpRoundTrip` checks the round trip for hundreds of random
+structures, shared parts and loops included, and `TestFromDumpMatchesPerl`
+reads what Perl's `Data::Dumper` writes for random structures under all 24
+combinations of its layout settings.
 
 ### Formatting, as with sprintf
 
@@ -1977,6 +2014,7 @@ original's own, as described under [Hashes](#hashes).
   - a malformed JSONPath in `Find`
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float
+  - a malformed dump in `MustFromDump` (use `FromDump` to get an error)
   - a malformed path in `At`, `AtOK`, `DeleteAt` or `MustPath` (use
     `CompilePath` to get an error instead), or a malformed template in
     `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
@@ -2344,6 +2382,42 @@ fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints i
   ],
   title => "Go Developer",
 }
+```
+
+#### `FromDump`
+
+FromDump reads a structure written by Dump, or by Perl's Data::Dumper, and returns it, as FromJSON reads JSON.
+
+```go
+tags := scalar.Scalar(scalar.Array("go"))
+doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
+back, err := scalar.FromDump(scalar.Scalar(doc).Dump())                          // a round trip
+fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
+
+perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
+fmt.Println(err, perl.At("name"), perl.At("langs[1]"))
+```
+
+```
+<nil> true true
+<nil> Ada Go
+```
+
+#### `MustFromDump`
+
+MustFromDump is FromDump, panicking if the dump is malformed.
+
+```go
+want := scalar.MustFromDump(`{
+	title  => "Go Developer",
+	skills => ["Go", "SQL"],   # test data, as Perl would write it
+}`)
+got, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+fmt.Printf("%q\n", got.Diff(want))
+```
+
+```
+""
 ```
 
 #### `SV.Bytes`
