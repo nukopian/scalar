@@ -70,6 +70,9 @@ package is:
 > structs as soon as you know the shape, and keep the core of the program
 > typed.**
 
+`Decode` is that conversion, in one step: see
+[Into Go structs](#into-go-structs-decode).
+
 ## The types
 
 `scalar` gives you three types from Perl itself:
@@ -109,7 +112,8 @@ string and you get a string; ask for a number and you get a number.
 | Steps that may find nothing | `Then(f)` and `When(pred)`, which pass undef straight through, then `Or(default)` | `//` |
 | JSON | `FromJSON`, and `encoding/json` for writing | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
-| Back to plain Go | `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
+| Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it; `fmt.Println` of an array or hash, on one line | `Dumper` |
+| Back to plain Go | `Decode(&v)` into a struct; `Any`, `StrSlice`, `IntSlice`, `KeysSlice`, `PairsMap`, `MembersSlice`, `CountsMap`, `Bytes` | |
 
 For a worked example of every function and method, see the
 [Reference](#reference) at the end.
@@ -443,7 +447,45 @@ for _, skill := range skills.All() {
 - `Bytes()` returns the scalar as a Go `[]byte`: a byte string's own bytes,
   or text's UTF-8. See [Byte strings](#byte-strings).
 - `String()` is the same as `Str()`, so `fmt.Println(s)` and `%s` print a
-  scalar the way Perl's `print` would.
+  scalar the way Perl's `print` would. A reference prints as Perl's does,
+  as `HASH(0xc000123456)`; to see what's inside, use `Dump()`.
+
+### Looking inside: `Dump`
+
+`Dump()` shows a whole structure as `Data::Dumper::Concise` prints it, for
+debugging. Scalars, arrays and hashes all have it:
+
+```go
+fmt.Println(doc.Dump())   // print Dumper($doc)
+```
+
+```
+{
+  salary => {
+    max => undef,
+    min => 45000,
+  },
+  skills => [
+    "Go",
+    "SQL",
+  ],
+  title => "Go Developer",
+}
+```
+
+Keys are sorted, and quoted only when they need to be. Strings are
+double-quoted, with escapes for anything that isn't printable ASCII:
+`"caf\x{e9}"` for text, and octal, `"\211PNG"`, for a byte string. A
+boolean prints as `!!1` or `!!0`, as in Perl 5.36 and later. An array or
+hash that appears twice prints in full the first time, then as its path,
+such as `$VAR1->{tags}`, so a structure that loops back on itself is safe.
+`TestDumpMatchesPerl` checks hundreds of random structures against Perl's
+own `Data::Dumper` with Concise's settings. The one difference is that
+there's no newline at the end, since `fmt.Println` adds one.
+
+Arrays and hashes also have `String()`, which gives the same on one line, so
+`fmt.Println(a)` shows `["Go",1,[2,3]]` and `fmt.Println(h)` shows
+`{title => "Go Developer"}`.
 
 ### Formatting, as with sprintf
 
@@ -1491,6 +1533,62 @@ out, err := json.Marshal(s)      // encode
   The same array or hash appearing twice, without a loop, is fine: it's
   written out each time.
 
+## Into Go structs: `Decode`
+
+`Decode` stores a scalar in a Go value, usually a struct, as `json.Unmarshal`
+would store the same data, but converting each value as Perl would. It's the
+way out of `scalar` once you know the shape:
+
+```go
+var posting struct {
+	Title  string   `json:"title"`
+	Skills []string `json:"skills"`
+	Salary struct {
+		Min int `json:"min"`      // "45000" fills it, as Perl would numify it
+		Max int `json:"max"`
+	} `json:"salary"`
+	Extra *scalar.SV `json:"extra"` // a part that stays loose
+}
+err := doc.Decode(&posting)
+```
+
+- **Structs, maps, slices, arrays and pointers** fill as with
+  `encoding/json`: keys match the json tag's name or the field's, exactly or
+  else ignoring case, and fields of embedded structs are promoted. Keys with
+  no field are ignored, and fields with no key are left alone. Undef, like
+  JSON's `null`, sets a pointer, slice, map or interface to nil, and leaves
+  anything else as it is.
+- **Numbers and strings convert as in Perl, where Perl wouldn't warn:** `"42"`
+  and `" 42 "` fill an `int`; `"42abc"`, `"45,000"`, `""` and `2.5` don't, nor
+  does a number too big for the field.
+- **Booleans are stricter than Perl.** A bool field takes a boolean, `0` or
+  `1`, or `"true"` or `"false"`. Perl's truthiness would make `"false"` true.
+  A boolean doesn't fill a number or string field either, where Perl would
+  make it `1` or `""`: it means the data has the wrong shape.
+- **Loose parts stay loose.** A `*scalar.SV`, `SV`, `*scalar.AV` or
+  `*scalar.HV` field takes a deep copy (see `Clone`) of whatever is there.
+- **Types that decode themselves,** with `UnmarshalJSON` or `UnmarshalText`,
+  such as `time.Time`, do.
+- **A `[]byte` field** takes a byte string's bytes, or decodes text as
+  base64, as `encoding/json` does, so bytes written out as JSON come back.
+
+`Decode` returns an error rather than panicking, and stops at the first value
+it can't store. The error is a `*scalar.DecodeError`, whose `Path` is written
+as `At` takes it, so it leads straight to the value:
+
+```go
+err := doc.Decode(&posting)
+// scalar: Decode: salary.max: want int, got "competitive"
+
+var de *scalar.DecodeError
+if errors.As(err, &de) {
+	log.Printf("%s is %s", de.Path, doc.At(de.Path).Dump())
+}
+```
+
+`TestDecodeMatchesJSON` checks that on data that's already the right shape,
+`Decode` gives what `encoding/json` gives.
+
 ## Copies, references and in-place changes
 
 ### Getting an element gives you the element itself
@@ -1898,6 +1996,29 @@ fmt.Println(scalar.Scalar(1e21)) // fmt uses String, as Perl's print would
 
 ```
 1e+21
+```
+
+#### `SV.Dump`
+
+Dump returns s as Data::Dumper::Concise prints it: Data::Dumper with Terse, Indent = 1, Useqq, Quotekeys = 0, Sortkeys and Trailingcomma, so nested arrays and hashes are laid out one element to a line, hash keys are sorted and quoted only when they need to be, and strings are double-quoted, with escapes for anything that isn't printable ASCII.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"], "salary": {"min": 45000, "max": null}}`))
+fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints it
+```
+
+```
+{
+  salary => {
+    max => undef,
+    min => 45000,
+  },
+  skills => [
+    "Go",
+    "SQL",
+  ],
+  title => "Go Developer",
+}
 ```
 
 #### `SV.Bytes`
@@ -2807,6 +2928,35 @@ fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
 2 2,3
 ```
 
+#### `AV.String`
+
+String returns a on one line, as Dump does but with Indent = 0, so `fmt.Println`(a) shows its elements, nested arrays and hashes included: [1,"a",[2]].
+
+```go
+a := scalar.Array("Go", 1, scalar.Scalar(scalar.Array(2, 3)))
+fmt.Println(a) // fmt uses String: the elements, on one line
+```
+
+```
+["Go",1,[2,3]]
+```
+
+#### `AV.Dump`
+
+Dump returns a as Data::Dumper prints \@a; see `SV.Dump`.
+
+```go
+fmt.Println(scalar.Array("Go", nil, true).Dump())
+```
+
+```
+[
+  "Go",
+  undef,
+  !!1,
+]
+```
+
 #### `AV.Length`
 
 Length is Perl's scalar(@a).
@@ -3356,6 +3506,38 @@ fmt.Println(scalar.Hash(map[string]int{"a": 1}).Get("a")) // from a Go map
 Ada 36
 37
 1
+```
+
+#### `HV.String`
+
+String returns h on one line, as Dump does but with Indent = 0, so `fmt.Println`(h) shows its keys and values: {a => 1,b => [2]}.
+
+```go
+h := scalar.Hash("title", "Go Developer", "log level", "debug")
+fmt.Println(h) // keys sorted, and quoted only when they need to be
+```
+
+```
+{"log level" => "debug",title => "Go Developer"}
+```
+
+#### `HV.Dump`
+
+Dump returns h as Data::Dumper prints \%h; see `SV.Dump`.
+
+```go
+tags := scalar.Scalar(scalar.Array("go"))
+h := scalar.Hash("tags", tags, "again", tags) // the same array twice
+fmt.Println(h.Dump())
+```
+
+```
+{
+  again => [
+    "go",
+  ],
+  tags => $VAR1->{again},
+}
 ```
 
 #### `HV.Length`
@@ -4677,6 +4859,60 @@ fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
 
 ```
 1 a,b
+```
+
+#### `SV.Decode`
+
+Decode stores s in the Go value v points to, as `json.Unmarshal` would store the same data, but converting each value as Perl would, so a number that came as a string, "45000", fills an int field.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"title": "Go Developer",
+	"skills": ["Go", "SQL"],
+	"salary": {"min": "45000", "max": 55000},
+	"extra": {"benefits": ["Pension"]}
+}`))
+var posting struct {
+	Title  string   `json:"title"`
+	Skills []string `json:"skills"`
+	Salary struct {
+		Min int `json:"min"` // "45000" fills it, as Perl would numify it
+		Max int `json:"max"`
+	} `json:"salary"`
+	Extra *scalar.SV `json:"extra"` // a part that stays loose
+}
+if err := doc.Decode(&posting); err != nil {
+	panic(err)
+}
+fmt.Println(posting.Title, posting.Skills, posting.Salary.Min, posting.Salary.Max)
+fmt.Println(posting.Extra.At("benefits[0]"))
+```
+
+```
+Go Developer [Go SQL] 45000 55000
+Pension
+```
+
+#### `DecodeError.Error`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
+var posting struct {
+	Salary struct {
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+err := doc.Decode(&posting)
+fmt.Println(err)
+var de *scalar.DecodeError
+if errors.As(err, &de) {
+	fmt.Println(doc.At(de.Path)) // the path leads At to the value
+}
+```
+
+```
+scalar: Decode: salary.max: want int, got "competitive"
+competitive
 ```
 
 #### `SV.Find`

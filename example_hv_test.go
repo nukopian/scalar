@@ -22,6 +22,26 @@ func ExampleHash() {
 	// 1
 }
 
+func ExampleHV_String() {
+	h := scalar.Hash("title", "Go Developer", "log level", "debug")
+	fmt.Println(h) // keys sorted, and quoted only when they need to be
+	// Output:
+	// {"log level" => "debug",title => "Go Developer"}
+}
+
+func ExampleHV_Dump() {
+	tags := scalar.Scalar(scalar.Array("go"))
+	h := scalar.Hash("tags", tags, "again", tags) // the same array twice
+	fmt.Println(h.Dump())
+	// Output:
+	// {
+	//   again => [
+	//     "go",
+	//   ],
+	//   tags => $VAR1->{again},
+	// }
+}
+
 func ExampleHV_Length() {
 	fmt.Println(scalar.Hash("a", 1, "b", 2).Length()) // scalar(keys %h)
 	// Output:

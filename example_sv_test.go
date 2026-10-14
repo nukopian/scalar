@@ -192,6 +192,23 @@ func ExampleSV_String() {
 	// 1e+21
 }
 
+func ExampleSV_Dump() {
+	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"], "salary": {"min": 45000, "max": null}}`))
+	fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints it
+	// Output:
+	// {
+	//   salary => {
+	//     max => undef,
+	//     min => 45000,
+	//   },
+	//   skills => [
+	//     "Go",
+	//     "SQL",
+	//   ],
+	//   title => "Go Developer",
+	// }
+}
+
 func ExampleSV_Bytes() {
 	png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
 	fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes

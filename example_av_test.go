@@ -19,6 +19,23 @@ func ExampleArray() {
 	// 2 2,3
 }
 
+func ExampleAV_String() {
+	a := scalar.Array("Go", 1, scalar.Scalar(scalar.Array(2, 3)))
+	fmt.Println(a) // fmt uses String: the elements, on one line
+	// Output:
+	// ["Go",1,[2,3]]
+}
+
+func ExampleAV_Dump() {
+	fmt.Println(scalar.Array("Go", nil, true).Dump())
+	// Output:
+	// [
+	//   "Go",
+	//   undef,
+	//   !!1,
+	// ]
+}
+
 func ExampleAV_Length() {
 	fmt.Println(scalar.Array(1, 2, 3).Length()) // scalar(@a)
 	// Output:
