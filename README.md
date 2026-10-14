@@ -1,11 +1,61 @@
 # scalar
 
-Perl-style dynamic values for Go.
+Read, clean and reshape messy data in Go, then get back to typed Go.
 
-## Why this exists
+Go is at its best when data has a known shape. Data from APIs, language
+models, scraped pages and other people's systems often doesn't: fields go
+missing, nesting varies, numbers turn up as strings, and the value you need
+is buried in a sentence. In plain Go, each of those costs a type assertion,
+a nil check or a hand-written loop.
 
-Go's type system is a real strength, and most of this project should use it.
-But two jobs in this project are awkward in plain Go:
+`scalar` takes that ceremony away:
+
+```go
+doc, err := scalar.FromJSON(body)   // whatever shape it turns out to be
+if err != nil {
+	return err
+}
+
+// Clean every string in the structure, at any depth.
+doc.Apply(func(v *scalar.SV) any {
+	if v.Kind() == scalar.String {
+		return v.Trim()
+	}
+	return v
+})
+
+// Read nested values: anything missing or null is undef, not a panic.
+title := doc.At("posting.title").Str()
+location := doc.At("posting.location").Or("Unknown").Str()
+remote := doc.At("posting.remote").Bool()   // not there at all: false
+
+// Pull a figure out of text: no match gives -1, not an error to handle.
+salary := doc.At("posting.description").
+	M(`£([\d,]+)`).Get(1).
+	Then(func(v *scalar.SV) any { return v.S(`,`, "", "gr") }).   // "45,000" → "45000"
+	Or(-1).
+	Int()
+
+// Then back to ordinary, typed Go.
+posting, err := scalar.To[Posting](doc.At("posting"))
+```
+
+There isn't a type assertion or a nil check in that code. A missing key, a
+JSON `null` and a pattern that didn't match are all undef, an ordinary value
+that passes along the chain, and `Or` supplies a default wherever you want
+one. Once the data is in shape, `To` converts it to your own struct, or
+returns an error saying which value didn't fit, and where. The example runs
+as a test: `Example_overview`, in `example_test.go`.
+
+The tools come from Perl, which has handled exactly this kind of data for
+decades: its nested paths, regular expressions, `//` operator, `map`, `grep`
+and list utilities, carried over faithfully and checked against Perl itself.
+You don't need to know Perl to use them. The comparisons with Perl in this
+README are there for readers who do.
+
+## Compared with plain Go
+
+Two jobs are awkward in plain Go.
 
 **1. Reading loosely shaped JSON.** LLM output and third-party APIs return
 JSON whose shape changes: fields go missing, nesting varies, and numbers turn
@@ -34,13 +84,48 @@ text := resp.At("content[0].text").Str()   // or resp.Path("content", 0, "text")
 
 If anything along the path is missing or the wrong type, `text` is just `""`.
 
-**2. Heavy text processing.** Cleaning up job postings means a lot of regex
-work. Go's standard `regexp` package deliberately leaves out lookahead,
-lookbehind and backreferences. `scalar` uses an engine that has them, with a
-timeout so a bad pattern can't hang the program. It also wraps them in short
-helpers modelled on Perl's `s///`, `split` and `tr///`.
+**2. Heavy text processing.** Cleaning up text, such as job postings, means a
+lot of regex work. Go's standard `regexp` package deliberately leaves out
+lookahead, lookbehind and backreferences. `scalar` uses an engine that has
+them, with a timeout so a bad pattern can't hang the program. It also wraps
+them in short helpers modelled on Perl's `s///`, `split` and `tr///`.
 
-### Borrowing from Perl, not switching to it
+## What it costs
+
+Dynamic values give up compile-time checking. A misspelled key compiles
+without complaint and silently reads as undef. That's why the rule for this
+package is:
+
+> **Use `scalar` at the edges, where data comes in. Convert to ordinary Go
+> structs as soon as you know the shape, and keep the core of the program
+> typed.**
+
+`To` is that conversion, in one step: `scalar.To[Posting](doc)` gives you a
+`Posting`, or an error saying which value didn't fit. See
+[Into Go values](#into-go-values-to-and-decode).
+
+## Quick start
+
+```go
+import "github.com/nukopian/job-meta/internal/scalar"
+
+resp, err := scalar.FromJSON(body)
+if err != nil {
+	return err
+}
+
+text := resp.Path("content", 0, "text").Str() // $resp->{content}[0]{text}
+tokens := resp.At("usage.output_tokens").Int() // the same, as one string
+
+usage, err := scalar.To[Usage](resp.At("usage")) // into your own struct, checked
+```
+
+If any step along the path is missing, you get undef back instead of a panic.
+`Str()` on undef is `""` and `Int()` is `0`. `Path` takes keys and indices
+as separate arguments; `At` takes the route as one string, in dot, bracket
+or Perl's brace form (see [A path as one string](#a-path-as-one-string-at)).
+
+## Why Perl?
 
 Perl is better than Go at some jobs, and messy text and loosely shaped data
 are among them. But for a whole program, Perl usually isn't the answer. Go's
@@ -56,23 +141,6 @@ Go has done this itself. `slices.Sort`, `cmp.Or` and range-over-func
 iterators arrived after years of every codebase writing the same loops by
 hand. `scalar` takes the same approach to Perl's data model, which is a
 well-tested design for exactly this kind of work.
-
-You don't need to know Perl to use it. The comparisons with Perl in this
-README are there to help readers who do.
-
-### What it costs
-
-Dynamic values give up compile-time checking. A misspelled key compiles
-without complaint and silently reads as undef. That's why the rule for this
-package is:
-
-> **Use `scalar` at the edges, where data comes in. Convert to ordinary Go
-> structs as soon as you know the shape, and keep the core of the program
-> typed.**
-
-`To` is that conversion, in one step: `scalar.To[Posting](doc)` gives you a
-`Posting`, or an error saying which value didn't fit. See
-[Into Go values](#into-go-values-to-and-decode).
 
 ## The types
 
@@ -121,27 +189,6 @@ string and you get a string; ask for a number and you get a number.
 
 For a worked example of every function and method, see the
 [Reference](#reference) at the end.
-
-## Quick start
-
-```go
-import "github.com/nukopian/job-meta/internal/scalar"
-
-resp, err := scalar.FromJSON(body)
-if err != nil {
-	return err
-}
-
-text := resp.Path("content", 0, "text").Str() // $resp->{content}[0]{text}
-tokens := resp.At("usage.output_tokens").Int() // the same, as one string
-
-usage, err := scalar.To[Usage](resp.At("usage")) // into your own struct, checked
-```
-
-If any step along the path is missing, you get undef back instead of a panic.
-`Str()` on undef is `""` and `Int()` is `0`. `Path` takes keys and indices
-as separate arguments; `At` takes the route as one string, in dot, bracket
-or Perl's brace form (see [A path as one string](#a-path-as-one-string-at)).
 
 ## Recipes
 

@@ -1,8 +1,8 @@
 package scalar_test
 
-// These examples are the recipes in README.md. Go runs them as tests and
-// checks their output, so if one stops working, go test says so. Keep the
-// README in step when changing them.
+// These examples are the opening example and the recipes in README.md. Go
+// runs them as tests and checks their output, so if one stops working, go
+// test says so. Keep the README in step when changing them.
 
 import (
 	"encoding/json"
@@ -10,6 +10,58 @@ import (
 
 	"github.com/nukopian/job-meta/internal/scalar"
 )
+
+// The example at the top of README.md: read, extract, clean, then convert
+// to typed Go.
+func Example_overview() {
+	body := []byte(`{"posting": {
+		"title": " Senior Go Developer ",
+		"location": null,
+		"description": "Salary: £45,000 - £55,000 per annum",
+		"skills": [" Go", "PostgreSQL ", "Docker"]
+	}}`)
+	type Posting struct {
+		Title  string   `json:"title"`
+		Skills []string `json:"skills"`
+	}
+
+	doc, err := scalar.FromJSON(body) // whatever shape it turns out to be
+	if err != nil {
+		panic(err)
+	}
+
+	// Clean every string in the structure, at any depth.
+	doc.Apply(func(v *scalar.SV) any {
+		if v.Kind() == scalar.String {
+			return v.Trim()
+		}
+		return v
+	})
+
+	// Read nested values: anything missing or null is undef, not a panic.
+	title := doc.At("posting.title").Str()
+	location := doc.At("posting.location").Or("Unknown").Str()
+	remote := doc.At("posting.remote").Bool() // not there at all: false
+
+	// Pull a figure out of text: no match gives -1, not an error to handle.
+	salary := doc.At("posting.description").
+		M(`£([\d,]+)`).Get(1).
+		Then(func(v *scalar.SV) any { return v.S(`,`, "", "gr") }). // "45,000" → "45000"
+		Or(-1).
+		Int()
+
+	// Then back to ordinary, typed Go.
+	posting, err := scalar.To[Posting](doc.At("posting"))
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(title, "|", location, "|", remote, "|", salary)
+	fmt.Printf("%+v\n", posting)
+	// Output:
+	// Senior Go Developer | Unknown | false | 45000
+	// {Title:Senior Go Developer Skills:[Go PostgreSQL Docker]}
+}
 
 const toolUseResponse = `{
   "content": [
