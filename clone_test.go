@@ -10,7 +10,7 @@ func TestClone(t *testing.T) {
 	orig.At("blob").Set([]byte{0x89, 'P'})
 	shared := orig.At("tags").AV()
 	orig.HV().Set("again", Value(shared)) // the same array twice
-	orig.HV().Set("self", orig)            // and a loop back to the top
+	orig.HV().Set("self", orig)           // and a loop back to the top
 
 	c := orig.Clone()
 	if c == orig || c.HV() == orig.HV() {

@@ -117,7 +117,7 @@ func ExampleAV_Delete() {
 
 func ExampleAV_Push() {
 	a := scalar.Array("a")
-	a.Push("b", []string{"c", "d"})           // push @a, "b", @list
+	a.Push("b", []string{"c", "d"})          // push @a, "b", @list
 	a.Push(scalar.Value(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
 	fmt.Println(a.Length(), a.Get(-1).Ref())
 	// Output:
@@ -330,7 +330,7 @@ func ExampleAV_SplitAtSlice() {
 
 func ExampleAV_Clone() {
 	rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
-	mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
+	mine := rows.Clone()                                                        // dclone(\@rows): the rows too, not just the list
 	mine.Get(0).At("title").Set("Perl Developer")
 	fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
 	// Output:

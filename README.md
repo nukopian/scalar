@@ -2513,7 +2513,7 @@ FromDump reads a structure written by Dump, or by Perl's Data::Dumper, and retur
 ```go
 tags := scalar.Value(scalar.Array("go"))
 doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
-back, err := scalar.FromDump(scalar.Value(doc).Dump())                          // a round trip
+back, err := scalar.FromDump(scalar.Value(doc).Dump())                           // a round trip
 fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
 
 perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
@@ -2710,7 +2710,7 @@ scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, n
 Bytes returns s as a Go []byte: a byte string's bytes, or anything else's bytes in string context (see Str), so text gives its UTF-8 encoding.
 
 ```go
-png := scalar.Value([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
+png := scalar.Value([]byte("\x89PNG\r\n\x1a\n..."))   // a []byte makes a byte string
 fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
 fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
 fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
@@ -3891,7 +3891,7 @@ Push is Perl's push: it appends vals and returns a.
 
 ```go
 a := scalar.Array("a")
-a.Push("b", []string{"c", "d"})           // push @a, "b", @list
+a.Push("b", []string{"c", "d"})          // push @a, "b", @list
 a.Push(scalar.Value(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
 fmt.Println(a.Length(), a.Get(-1).Ref())
 ```
@@ -4248,7 +4248,7 @@ Clone returns a deep copy of a, as dclone(\@a) does; see `SV.Clone`.
 
 ```go
 rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
-mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
+mine := rows.Clone()                                                        // dclone(\@rows): the rows too, not just the list
 mine.Get(0).At("title").Set("Perl Developer")
 fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
 ```

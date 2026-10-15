@@ -40,6 +40,10 @@ func flatten(vals []any) []*SV {
 	out := make([]*SV, 0, len(vals))
 	var add func(v any)
 	add = func(v any) {
+		if plainValue(v) {
+			out = append(out, Value(v))
+			return
+		}
 		switch v := v.(type) {
 		case *AV:
 			for _, s := range v.All() {
@@ -50,9 +54,6 @@ func flatten(vals []any) []*SV {
 			for k, s := range v.All() {
 				out = append(out, &SV{v: k}, s.Copy())
 			}
-			return
-		case nil, *SV, string, bool, int, int64, float64, []byte: // a []byte is one byte string
-			out = append(out, Value(v))
 			return
 		// The most common slices skip reflection.
 		case []string:

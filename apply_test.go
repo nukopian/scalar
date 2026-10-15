@@ -18,7 +18,7 @@ func TestApply(t *testing.T) {
 	tags := Array(" a ")
 	doc.HV().Set("list", Value(tags))
 	doc.HV().Set("again", Value(tags)) // the same array twice
-	doc.HV().Set("self", doc)           // and a loop back to the top
+	doc.HV().Set("self", doc)          // and a loop back to the top
 	doc.At("blob").Set([]byte(" b "))
 
 	var seen []string

@@ -22,9 +22,7 @@ func plainHash(kv []any) (*HV, bool) {
 			}
 			continue
 		}
-		switch x.(type) {
-		case nil, *SV, string, bool, int, int64, float64, []byte: // as flatten copies them
-		default:
+		if !plainValue(x) {
 			return nil, false
 		}
 	}
@@ -47,13 +45,22 @@ func plainValues(vals []any) bool {
 		return false
 	}
 	for _, v := range vals {
-		switch v.(type) {
-		case nil, *SV, string, bool, int, int64, float64, []byte:
-		default:
+		if !plainValue(v) {
 			return false
 		}
 	}
 	return true
+}
+
+// plainValue reports whether flatten adds v as one value, a copy of it, as
+// it does a scalar, a string, a bool, the commonest numbers and a []byte (one
+// byte string). The fast paths rely on this, so it's the one list of them.
+func plainValue(v any) bool {
+	switch v.(type) {
+	case nil, *SV, string, bool, int, int64, float64, []byte:
+		return true
+	}
+	return false
 }
 
 // literalPattern reports whether pattern matches only itself, so that S can

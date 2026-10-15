@@ -80,7 +80,8 @@ func (r *jsonReader) value() (any, bool) {
 }
 
 func (r *jsonReader) literal(word string) bool {
-	if !strings.HasPrefix(string(r.data[r.i:min(len(r.data), r.i+len(word))]), word) {
+	end := r.i + len(word)
+	if end > len(r.data) || string(r.data[r.i:end]) != word { // compared without a copy
 		return false
 	}
 	r.i += len(word)
