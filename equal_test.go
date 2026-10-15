@@ -7,8 +7,8 @@ func TestEqualMatchesIsDeeply(t *testing.T) {
 	holey := Array(1)
 	holey.Set(2, 3)
 	loop1, loop2 := Hash(), Hash()
-	loop1.Set("s", Scalar(loop1))
-	loop2.Set("s", Scalar(loop2))
+	loop1.Set("s", Value(loop1))
+	loop2.Set("s", Value(loop2))
 	for _, c := range []struct {
 		got, want any
 		diff      string
@@ -28,7 +28,7 @@ func TestEqualMatchesIsDeeply(t *testing.T) {
 		{Hash(), Array(), `got a hash, want an array`},
 		{Array(1), "ARRAY", `got an array, want "ARRAY"`},
 	} {
-		got := Scalar(c.got)
+		got := Value(c.got)
 		if d := got.Diff(c.want); d != c.diff {
 			t.Errorf("%s vs %v: Diff %q, want %q", got.Dump(), c.want, d, c.diff)
 		}
@@ -72,7 +72,7 @@ func TestDiff(t *testing.T) {
 		t.Errorf("HV.Diff(nil) = %q", d)
 	}
 	var nilSV *SV
-	if !nilSV.Equal(nil) || Scalar(nil).Equal(0) {
+	if !nilSV.Equal(nil) || Value(nil).Equal(0) {
 		t.Error("undef equals only undef")
 	}
 }

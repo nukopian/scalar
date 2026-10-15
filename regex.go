@@ -346,7 +346,7 @@ func (s *SV) substituted(out string, n int, isBytes bool, f flagSet) *SV {
 	if n > 0 {
 		s.Set(textResult(out, isBytes))
 	}
-	return Scalar(n)
+	return Value(n)
 }
 
 // Split is Perl's split /re/, $s. Captured groups are included in the
@@ -497,7 +497,7 @@ func (s *SV) Tr(from, to string, flags ...string) *SV {
 	if result := out.String(); result != str {
 		s.Set(textResult(result, isBytes))
 	}
-	return Scalar(count)
+	return Value(count)
 }
 
 // expandTr expands a tr/// character list: ranges like a-z, and the escapes

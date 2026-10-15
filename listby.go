@@ -16,7 +16,7 @@ type keyed struct {
 func (a *AV) keyed(f func(*SV) any) []keyed {
 	out := make([]keyed, 0, a.Length())
 	for _, s := range a.All() {
-		out = append(out, keyed{s, Scalar(f(s))})
+		out = append(out, keyed{s, Value(f(s))})
 	}
 	return out
 }
@@ -33,7 +33,7 @@ func (a *AV) sortBy(f func(*SV) any, cmp func(x, y *SV) int, reverse bool) *AV {
 	})
 	out := &AV{items: make([]*SV, len(ks))}
 	for i, k := range ks {
-		out.items[i] = Scalar(k.elem)
+		out.items[i] = Value(k.elem)
 	}
 	return out
 }
@@ -97,7 +97,7 @@ func (a *AV) UniqueBy(f func(*SV) any) *AV {
 	for _, k := range a.keyed(f) {
 		if key := k.key.Str(); !seen[key] {
 			seen[key] = true
-			out.items = append(out.items, Scalar(k.elem))
+			out.items = append(out.items, Value(k.elem))
 		}
 	}
 	return out
@@ -119,7 +119,7 @@ func (a *AV) PartitionBy(f func(*SV) any) *HV {
 			out.order = nil
 		}
 		g := group.v.(*AV)
-		g.items = append(g.items, Scalar(k.elem))
+		g.items = append(g.items, Value(k.elem))
 	}
 	return out
 }

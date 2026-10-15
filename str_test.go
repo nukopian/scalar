@@ -26,7 +26,7 @@ func TestIndexRIndex(t *testing.T) {
 		{"undef", nil, "", nil, 0, nil, 0},
 	}
 	for _, tt := range tests {
-		s := Scalar(tt.s)
+		s := Value(tt.s)
 		if got := s.Index(tt.sub, tt.pos...); got != tt.index {
 			t.Errorf("%s: index = %d, want %d", tt.name, got, tt.index)
 		}
@@ -36,7 +36,7 @@ func TestIndexRIndex(t *testing.T) {
 	}
 
 	// Index's result is a character position, so it works with Substr.
-	salary := Scalar("Salary: £45,000 – £55,000")
+	salary := Value("Salary: £45,000 – £55,000")
 	if got := salary.Substr(salary.Index("£"), 7).Str(); got != "£45,000" {
 		t.Errorf("Substr at Index = %q", got)
 	}
@@ -51,19 +51,19 @@ func TestCase(t *testing.T) {
 		got  *SV
 		want string
 	}{
-		{"lc", Scalar("Senior GO Developer").Lc(), "senior go developer"},
-		{"lc accented", Scalar("ÉCOLE").Lc(), "école"},
-		{"uc", Scalar("node.js").Uc(), "NODE.JS"},
-		{"uc full mapping", Scalar("straße").Uc(), "STRASSE"},
-		{"fc", Scalar("Straße").Fc(), "strasse"},
-		{"ucfirst", Scalar("go developer").UcFirst(), "Go developer"},
-		{"ucfirst keeps the rest", Scalar("eBay").UcFirst(), "EBay"},
-		{"ucfirst titlecase", Scalar("ǆemal").UcFirst(), "ǅemal"},
-		{"lcfirst", Scalar("HELLO").LcFirst(), "hELLO"},
-		{"lcfirst unicode", Scalar("Élan").LcFirst(), "élan"},
-		{"empty", Scalar("").UcFirst(), ""},
-		{"undef", Scalar(nil).Uc(), ""},
-		{"number", Scalar(1e21).Lc(), "1e+21"},
+		{"lc", Value("Senior GO Developer").Lc(), "senior go developer"},
+		{"lc accented", Value("ÉCOLE").Lc(), "école"},
+		{"uc", Value("node.js").Uc(), "NODE.JS"},
+		{"uc full mapping", Value("straße").Uc(), "STRASSE"},
+		{"fc", Value("Straße").Fc(), "strasse"},
+		{"ucfirst", Value("go developer").UcFirst(), "Go developer"},
+		{"ucfirst keeps the rest", Value("eBay").UcFirst(), "EBay"},
+		{"ucfirst titlecase", Value("ǆemal").UcFirst(), "ǅemal"},
+		{"lcfirst", Value("HELLO").LcFirst(), "hELLO"},
+		{"lcfirst unicode", Value("Élan").LcFirst(), "élan"},
+		{"empty", Value("").UcFirst(), ""},
+		{"undef", Value(nil).Uc(), ""},
+		{"number", Value(1e21).Lc(), "1e+21"},
 	}
 	for _, tt := range tests {
 		if tt.got.Str() != tt.want {
@@ -72,14 +72,14 @@ func TestCase(t *testing.T) {
 	}
 
 	// Fc is for comparing regardless of case; Lc isn't enough for that.
-	if !Scalar("MASSE").Fc().Eq(Scalar("Maße").Fc()) {
+	if !Value("MASSE").Fc().Eq(Value("Maße").Fc()) {
 		t.Error("fc(MASSE) should equal fc(Maße)")
 	}
-	if Scalar("MASSE").Lc().Eq(Scalar("Maße").Lc()) {
+	if Value("MASSE").Lc().Eq(Value("Maße").Lc()) {
 		t.Error("lc forms differ, which is why Fc exists")
 	}
 
-	orig := Scalar("Mixed")
+	orig := Value("Mixed")
 	orig.Lc()
 	orig.Uc()
 	orig.UcFirst()
@@ -101,7 +101,7 @@ func TestTrim(t *testing.T) {
 		{"   ", ""},
 	}
 	for _, tt := range tests {
-		if got := Scalar(tt.in).Trim().Str(); got != tt.want {
+		if got := Value(tt.in).Trim().Str(); got != tt.want {
 			t.Errorf("trim(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
@@ -132,33 +132,33 @@ func TestQuotemeta(t *testing.T) {
 		lit := string(rune(c))
 		for _, flags := range []string{"", "x"} {
 			pattern := "^" + QuoteMeta(lit) + "$"
-			if Scalar(lit).M(pattern, flags) == nil {
+			if Value(lit).M(pattern, flags) == nil {
 				t.Errorf("quoted %q doesn't match itself (flags %q)", lit, flags)
 			}
-			if lit != "x" && Scalar("x").M(pattern, flags) != nil {
+			if lit != "x" && Value("x").M(pattern, flags) != nil {
 				t.Errorf("quoted %q matches something else (flags %q)", lit, flags)
 			}
 		}
 	}
 
 	// The point of it: patterns built from skill names.
-	posting := Scalar("Experience with C++ and .NET; Node.js a plus")
+	posting := Value("Experience with C++ and .NET; Node.js a plus")
 	for _, skill := range []string{"C++", ".NET", "Node.js"} {
 		if posting.M(QuoteMeta(skill)) == nil {
 			t.Errorf("%s not found", skill)
 		}
 	}
-	if Scalar("xNET").M(QuoteMeta(".NET")) != nil {
+	if Value("xNET").M(QuoteMeta(".NET")) != nil {
 		t.Error(`".NET" shouldn't match "xNET"`)
 	}
-	if QuoteMeta(Scalar("a.b")) != `a\.b` {
+	if QuoteMeta(Value("a.b")) != `a\.b` {
 		t.Error("QuoteMeta should accept a scalar")
 	}
 }
 
 // RIndex's position rule, checked against perl -E.
 func TestRIndexPosition(t *testing.T) {
-	s := Scalar("abc")
+	s := Value("abc")
 	for _, tt := range []struct {
 		sub  string
 		pos  int

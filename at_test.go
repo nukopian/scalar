@@ -120,7 +120,7 @@ func TestAtErrors(t *testing.T) {
 		"a{b}c":   "expected ., [ or {",
 		".a":      "expected a name",
 	} {
-		expectPanic(t, path, want, func() { Scalar(nil).At(path) })
+		expectPanic(t, path, want, func() { Value(nil).At(path) })
 		if _, err := CompilePath(path); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("CompilePath(%q) error = %v, want it to contain %q", path, err, want)
 		}

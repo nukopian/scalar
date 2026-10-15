@@ -50,8 +50,8 @@ func TestFromDump(t *testing.T) {
 			t.Errorf("FromDump(%q): %v", dump, err)
 			continue
 		}
-		if !got.Equal(want) || got.Kind() != Scalar(want).Kind() {
-			t.Errorf("FromDump(%q) = %s (%v), want %s", dump, got.Dump(), got.Kind(), Scalar(want).Dump())
+		if !got.Equal(want) || got.Kind() != Value(want).Kind() {
+			t.Errorf("FromDump(%q) = %s (%v), want %s", dump, got.Dump(), got.Kind(), Value(want).Dump())
 		}
 	}
 
@@ -212,15 +212,15 @@ func randomStructure(rng *rand.Rand) *SV {
 			}
 			return s
 		case n < 6:
-			return Scalar(texts[rng.IntN(len(texts))])
+			return Value(texts[rng.IntN(len(texts))])
 		case n < 7:
-			return Scalar([]byte{byte(rng.IntN(256)), 'P', byte(rng.IntN(256))})
+			return Value([]byte{byte(rng.IntN(256)), 'P', byte(rng.IntN(256))})
 		case n < 9:
-			return Scalar([]int64{0, 7, -7, 999999999, 1000000000, -12345678901}[rng.IntN(6)])
+			return Value([]int64{0, 7, -7, 999999999, 1000000000, -12345678901}[rng.IntN(6)])
 		case n < 10:
-			return Scalar([]float64{2.5, 1e21, 0.1, -3.75, 1e-5}[rng.IntN(5)])
+			return Value([]float64{2.5, 1e21, 0.1, -3.75, 1e-5}[rng.IntN(5)])
 		case n < 12:
-			return Scalar(rng.IntN(2) == 0)
+			return Value(rng.IntN(2) == 0)
 		}
 		return &SV{}
 	}

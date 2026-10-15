@@ -166,9 +166,9 @@ func FuzzReadJSON(f *testing.F) {
 
 // Push gives the same array with or without its fast path.
 func TestPushFastPathSame(t *testing.T) {
-	ref := Scalar(Array(1))
+	ref := Value(Array(1))
 	for _, vals := range [][]any{
-		{1}, {"a", 2, 3.5, true, nil}, {ref}, {Scalar("x"), &SV{}}, {[]byte("b")}, {int64(9)},
+		{1}, {"a", 2, 3.5, true, nil}, {ref}, {Value("x"), &SV{}}, {[]byte("b")}, {int64(9)},
 		{Array(1, 2)}, {Hash("k", 1)}, {[]string{"p"}}, {1, Array(2)}, // these flatten: no fast path
 	} {
 		fast, slow := withFastPaths(func() string { return Array("start").Push(vals...).Dump() })
@@ -176,7 +176,7 @@ func TestPushFastPathSame(t *testing.T) {
 			t.Errorf("Push(%v):\nfast %s\nslow %s", vals, fast, slow)
 		}
 	}
-	v := Scalar("orig")
+	v := Value("orig")
 	a := Array().Push(v)
 	v.Set("changed")
 	if a.Get(0).Str() != "orig" {

@@ -44,9 +44,9 @@ func ExampleTo_slice() {
 }
 
 func ExampleTo_number() {
-	salary, err := scalar.To[int](scalar.Scalar(" 55000 ")) // a numeric string, as Perl reads it
+	salary, err := scalar.To[int](scalar.Value(" 55000 ")) // a numeric string, as Perl reads it
 	fmt.Println(salary, err)
-	rate, err := scalar.To[float64](scalar.Scalar("37.5"))
+	rate, err := scalar.To[float64](scalar.Value("37.5"))
 	fmt.Println(rate, err)
 	// Output:
 	// 55000 <nil>

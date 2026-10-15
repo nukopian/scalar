@@ -19,7 +19,7 @@ func operand(x any) *SV {
 	if s, ok := x.(*SV); ok {
 		return s
 	}
-	return Scalar(x)
+	return Value(x)
 }
 
 // numify returns s in numeric context; isInt reports whether iv is exact.
@@ -145,14 +145,14 @@ func (s *SV) Neg() *SV {
 			}
 		}
 	}
-	return Scalar(0).Sub(s)
+	return Value(0).Sub(s)
 }
 
 // Concat is Perl's . operator. If either side is a byte string, so is the
 // result, joined as characters, as Perl joins them: text characters from 0 to
 // 255 become one byte each, and any beyond make the result text (see
 // SV.Bytes). To append text's UTF-8 bytes to a byte string instead, append
-// Scalar([]byte(text)).
+// Value([]byte(text)).
 func (s *SV) Concat(x any) *SV {
 	a, aBytes := s.text()
 	b, bBytes := operand(x).text()

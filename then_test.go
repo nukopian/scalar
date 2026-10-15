@@ -17,16 +17,16 @@ func same(x, y *SV) bool {
 
 func TestThen(t *testing.T) {
 	called := false
-	if r := Scalar(nil).Then(func(v *SV) any { called = true; return 1 }); called || r.Defined() {
+	if r := Value(nil).Then(func(v *SV) any { called = true; return 1 }); called || r.Defined() {
 		t.Error("Then on undef shouldn't call f, and gives undef")
 	}
 	if r := (*SV)(nil).Then(func(v *SV) any { return 1 }); r.Defined() {
 		t.Error("Then on nil gives undef")
 	}
-	if r := Scalar("0").Then(func(v *SV) any { return v.Add(1) }); r.Int() != 1 {
+	if r := Value("0").Then(func(v *SV) any { return v.Add(1) }); r.Int() != 1 {
 		t.Error(`Then on "0", defined though false, should call f`)
 	}
-	if r := Scalar(1).Then(func(v *SV) any { return nil }); r.Defined() {
+	if r := Value(1).Then(func(v *SV) any { return nil }); r.Defined() {
 		t.Error("f returning nil gives undef")
 	}
 
@@ -41,11 +41,11 @@ func TestThen(t *testing.T) {
 
 	// When: a guard.
 	positive := func(v *SV) bool { return v.Num() > 0 }
-	if Scalar(5).When(positive).Int() != 5 || Scalar(-5).When(positive).Defined() {
+	if Value(5).When(positive).Int() != 5 || Value(-5).When(positive).Defined() {
 		t.Error("When should keep a value that passes and drop one that doesn't")
 	}
 	called = false
-	if Scalar(nil).When(func(v *SV) bool { called = true; return true }).Defined() || called {
+	if Value(nil).When(func(v *SV) bool { called = true; return true }).Defined() || called {
 		t.Error("When on undef shouldn't call pred")
 	}
 	if h.Get("missing").When(func(v *SV) bool { return true }).Set(1); h.Exists("missing") {
@@ -56,17 +56,17 @@ func TestThen(t *testing.T) {
 	parse := func(v *SV) any { return v.M(`£([\d,]+)`).Get(1).S(`,`, "", "gr").When(positive) }
 	annual := func(v *SV) any { return v.Mul(12) }
 	for text, want := range map[string]string{"£4,000 a month": "48000", "competitive": "none", "£0": "none"} {
-		if got := Scalar(text).Then(parse).Then(annual).Or("none").Str(); got != want {
+		if got := Value(text).Then(parse).Then(annual).Or("none").Str(); got != want {
 			t.Errorf("%q: %s, want %s", text, got, want)
 		}
 	}
 }
 
-// Then is the bind of a Maybe monad, with Scalar as the unit (over defined
+// Then is the bind of a Maybe monad, with Value as the unit (over defined
 // values) and undef as Nothing.
 func TestThenMonadLaws(t *testing.T) {
-	arr, hash := Scalar(Array(1)), Scalar(Hash("k", "v"))
-	values := []*SV{Scalar(nil), Scalar(0), Scalar(""), Scalar("x"), Scalar(2.5), Scalar([]byte{0xff}), arr, hash}
+	arr, hash := Value(Array(1)), Value(Hash("k", "v"))
+	values := []*SV{Value(nil), Value(0), Value(""), Value("x"), Value(2.5), Value([]byte{0xff}), arr, hash}
 	fns := map[string]func(*SV) any{
 		"double":    func(v *SV) any { return v.Mul(2) },
 		"undef":     func(v *SV) any { return nil },
@@ -82,16 +82,16 @@ func TestThenMonadLaws(t *testing.T) {
 			t.Errorf("right identity for %q: got %q", m.Str(), got.Str())
 		}
 		for fname, f := range fns {
-			// Left identity: Scalar(x).Then(f) is f(x), for a defined x.
+			// Left identity: Value(x).Then(f) is f(x), for a defined x.
 			if m.Defined() {
-				if got, want := m.Then(f), Scalar(f(m)); !same(got, want) {
+				if got, want := m.Then(f), Value(f(m)); !same(got, want) {
 					t.Errorf("left identity, %s of %q: %q, want %q", fname, m.Str(), got.Str(), want.Str())
 				}
 			}
 			// Associativity: m.Then(f).Then(g) is m.Then(x => f(x).Then(g)).
 			for gname, g := range fns {
 				lhs := m.Then(f).Then(g)
-				rhs := m.Then(func(x *SV) any { return Scalar(f(x)).Then(g) })
+				rhs := m.Then(func(x *SV) any { return Value(f(x)).Then(g) })
 				if !same(lhs, rhs) {
 					t.Errorf("associativity, %s then %s of %q: %q vs %q", fname, gname, m.Str(), lhs.Str(), rhs.Str())
 				}

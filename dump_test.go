@@ -13,10 +13,10 @@ import (
 func TestDump(t *testing.T) {
 	tags := Array(1, "x")
 	doc := Hash("int", 42, "str", "42", "f", 2.5, "big", int64(12345678901), "s", "a\"b$c@d\n",
-		"u", nil, "e", Scalar(Array()), "h", Scalar(Hash()), "t", Scalar(tags), "again", Scalar(tags),
+		"u", nil, "e", Value(Array()), "h", Value(Hash()), "t", Value(tags), "again", Value(tags),
 		"txt", "caf\u00E9\u263A", "bytes", []byte("\x89P\x00"), "yes", true, "no", false)
-	doc.Set("self", Scalar(doc))
-	doc.Set("deep", Scalar(Hash("in", Scalar(tags))))
+	doc.Set("self", Value(doc))
+	doc.Set("deep", Value(Hash("in", Value(tags))))
 	want := `{
   again => [
     1,
@@ -45,19 +45,19 @@ func TestDump(t *testing.T) {
 	}
 
 	for _, c := range []struct{ got, want string }{
-		{Array(1, "a", Scalar(Array(2)), Scalar(Hash("k", nil))).String(), `[1,"a",[2],{k => undef}]`},
+		{Array(1, "a", Value(Array(2)), Value(Hash("k", nil))).String(), `[1,"a",[2],{k => undef}]`},
 		{fmt.Sprint(Array("go", 1)), `["go",1]`},
 		{fmt.Sprint(Hash("b", 2, "a", 1)), `{a => 1,b => 2}`},
-		{Scalar("x").Dump(), `"x"`},
-		{Scalar(nil).Dump(), `undef`},
+		{Value("x").Dump(), `"x"`},
+		{Value(nil).Dump(), `undef`},
 		{(*SV)(nil).Dump(), `undef`},
 		{(*AV)(nil).String(), `undef`},
 		{Array().Dump(), `[]`},
 		{Hash().Dump(), `{}`},
-		{Scalar(1e21).Dump() + Scalar(0.1+0.2).Dump() + Scalar("007").Dump(), `"1e+21""0.3""007"`},
-		{Scalar("\t\x01x\x011\x7f\u0100\u0080").Dump(), `"\t\1x\0011\177\x{100}\x{80}"`},
-		{Scalar([]byte("\x80\xff9\xe9")).Dump(), `"\200\3779\351"`},
-		{Scalar("ok\xffbad").Dump(), `"ok\377bad"`}, // not UTF-8: the byte, in octal
+		{Value(1e21).Dump() + Value(0.1+0.2).Dump() + Value("007").Dump(), `"1e+21""0.3""007"`},
+		{Value("\t\x01x\x011\x7f\u0100\u0080").Dump(), `"\t\1x\0011\177\x{100}\x{80}"`},
+		{Value([]byte("\x80\xff9\xe9")).Dump(), `"\200\3779\351"`},
+		{Value("ok\xffbad").Dump(), `"ok\377bad"`}, // not UTF-8: the byte, in octal
 	} {
 		if c.got != c.want {
 			t.Errorf("got %s, want %s", c.got, c.want)
@@ -67,7 +67,7 @@ func TestDump(t *testing.T) {
 	// Holes print as undef; a loop through an array is its path.
 	a := Array(1)
 	a.Set(2, 3)
-	a.Push(Scalar(a))
+	a.Push(Value(a))
 	if got := a.String(); got != `[1,undef,3,$VAR1]` {
 		t.Errorf("holes and loops: %s", got)
 	}
@@ -126,7 +126,7 @@ func TestDumpMatchesPerl(t *testing.T) {
 				name := fmt.Sprintf("$c%d", id)
 				var s *SV
 				if rng.IntN(2) == 0 {
-					s = Scalar(Array())
+					s = Value(Array())
 					containers = append(containers, s)
 					stmts = append(stmts, fmt.Sprintf("my %s = [];", name))
 					for range rng.IntN(4) {
@@ -135,7 +135,7 @@ func TestDumpMatchesPerl(t *testing.T) {
 						stmts = append(stmts, fmt.Sprintf("push @{%s}, %s;", name, expr))
 					}
 				} else {
-					s = Scalar(Hash())
+					s = Value(Hash())
 					containers = append(containers, s)
 					stmts = append(stmts, fmt.Sprintf("my %s = {};", name))
 					for range rng.IntN(4) {
@@ -148,23 +148,23 @@ func TestDumpMatchesPerl(t *testing.T) {
 				return s, name
 			case n < 5:
 				s := text()
-				return Scalar(s), perlText(s)
+				return Value(s), perlText(s)
 			case n < 6:
 				b := []byte(text() + string([]byte{byte(rng.IntN(256))}))
-				return Scalar(b), fmt.Sprintf(`pack("H*", "%s")`, hex.EncodeToString(b))
+				return Value(b), fmt.Sprintf(`pack("H*", "%s")`, hex.EncodeToString(b))
 			case n < 8:
 				i := []int64{0, 7, -7, 42, 999999999, 1000000000, -12345678901, 9223372036854775807}[rng.IntN(8)]
-				return Scalar(i), fmt.Sprint(i)
+				return Value(i), fmt.Sprint(i)
 			case n < 9:
 				f := []string{"2.5", "1e21", "0.1", "1.0", "-3.75", "1e-5", "123456789.5"}[rng.IntN(7)]
 				var x float64
 				fmt.Sscan(f, &x)
-				return Scalar(x), f
+				return Value(x), f
 			case n < 10:
 				b := rng.IntN(2) == 0
-				return Scalar(b), map[bool]string{true: "!!1", false: "!!0"}[b]
+				return Value(b), map[bool]string{true: "!!1", false: "!!0"}[b]
 			}
-			return Scalar(nil), "undef"
+			return Value(nil), "undef"
 		}
 		root, _ := build(0)
 		cases = append(cases, tcase{root, strings.Join(stmts, "\n")})

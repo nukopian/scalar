@@ -26,11 +26,11 @@ func ExampleFromJSON() {
 }
 
 func ExampleSV_MarshalJSON() {
-	h := scalar.Hash("b", 1, "a", scalar.Scalar(scalar.Array("x", nil)))
-	out, _ := json.Marshal(scalar.Scalar(h)) // keys sorted, undef as null
+	h := scalar.Hash("b", 1, "a", scalar.Value(scalar.Array("x", nil)))
+	out, _ := json.Marshal(scalar.Value(h)) // keys sorted, undef as null
 	fmt.Println(string(out))
-	h.Set("self", scalar.Scalar(h)) // a loop can't be JSON: an error, not a crash
-	_, err := json.Marshal(scalar.Scalar(h))
+	h.Set("self", scalar.Value(h)) // a loop can't be JSON: an error, not a crash
+	_, err := json.Marshal(scalar.Value(h))
 	fmt.Println(err != nil)
 	// Output:
 	// {"a":["x",null],"b":1}

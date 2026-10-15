@@ -50,8 +50,8 @@ type SV struct {
 	noCreate string
 }
 
-// Scalar returns a scalar holding x. See Set for how Go values are converted.
-func Scalar(x any) *SV {
+// Value returns a scalar holding x. See Set for how Go values are converted.
+func Value(x any) *SV {
 	return &SV{v: normalize(x)}
 }
 
@@ -285,7 +285,7 @@ func textResult(str string, isBytes bool) *SV {
 // and %c in integer context (see Int), %e, %E, %f, %F, %g and %G in numeric
 // context (see Num), %t in boolean context, and %s, %q, %v and anything
 // else in string context (see Str). Widths, precisions and flags work as
-// usual, so fmt.Sprintf("%05.2f", Scalar("3.14159")) is "03.14".
+// usual, so fmt.Sprintf("%05.2f", Value("3.14159")) is "03.14".
 //
 // A byte string prints as its bytes, as Perl's print does, and formats as Go
 // formats a []byte for %q, %x and %X: %x gives its bytes in hex, which is
@@ -356,7 +356,7 @@ func (s *SV) IntOK() (int64, bool) {
 	case float64:
 		return floatToInt(v)
 	case string, []byte:
-		iv, nv, isInt, ok := parseNumber(Scalar(v).Str())
+		iv, nv, isInt, ok := parseNumber(Value(v).Str())
 		if isInt {
 			return iv, ok
 		}
@@ -565,7 +565,7 @@ func normalize(x any) any {
 		}
 		a := &AV{items: make([]*SV, len(v))}
 		for i, e := range v {
-			a.items[i] = Scalar(e) // nested arrays stay nested
+			a.items[i] = Value(e) // nested arrays stay nested
 		}
 		return a
 	case []string:
@@ -580,7 +580,7 @@ func normalize(x any) any {
 	case map[string]any:
 		h := newHV(len(v))
 		for k, e := range v {
-			h.m[k] = Scalar(e)
+			h.m[k] = Value(e)
 		}
 		return h
 	}
@@ -593,7 +593,7 @@ func normalize(x any) any {
 		}
 		a := &AV{items: make([]*SV, rv.Len())}
 		for i := range rv.Len() {
-			a.items[i] = Scalar(rv.Index(i).Interface())
+			a.items[i] = Value(rv.Index(i).Interface())
 		}
 		return a
 	case reflect.Map:
@@ -602,7 +602,7 @@ func normalize(x any) any {
 		}
 		h := newHV(rv.Len())
 		for it := rv.MapRange(); it.Next(); {
-			h.m[mapKey(it.Key())] = Scalar(it.Value().Interface())
+			h.m[mapKey(it.Key())] = Value(it.Value().Interface())
 		}
 		return h
 	case reflect.Pointer:
@@ -617,7 +617,7 @@ func normalize(x any) any {
 // mapKey turns a Go map key into a hash key. As in Perl, hash keys are
 // strings, so other keys are used in string context: 1 becomes "1".
 func mapKey(k reflect.Value) string {
-	return Scalar(k.Interface()).Str()
+	return Value(k.Interface()).Str()
 }
 
 func uintToNum(u uint64) any {

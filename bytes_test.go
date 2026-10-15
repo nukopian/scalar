@@ -13,7 +13,7 @@ import (
 
 func TestBytesKind(t *testing.T) {
 	raw := []byte{0x89, 'P', 'N', 'G', 0x00, 0xff}
-	s := Scalar(raw)
+	s := Value(raw)
 	raw[0] = 0 // the scalar has its own copy
 	if s.Kind() != Bytes || s.Length() != 6 || s.Str() != "\x89PNG\x00\xff" {
 		t.Errorf("kind %v, length %d, str %q", s.Kind(), s.Length(), s.Str())
@@ -23,16 +23,16 @@ func TestBytesKind(t *testing.T) {
 	if s.Str()[1] != 'P' {
 		t.Error("Bytes should return a copy")
 	}
-	if got := Scalar("café").Bytes(); string(got) != "café" || len(got) != 5 {
+	if got := Value("café").Bytes(); string(got) != "café" || len(got) != 5 {
 		t.Errorf("Bytes of text gives its UTF-8: %q", got)
 	}
-	if Scalar([]byte(nil)).Defined() {
+	if Value([]byte(nil)).Defined() {
 		t.Error("a nil []byte is undef, as a nil slice is")
 	}
-	if Scalar([]byte{}).Bool() || Scalar([]byte("0")).Bool() || !Scalar([]byte("00")).Bool() {
+	if Value([]byte{}).Bool() || Value([]byte("0")).Bool() || !Value([]byte("00")).Bool() {
 		t.Error("a byte string is false when empty or \"0\", as a string is")
 	}
-	if Scalar([]byte("42 apples")).Int() != 42 {
+	if Value([]byte("42 apples")).Int() != 42 {
 		t.Error("a byte string numifies as its text does")
 	}
 
@@ -47,7 +47,7 @@ func TestBytesKind(t *testing.T) {
 	}
 
 	// Formatting: printed as the bytes are, %x in hex, %q quoted.
-	if got := fmt.Sprintf("%s|%v|%x|%q", Scalar([]byte("Jo")), Scalar([]byte("Jo")), s, Scalar([]byte{0xff})); got != `Jo|Jo|89504e4700ff|"\xff"` {
+	if got := fmt.Sprintf("%s|%v|%x|%q", Value([]byte("Jo")), Value([]byte("Jo")), s, Value([]byte{0xff})); got != `Jo|Jo|89504e4700ff|"\xff"` {
 		t.Errorf("formats = %s", got)
 	}
 
@@ -66,13 +66,13 @@ func TestBytesKind(t *testing.T) {
 	}
 
 	// Text appended as characters: é (U+00E9) is one byte, ☺ makes text.
-	if got := Scalar([]byte{0xe9}).Concat("é"); got.Kind() != Bytes || got.Str() != "\xe9\xe9" {
+	if got := Value([]byte{0xe9}).Concat("é"); got.Kind() != Bytes || got.Str() != "\xe9\xe9" {
 		t.Errorf("bytes . é = %v %q", got.Kind(), got.Str())
 	}
-	if got := Scalar([]byte{0xe9}).Concat("☺"); got.Kind() != String || got.Str() != "é☺" {
+	if got := Value([]byte{0xe9}).Concat("☺"); got.Kind() != String || got.Str() != "é☺" {
 		t.Errorf("bytes . ☺ = %v %q", got.Kind(), got.Str())
 	}
-	if got := Scalar([]byte("x")).Concat(Scalar([]byte("é"))); got.Str() != "x\xc3\xa9" {
+	if got := Value([]byte("x")).Concat(Value([]byte("é"))); got.Str() != "x\xc3\xa9" {
 		t.Errorf("appending text's UTF-8 bytes: %q", got.Str())
 	}
 }
@@ -192,14 +192,14 @@ print encode_json(\@out);
 	for i, c := range cases {
 		raw, _ := hex.DecodeString(c.B)
 		needle, _ := hex.DecodeString(c.Needle)
-		b := func() *SV { return Scalar(raw) }
+		b := func() *SV { return Value(raw) }
 		match := "nomatch"
 		if m := b().M(c.P); m != nil {
 			match = encAll(m)
 		}
 		got := []string{
 			strconv.Itoa(b().Length()), enc(b().Substr(c.O, c.L)),
-			strconv.Itoa(b().Index(Scalar(needle), c.Pos)), strconv.Itoa(b().RIndex(Scalar(needle), c.Pos)),
+			strconv.Itoa(b().Index(Value(needle), c.Pos)), strconv.Itoa(b().RIndex(Value(needle), c.Pos)),
 			enc(b().Lc()), enc(b().Uc()), enc(b().Fc()), enc(b().UcFirst()), enc(b().LcFirst()), enc(b().Trim()),
 			match, enc(b().S(c.P, "<>", "gr")), encAll(b().Split(c.P)),
 			enc(b().Tr("a-zA-Z", "n-za-mN-ZA-M", "r")), enc(b().Tr("\u0080-ÿ", "", "dr")),

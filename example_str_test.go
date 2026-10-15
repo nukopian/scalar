@@ -10,15 +10,15 @@ import (
 )
 
 func ExampleSV_Length() {
-	fmt.Println(scalar.Scalar("café").Length()) // characters, not bytes
-	fmt.Println(scalar.Scalar(12345).Length())  // in string context
+	fmt.Println(scalar.Value("café").Length()) // characters, not bytes
+	fmt.Println(scalar.Value(12345).Length())  // in string context
 	// Output:
 	// 4
 	// 5
 }
 
 func ExampleSV_Substr() {
-	s := scalar.Scalar("Senior Go Developer")
+	s := scalar.Value("Senior Go Developer")
 	fmt.Println(s.Substr(7))            // substr($s, 7)
 	fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
 	fmt.Println(s.Substr(-9))           // from the end
@@ -33,7 +33,7 @@ func ExampleSV_Substr() {
 }
 
 func ExampleSV_SubstrReplace() {
-	s := scalar.Scalar("Junior Go Developer")
+	s := scalar.Value("Junior Go Developer")
 	old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
 	fmt.Println(s, "/", old)
 	// Output:
@@ -41,7 +41,7 @@ func ExampleSV_SubstrReplace() {
 }
 
 func ExampleSV_Index() {
-	s := scalar.Scalar("café au lait")
+	s := scalar.Value("café au lait")
 	fmt.Println(s.Index("au"))   // a character position, ready for Substr
 	fmt.Println(s.Index("a", 2)) // starting from position 2
 	fmt.Println(s.Index("tea"))
@@ -52,7 +52,7 @@ func ExampleSV_Index() {
 }
 
 func ExampleSV_RIndex() {
-	s := scalar.Scalar("a/b/c")
+	s := scalar.Value("a/b/c")
 	fmt.Println(s.RIndex("/"))    // the last one
 	fmt.Println(s.RIndex("/", 2)) // the last one at or before position 2
 	// Output:
@@ -61,19 +61,19 @@ func ExampleSV_RIndex() {
 }
 
 func ExampleSV_Lc() {
-	fmt.Println(scalar.Scalar("ÉCOLE Go").Lc())
+	fmt.Println(scalar.Value("ÉCOLE Go").Lc())
 	// Output:
 	// école go
 }
 
 func ExampleSV_Uc() {
-	fmt.Println(scalar.Scalar("straße").Uc()) // full Unicode mappings
+	fmt.Println(scalar.Value("straße").Uc()) // full Unicode mappings
 	// Output:
 	// STRASSE
 }
 
 func ExampleSV_Fc() {
-	a, b := scalar.Scalar("Straße"), scalar.Scalar("STRASSE")
+	a, b := scalar.Value("Straße"), scalar.Value("STRASSE")
 	fmt.Println(a.Lc().Eq(b.Lc())) // lc isn't enough for this
 	fmt.Println(a.Fc().Eq(b.Fc())) // fc is: compare case-insensitively with it
 	// Output:
@@ -82,26 +82,26 @@ func ExampleSV_Fc() {
 }
 
 func ExampleSV_UcFirst() {
-	fmt.Println(scalar.Scalar("élan vital").UcFirst())
+	fmt.Println(scalar.Value("élan vital").UcFirst())
 	// Output:
 	// Élan vital
 }
 
 func ExampleSV_LcFirst() {
-	fmt.Println(scalar.Scalar("HELLO").LcFirst())
+	fmt.Println(scalar.Value("HELLO").LcFirst())
 	// Output:
 	// hELLO
 }
 
 func ExampleSV_Trim() {
-	fmt.Printf("%q\n", scalar.Scalar("\u00a0 padded \t").Trim()) // Unicode spaces too
+	fmt.Printf("%q\n", scalar.Value("\u00a0 padded \t").Trim()) // Unicode spaces too
 	// Output:
 	// "padded"
 }
 
 func ExampleQuoteMeta() {
 	fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
-	posting := scalar.Scalar("Skills: C++ and .NET")
+	posting := scalar.Value("Skills: C++ and .NET")
 	fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
 	// Output:
 	// C\+\+\ \(\.NET\)
@@ -123,7 +123,7 @@ func ExampleSV_Interpolate() {
 }
 
 func ExampleHV_Interpolate() {
-	row := scalar.Hash("name", "Ada", "langs", scalar.Scalar([]string{"Go", "Perl"}))
+	row := scalar.Hash("name", "Ada", "langs", scalar.Value([]string{"Go", "Perl"}))
 	fmt.Println(row.Interpolate("$name writes @langs"))
 	// Output:
 	// Ada writes Go Perl
@@ -146,7 +146,7 @@ func ExampleCompileTemplate() {
 
 func ExampleTemplate_ListSeparator() {
 	t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
-	fmt.Println(scalar.Hash("skills", scalar.Scalar([]string{"Go", "SQL"})).Interpolate(t))
+	fmt.Println(scalar.Hash("skills", scalar.Value([]string{"Go", "SQL"})).Interpolate(t))
 	// Output:
 	// Skills: Go, SQL
 }

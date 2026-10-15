@@ -123,13 +123,13 @@ loop: &loop
 }
 
 func TestToYAML(t *testing.T) {
-	tags := Scalar(Array("go"))
+	tags := Value(Array("go"))
 	h := Hash("title", "Go Developer", "zero", "007", "flag", "true", "no", "no", "f", 1.0, "inf", math.Inf(1),
 		"n", nil, "yes", true, "count", 3, "blob", []byte("hi"), "tags", tags, "again", tags, "lines", "a\nb\n")
-	h.Set("self", Scalar(h))
+	h.Set("self", Value(h))
 	holes := Array(1)
 	holes.Set(2, 3)
-	h.Set("holes", Scalar(holes))
+	h.Set("holes", Value(holes))
 	out, err := h.ToYAML()
 	if err != nil {
 		t.Fatal(err)
@@ -182,17 +182,17 @@ zero: "007"
 	}
 	// Strings YAML 1.1 readers would take as something else are quoted.
 	for _, v := range []string{"y", "N", "yes", "Off", "on", "NULL", "~", "1_000", "1:30", "0b101", "0777", "0x1F", ".5", "1e3", "-.inf", ".NaN"} {
-		out, _ := Scalar(v).ToYAML()
+		out, _ := Value(v).ToYAML()
 		if string(out) != `"`+v+`"`+"\n" {
 			t.Errorf("ToYAML(%q) = %q", v, out)
 		}
 	}
 	for _, v := range []string{"yesterday", "Norway", "a:b", "v1.2.3", "1.2.3"} {
-		if out, _ := Scalar(v).ToYAML(); string(out) != v+"\n" {
+		if out, _ := Value(v).ToYAML(); string(out) != v+"\n" {
 			t.Errorf("ToYAML(%q) = %q: shouldn't be quoted", v, out)
 		}
 	}
-	if out, _ := Scalar("caf\xe9").ToYAML(); string(out) != "!!binary Y2Fm6Q==\n" {
+	if out, _ := Value("caf\xe9").ToYAML(); string(out) != "!!binary Y2Fm6Q==\n" {
 		t.Errorf("text that isn't UTF-8 goes as binary: %q", out)
 	}
 }

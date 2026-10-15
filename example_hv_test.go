@@ -30,7 +30,7 @@ func ExampleHV_String() {
 }
 
 func ExampleHV_Dump() {
-	tags := scalar.Scalar(scalar.Array("go"))
+	tags := scalar.Value(scalar.Array("go"))
 	h := scalar.Hash("tags", tags, "again", tags) // the same array twice
 	fmt.Println(h.Dump())
 	// Output:
@@ -110,7 +110,7 @@ func ExampleHV_Delete() {
 }
 
 func ExampleHV_Clone() {
-	defaults := scalar.Hash("remote", false, "tags", scalar.Scalar([]string{"go"}))
+	defaults := scalar.Hash("remote", false, "tags", scalar.Value([]string{"go"}))
 	row := defaults.Clone() // dclone(\%defaults): nested arrays too
 	row.Get("tags").AV().Push("perl")
 	merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array

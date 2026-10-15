@@ -102,13 +102,13 @@ func TestDecode(t *testing.T) {
 
 	// A byte string fills a []byte as it is.
 	var b struct{ Blob []byte }
-	if err := Scalar(Hash("Blob", []byte{0x89, 'P'})).Decode(&b); err != nil || string(b.Blob) != "\x89P" {
+	if err := Value(Hash("Blob", []byte{0x89, 'P'})).Decode(&b); err != nil || string(b.Blob) != "\x89P" {
 		t.Errorf("bytes: %q %v", b.Blob, err)
 	}
 
 	// Undef: nil for pointers, slices and maps; anything else left alone.
 	q := posting{Title: "kept", Skills: []string{"x"}, Salary: &salary{}, Tags: map[string]int{}}
-	if err := Scalar(Hash("title", nil, "skills", nil, "salary", nil, "tags", nil, "list", nil)).Decode(&q); err != nil {
+	if err := Value(Hash("title", nil, "skills", nil, "salary", nil, "tags", nil, "list", nil)).Decode(&q); err != nil {
 		t.Fatal(err)
 	}
 	if q.Title != "kept" || q.Skills != nil || q.Salary != nil || q.Tags != nil || q.List != nil {
@@ -169,11 +169,11 @@ func TestDecodeErrors(t *testing.T) {
 
 	var n int
 	for _, v := range []any{n, nil, (*int)(nil)} {
-		if err := Scalar(1).Decode(v); err == nil || !strings.Contains(err.Error(), "non-nil pointer") {
+		if err := Value(1).Decode(v); err == nil || !strings.Contains(err.Error(), "non-nil pointer") {
 			t.Errorf("Decode(%#v): %v", v, err)
 		}
 	}
-	if err := Scalar("x").Decode(&n); err == nil || err.Error() != `scalar: Decode: want int, got "x"` {
+	if err := Value("x").Decode(&n); err == nil || err.Error() != `scalar: Decode: want int, got "x"` {
 		t.Errorf("at the top: %v", err)
 	}
 
@@ -181,16 +181,16 @@ func TestDecodeErrors(t *testing.T) {
 	type two struct{ A, B int }
 	for range 20 {
 		var v two
-		if err := Scalar(Hash("b", "x", "a", "y")).Decode(&v); err == nil || err.Error() != `scalar: Decode: a: want int, got "y"` {
+		if err := Value(Hash("b", "x", "a", "y")).Decode(&v); err == nil || err.Error() != `scalar: Decode: a: want int, got "y"` {
 			t.Fatalf("with two bad values: %v", err)
 		}
 	}
 
 	// A loop can't go into an any.
 	loop := Hash()
-	loop.Set("self", Scalar(loop))
+	loop.Set("self", Value(loop))
 	var x any
-	if err := Scalar(loop).Decode(&x); err == nil {
+	if err := Value(loop).Decode(&x); err == nil {
 		t.Error("a loop into an any should be an error")
 	}
 }
@@ -234,9 +234,9 @@ type selfEmbed struct {
 func TestDecodeLoops(t *testing.T) {
 	if os.Getenv("SCALAR_DECODE_LOOP") != "" {
 		h := Hash("name", "a")
-		h.Set("next", Scalar(h))
+		h.Set("next", Value(h))
 		var n loopNode
-		err := Scalar(h).Decode(&n)
+		err := Value(h).Decode(&n)
 		var de *DecodeError
 		if !errors.As(err, &de) || de.Path != "next" || !strings.Contains(err.Error(), "refers back to itself") {
 			t.Fatalf("a loop into a recursive type: %v", err)
@@ -246,8 +246,8 @@ func TestDecodeLoops(t *testing.T) {
 		}
 
 		// The same hash twice, without a loop, is fine.
-		leaf := Scalar(Hash("name", "leaf"))
-		pair := Hash("name", "top", "next", Scalar(Hash("name", "mid", "next", leaf)))
+		leaf := Value(Hash("name", "leaf"))
+		pair := Hash("name", "top", "next", Value(Hash("name", "mid", "next", leaf)))
 		if n, err := To[loopNode](pair); err != nil || n.Next.Next.Name != "leaf" {
 			t.Fatalf("a chain: %+v, %v", n, err)
 		}
@@ -257,7 +257,7 @@ func TestDecodeLoops(t *testing.T) {
 		}
 
 		var s selfEmbed
-		if err := Scalar(Hash("V", 7)).Decode(&s); err != nil || s.V != 7 || s.selfEmbed != nil {
+		if err := Value(Hash("V", 7)).Decode(&s); err != nil || s.V != 7 || s.selfEmbed != nil {
 			t.Fatalf("a self-embedding struct: %+v, %v", s, err)
 		}
 		return
@@ -288,7 +288,7 @@ func TestDecodeFieldMatching(t *testing.T) {
 		Other string
 	}
 	var v both
-	if err := Scalar(Hash("Name", "x", "Other", "y")).Decode(&v); err != nil || v.A.Name != "" || v.B.Name != "" || v.Other != "y" {
+	if err := Value(Hash("Name", "x", "Other", "y")).Decode(&v); err != nil || v.A.Name != "" || v.B.Name != "" || v.Other != "y" {
 		t.Errorf("an ambiguous name should match neither field: %+v, %v", v, err)
 	}
 	var w both
@@ -302,12 +302,12 @@ func TestDecodeFieldMatching(t *testing.T) {
 	}
 	for range 50 {
 		var c cased
-		if err := Scalar(Hash("title", "x")).Decode(&c); err != nil || c.Title != "x" || c.TITLE != "" {
+		if err := Value(Hash("title", "x")).Decode(&c); err != nil || c.Title != "x" || c.TITLE != "" {
 			t.Fatalf("a case-insensitive match should be the first field: %+v, %v", c, err)
 		}
 	}
 
-	if m, err := To[map[uintptr]string](Scalar(Hash("7", "x"))); err != nil || m[7] != "x" {
+	if m, err := To[map[uintptr]string](Value(Hash("7", "x"))); err != nil || m[7] != "x" {
 		t.Errorf("uintptr keys: %v, %v", m, err)
 	}
 }

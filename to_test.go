@@ -69,7 +69,7 @@ func TestTo(t *testing.T) {
 	if n != 0 || !errors.As(err, &de) || de.Path != "" || err.Error() != `scalar: Decode: want int, got "Go"` {
 		t.Errorf("To[int] of a word = %d, %v", n, err)
 	}
-	ps, err := To[posting](Scalar(map[string]any{"Title": "x", "Salary": map[string]any{"Max": "lots"}}))
+	ps, err := To[posting](Value(map[string]any{"Title": "x", "Salary": map[string]any{"Max": "lots"}}))
 	if !reflect.DeepEqual(ps, posting{}) || !errors.As(err, &de) || de.Path != "Salary.Max" {
 		t.Errorf("a failed struct should come back zero, with the path: %+v, %v", ps, err)
 	}

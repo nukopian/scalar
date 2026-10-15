@@ -10,7 +10,7 @@ import (
 )
 
 func ExampleSV_M() {
-	s := scalar.Scalar("Salary: £45,000 - £55,000")
+	s := scalar.Value("Salary: £45,000 - £55,000")
 	if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
 		fmt.Println("matched")
 	}
@@ -31,22 +31,22 @@ func ExampleSV_M() {
 }
 
 func ExampleSV_Named() {
-	d := scalar.Scalar("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+	d := scalar.Value("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
 	fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
 	// Output:
 	// 2026 11 30
 }
 
 func ExampleSV_S() {
-	s := scalar.Scalar("a  b   c")
+	s := scalar.Value("a  b   c")
 	n := s.S(`\s+`, " ", "g") // $s =~ s/\s+/ /g
 	fmt.Println(s, n)
-	name := scalar.Scalar("Lovelace, Ada")
+	name := scalar.Value("Lovelace, Ada")
 	name.S(`(\w+), (\w+)`, "$2 $1") // $1 and $2 in the replacement
 	fmt.Println(name)
-	clean := scalar.Scalar("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
+	clean := scalar.Value("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
 	fmt.Println(clean)
-	doubled := scalar.Scalar("3 apples, 4 pears")
+	doubled := scalar.Value("3 apples, 4 pears")
 	doubled.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g") // s///e
 	fmt.Println(doubled)
 	// Output:
@@ -57,10 +57,10 @@ func ExampleSV_S() {
 }
 
 func ExampleSV_Split() {
-	fmt.Println(scalar.Scalar("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
-	fmt.Println(scalar.Scalar("a1b2c").Split(`(\d)`).Join("|"))       // captures included
-	fmt.Println(scalar.Scalar("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
-	fmt.Println(scalar.Scalar("  some  words ").Split(" ").Join("|")) // awk mode
+	fmt.Println(scalar.Value("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
+	fmt.Println(scalar.Value("a1b2c").Split(`(\d)`).Join("|"))       // captures included
+	fmt.Println(scalar.Value("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
+	fmt.Println(scalar.Value("  some  words ").Split(" ").Join("|")) // awk mode
 	// Output:
 	// 4
 	// a|1|b|2|c
@@ -69,11 +69,11 @@ func ExampleSV_Split() {
 }
 
 func ExampleSV_Tr() {
-	s := scalar.Scalar("hello")
+	s := scalar.Value("hello")
 	s.Tr("a-z", "A-Z") // $s =~ tr/a-z/A-Z/
 	fmt.Println(s)
-	fmt.Println(scalar.Scalar("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
-	fmt.Println(scalar.Scalar("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
+	fmt.Println(scalar.Value("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
+	fmt.Println(scalar.Value("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
 	// Output:
 	// HELLO
 	// 10
@@ -89,11 +89,11 @@ func ExampleCompile() {
 
 func ExampleMustCompile() {
 	salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
-	s := scalar.Scalar("£45,000 to £55,000")
+	s := scalar.Value("£45,000 to £55,000")
 	fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
 	fmt.Println(s.S(salary, "£X", "gr"))
 	insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
-	fmt.Println(scalar.Scalar("REMOTE").M(insensitive) != nil)
+	fmt.Println(scalar.Value("REMOTE").M(insensitive) != nil)
 	// Output:
 	// 2
 	// £X to £X

@@ -12,7 +12,7 @@ import (
 func ExampleArray() {
 	a := scalar.Array("a", []string{"b", "c"}, scalar.Array("d")) // lists flatten, as in Perl
 	fmt.Println(a.Length(), a.Join(","))
-	nested := scalar.Array(1, scalar.Scalar(scalar.Array(2, 3))) // a reference stays one element
+	nested := scalar.Array(1, scalar.Value(scalar.Array(2, 3))) // a reference stays one element
 	fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
 	// Output:
 	// 4 a,b,c,d
@@ -20,7 +20,7 @@ func ExampleArray() {
 }
 
 func ExampleAV_String() {
-	a := scalar.Array("Go", 1, scalar.Scalar(scalar.Array(2, 3)))
+	a := scalar.Array("Go", 1, scalar.Value(scalar.Array(2, 3)))
 	fmt.Println(a) // fmt uses String: the elements, on one line
 	// Output:
 	// ["Go",1,[2,3]]
@@ -118,7 +118,7 @@ func ExampleAV_Delete() {
 func ExampleAV_Push() {
 	a := scalar.Array("a")
 	a.Push("b", []string{"c", "d"})           // push @a, "b", @list
-	a.Push(scalar.Scalar(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
+	a.Push(scalar.Value(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
 	fmt.Println(a.Length(), a.Get(-1).Ref())
 	// Output:
 	// 5 ARRAY
@@ -329,7 +329,7 @@ func ExampleAV_SplitAtSlice() {
 }
 
 func ExampleAV_Clone() {
-	rows := scalar.Array(scalar.Scalar(map[string]any{"title": "Go Developer"})) // one row: a hash reference
+	rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
 	mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
 	mine.Get(0).At("title").Set("Perl Developer")
 	fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
@@ -351,7 +351,7 @@ func ExampleAV_Diff() {
 }
 
 func ExampleAV_Apply() {
-	prices := scalar.Array(10, scalar.Scalar([]any{20, 30}))
+	prices := scalar.Array(10, scalar.Value([]any{20, 30}))
 	prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
 	fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
 	// Output:

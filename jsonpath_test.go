@@ -146,7 +146,7 @@ func TestFindReturnsStoredValues(t *testing.T) {
 }
 
 func TestFindDoesNotCreate(t *testing.T) {
-	h := Scalar(Hash())
+	h := Value(Hash())
 	if h.Find("$.a.b[0]") != nil {
 		t.Error("nothing should match")
 	}
@@ -157,7 +157,7 @@ func TestFindDoesNotCreate(t *testing.T) {
 	if nilSV.Find("$") != nil {
 		t.Error("Find on a nil *SV should be nil")
 	}
-	if Scalar(nil).Find("$").Length() != 1 {
+	if Value(nil).Find("$").Length() != 1 {
 		t.Error("$ always matches the root, even undef")
 	}
 }
@@ -165,7 +165,7 @@ func TestFindDoesNotCreate(t *testing.T) {
 func TestFindHolesAndCycles(t *testing.T) {
 	a := Array()
 	a.Set(2, "c")
-	root := Scalar(a)
+	root := Value(a)
 	if got := strs(root.Find("$[*]")); !slices.Equal(got, []string{"c"}) {
 		t.Errorf("holes should be skipped: %q", got)
 	}
@@ -176,7 +176,7 @@ func TestFindHolesAndCycles(t *testing.T) {
 	// A hash that contains a reference to itself.
 	h := Hash("name", "loop")
 	h.Set("self", h)
-	if got := strs(Scalar(h).Find("$..name")); !slices.Equal(got, []string{"loop"}) {
+	if got := strs(Value(h).Find("$..name")); !slices.Equal(got, []string{"loop"}) {
 		t.Errorf("cycle: %q", got)
 	}
 }
@@ -187,7 +187,7 @@ func TestFindEscapesAndDescendantBrackets(t *testing.T) {
 	for _, k := range keys {
 		h.Set(k, k)
 	}
-	doc := Scalar(h)
+	doc := Value(h)
 	paths := map[string]string{
 		"$['a\\nb']":          "a\nb",
 		"$['a\\tb']":          "a\tb",
@@ -215,7 +215,7 @@ func TestFindEscapesAndDescendantBrackets(t *testing.T) {
 }
 
 func TestFindErrors(t *testing.T) {
-	doc := Scalar(Hash())
+	doc := Value(Hash())
 	tests := map[string]string{
 		"":                        "must start with $",
 		"store.book":              "must start with $",

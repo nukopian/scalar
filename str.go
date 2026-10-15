@@ -16,7 +16,7 @@ import (
 // give a byte string back where the result fits in bytes.
 
 // Length is Perl's length($s): the number of characters (not bytes) in s
-// in string context, so Scalar(12345).Length() is 5 and "café" is 4. Perl
+// in string context, so Value(12345).Length() is 5 and "café" is 4. Perl
 // returns undef for undef; this returns 0.
 func (s *SV) Length() int {
 	if b, ok := s.val().([]byte); ok {

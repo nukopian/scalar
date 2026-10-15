@@ -32,7 +32,7 @@ func plainHash(kv []any) (*HV, bool) {
 	for i := 0; i < len(kv); i += 2 {
 		v := &SV{}
 		if i+1 < len(kv) {
-			v = Scalar(kv[i+1])
+			v = Value(kv[i+1])
 		}
 		h.m[kv[i].(string)] = v
 	}

@@ -244,7 +244,7 @@ func (r *yamlReader) scalar(n *yaml.Node, path string) (*SV, error) {
 		}
 		var u uint64
 		if n.Decode(&u) == nil {
-			return Scalar(u), nil // beyond int64: a float, as Scalar has it
+			return Value(u), nil // beyond int64: a float, as Value has it
 		}
 		var f float64
 		if err := n.Decode(&f); err != nil {

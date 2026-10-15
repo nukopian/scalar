@@ -10,12 +10,12 @@ import (
 	"github.com/nukopian/job-meta/internal/scalar"
 )
 
-func ExampleScalar() {
-	fmt.Println(scalar.Scalar(42).Kind() == scalar.Int)
-	fmt.Println(scalar.Scalar(3.5).Kind() == scalar.Float)
-	fmt.Println(scalar.Scalar("text").Kind() == scalar.String)
-	fmt.Println(scalar.Scalar([]string{"a", "b"}).Ref()) // a slice becomes an array reference
-	fmt.Println(scalar.Scalar(nil).Defined())            // nil is undef
+func ExampleValue() {
+	fmt.Println(scalar.Value(42).Kind() == scalar.Int)
+	fmt.Println(scalar.Value(3.5).Kind() == scalar.Float)
+	fmt.Println(scalar.Value("text").Kind() == scalar.String)
+	fmt.Println(scalar.Value([]string{"a", "b"}).Ref()) // a slice becomes an array reference
+	fmt.Println(scalar.Value(nil).Defined())            // nil is undef
 	// Output:
 	// true
 	// true
@@ -25,7 +25,7 @@ func ExampleScalar() {
 }
 
 func ExampleSV_Set() {
-	s := scalar.Scalar("old")
+	s := scalar.Value("old")
 	s.Set(10)                     // $s = 10
 	fmt.Println(s.Add(1))         // it's a number now
 	s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
@@ -47,7 +47,7 @@ func ExampleSV_Copy() {
 }
 
 func ExampleSV_Clone() {
-	h := scalar.Hash("defaults", scalar.Scalar(map[string]any{"tags": []any{"go"}}))
+	h := scalar.Hash("defaults", scalar.Value(map[string]any{"tags": []any{"go"}}))
 	shallow := h.Get("defaults").Copy() // my $row = $h{defaults}: the same hash
 	deep := h.Get("defaults").Clone()   // my $row = dclone($h{defaults}): its own
 	deep.At("tags").AV().Push("perl")
@@ -65,7 +65,7 @@ func ExampleSV_Equal() {
 		"skills": []string{"Go", "SQL"},
 		"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
 	}))
-	fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Scalar(nil).Equal("")) // undef equals only undef
+	fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Value(nil).Equal("")) // undef equals only undef
 	// Output:
 	// true
 	// true false
@@ -97,7 +97,7 @@ func ExampleSV_Apply() {
 
 func ExampleSV_Kind() {
 	for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
-		switch scalar.Scalar(x).Kind() {
+		switch scalar.Value(x).Kind() {
 		case scalar.Undef:
 			fmt.Println("undef")
 		case scalar.Bool:
@@ -128,8 +128,8 @@ func ExampleSV_Kind() {
 }
 
 func ExampleSV_Defined() {
-	fmt.Println(scalar.Scalar(nil).Defined())
-	fmt.Println(scalar.Scalar("").Defined()) // empty, but defined
+	fmt.Println(scalar.Value(nil).Defined())
+	fmt.Println(scalar.Value("").Defined()) // empty, but defined
 	fmt.Println(scalar.Hash().Get("missing").Defined())
 	// Output:
 	// false
@@ -138,7 +138,7 @@ func ExampleSV_Defined() {
 }
 
 func ExampleSV_Any() {
-	s := scalar.Scalar(map[string]any{"tags": []any{"go", 1}})
+	s := scalar.Value(map[string]any{"tags": []any{"go", 1}})
 	plain := s.Any().(map[string]any) // plain Go, sharing nothing with s
 	fmt.Println(plain["tags"])
 	// Output:
@@ -146,8 +146,8 @@ func ExampleSV_Any() {
 }
 
 func ExampleSV_Or() {
-	fmt.Println(scalar.Scalar(nil).Or("default")) // $x // "default"
-	fmt.Println(scalar.Scalar(0).Or("default"))   // 0 is defined, so it's kept
+	fmt.Println(scalar.Value(nil).Or("default")) // $x // "default"
+	fmt.Println(scalar.Value(0).Or("default"))   // 0 is defined, so it's kept
 	// Output:
 	// default
 	// 0
@@ -167,7 +167,7 @@ func ExampleSV_Then() {
 	figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
 	annual := func(v *scalar.SV) any { return v.Mul(12) }
 	for _, text := range []string{"£4,000 a month", "Competitive"} {
-		fmt.Println(scalar.Scalar(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+		fmt.Println(scalar.Value(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
 	}
 	// Output:
 	// 48000
@@ -187,9 +187,9 @@ func ExampleSV_When() {
 }
 
 func ExampleSV_Ref() {
-	fmt.Println(scalar.Scalar(scalar.Array(1)).Ref())
-	fmt.Println(scalar.Scalar(scalar.Hash()).Ref())
-	fmt.Printf("%q\n", scalar.Scalar("text").Ref())
+	fmt.Println(scalar.Value(scalar.Array(1)).Ref())
+	fmt.Println(scalar.Value(scalar.Hash()).Ref())
+	fmt.Printf("%q\n", scalar.Value("text").Ref())
 	// Output:
 	// ARRAY
 	// HASH
@@ -197,10 +197,10 @@ func ExampleSV_Ref() {
 }
 
 func ExampleSV_Str() {
-	fmt.Println(scalar.Scalar(42).Str())
-	fmt.Println(scalar.Scalar(0.1 + 0.2).Str()) // Perl's 15 significant digits
-	fmt.Println(scalar.Scalar(true).Str())
-	fmt.Printf("%q\n", scalar.Scalar(nil).Str())
+	fmt.Println(scalar.Value(42).Str())
+	fmt.Println(scalar.Value(0.1 + 0.2).Str()) // Perl's 15 significant digits
+	fmt.Println(scalar.Value(true).Str())
+	fmt.Printf("%q\n", scalar.Value(nil).Str())
 	// Output:
 	// 42
 	// 0.3
@@ -209,7 +209,7 @@ func ExampleSV_Str() {
 }
 
 func ExampleSV_String() {
-	fmt.Println(scalar.Scalar(1e21)) // fmt uses String, as Perl's print would
+	fmt.Println(scalar.Value(1e21)) // fmt uses String, as Perl's print would
 	// Output:
 	// 1e+21
 }
@@ -232,9 +232,9 @@ func ExampleSV_Dump() {
 }
 
 func ExampleFromDump() {
-	tags := scalar.Scalar(scalar.Array("go"))
+	tags := scalar.Value(scalar.Array("go"))
 	doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
-	back, err := scalar.FromDump(scalar.Scalar(doc).Dump())                          // a round trip
+	back, err := scalar.FromDump(scalar.Value(doc).Dump())                          // a round trip
 	fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
 
 	perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
@@ -367,7 +367,7 @@ func ExampleFromDump_types() {
 	names := map[scalar.Kind]string{scalar.Int: "int", scalar.String: "string", scalar.Float: "float",
 		scalar.Bool: "bool", scalar.Undef: "undef"}
 	fmt.Println(doc.AV().Map(func(v *scalar.SV) any { return names[v.Kind()] }).Join(" "))
-	fmt.Println(scalar.Scalar("42").Dump(), scalar.Scalar(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
+	fmt.Println(scalar.Value("42").Dump(), scalar.Value(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
 	// Output:
 	// int string string float string bool undef
 	// 42 "2.5"
@@ -387,13 +387,13 @@ func ExampleFromDump_errors() {
 }
 
 func ExampleSV_Bytes() {
-	png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
+	png := scalar.Value([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
 	fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
 	fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
 	fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
 	blob := png.Bytes()                                   // back to a Go []byte (a copy)
 	fmt.Println(len(blob))
-	fmt.Println(scalar.Scalar("café").Bytes()) // text gives its UTF-8 bytes
+	fmt.Println(scalar.Value("café").Bytes()) // text gives its UTF-8 bytes
 	// Output:
 	// true 11
 	// true
@@ -404,15 +404,15 @@ func ExampleSV_Bytes() {
 
 func ExampleSV_Format() {
 	fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
-		scalar.Scalar("42 apples"), scalar.Scalar("3.14159"), scalar.Scalar(255),
-		scalar.Scalar("ab"), scalar.Scalar("0"))
+		scalar.Value("42 apples"), scalar.Value("3.14159"), scalar.Value(255),
+		scalar.Value("ab"), scalar.Value("0"))
 	// Output:
 	// 42|03.14|ff|   ab|false
 }
 
 func ExampleSV_Num() {
-	fmt.Println(scalar.Scalar("3.5kg").Num()) // the numeric prefix, as Perl does
-	fmt.Println(scalar.Scalar("abc").Num())
+	fmt.Println(scalar.Value("3.5kg").Num()) // the numeric prefix, as Perl does
+	fmt.Println(scalar.Value("abc").Num())
 	// Output:
 	// 3.5
 	// 0
@@ -420,7 +420,7 @@ func ExampleSV_Num() {
 
 func ExampleSV_NumOK() {
 	for _, x := range []any{"42", " 42 ", "42abc", "", nil} {
-		n, ok := scalar.Scalar(x).NumOK()
+		n, ok := scalar.Value(x).NumOK()
 		fmt.Println(n, ok) // ok is false wherever Perl would warn
 	}
 	// Output:
@@ -432,17 +432,17 @@ func ExampleSV_NumOK() {
 }
 
 func ExampleSV_Int() {
-	fmt.Println(scalar.Scalar(-3.9).Int()) // truncates toward zero
-	fmt.Println(scalar.Scalar("12 items").Int())
+	fmt.Println(scalar.Value(-3.9).Int()) // truncates toward zero
+	fmt.Println(scalar.Value("12 items").Int())
 	// Output:
 	// -3
 	// 12
 }
 
 func ExampleSV_IntOK() {
-	i, ok := scalar.Scalar("9223372036854775807").IntOK() // exact, however large
+	i, ok := scalar.Value("9223372036854775807").IntOK() // exact, however large
 	fmt.Println(i, ok)
-	i, ok = scalar.Scalar(1e30).IntOK() // out of range: clamped
+	i, ok = scalar.Value(1e30).IntOK() // out of range: clamped
 	fmt.Println(i, ok)
 	// Output:
 	// 9223372036854775807 true
@@ -451,7 +451,7 @@ func ExampleSV_IntOK() {
 
 func ExampleSV_Bool() {
 	for _, x := range []any{nil, "", "0", 0, 0.0, "0.0", "00", " ", "a"} {
-		fmt.Print(scalar.Scalar(x).Bool(), " ")
+		fmt.Print(scalar.Value(x).Bool(), " ")
 	}
 	fmt.Println()
 	// Output:
@@ -462,7 +462,7 @@ func ExampleSV_AV() {
 	var s scalar.SV   // undef
 	s.AV().Push(1, 2) // push @$s, 1, 2: autovivifies an array
 	fmt.Println(s.AV().Join(","))
-	fmt.Println(scalar.Scalar("text").AV() == nil) // not an array
+	fmt.Println(scalar.Value("text").AV() == nil) // not an array
 	// Output:
 	// 1,2
 	// true

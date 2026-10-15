@@ -55,7 +55,7 @@ func TestInterpolate(t *testing.T) {
 	if got := doc.HV().Interpolate("$title"); got != "Go Developer" {
 		t.Errorf("HV.Interpolate: %q", got)
 	}
-	holes := Hash("a", Scalar(Array(1)))
+	holes := Hash("a", Value(Array(1)))
 	holes.Get("a").AV().Set(2, 3)
 	if got := holes.Interpolate("@a"); got != "1  3" {
 		t.Errorf("a hole is empty: %q", got)

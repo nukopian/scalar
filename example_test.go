@@ -134,7 +134,7 @@ var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
 
 // Pulling salary figures out of text.
 func Example_salaryFromText() {
-	text := scalar.Scalar("Salary: £45,000 - £55,000 per annum")
+	text := scalar.Value("Salary: £45,000 - £55,000 per annum")
 
 	figures := scalar.Array()
 	for _, m := range text.M(salaryFigure, "g").All() {
@@ -179,7 +179,7 @@ func Example_buildRecords() {
 	rows := scalar.Array()
 	for _, title := range []string{"Go Developer", "Perl Developer"} {
 		row := scalar.Hash(defaults, "title", title) // %row = (%defaults, title => $title)
-		rows.Push(scalar.Scalar(row))                // push @rows, \%row
+		rows.Push(scalar.Value(row))                // push @rows, \%row
 	}
 	rows.Get(1).Path("remote").Set(true) // changes only the second row
 

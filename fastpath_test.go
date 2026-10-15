@@ -21,8 +21,8 @@ func withFastPaths(f func() string) (fast, slow string) {
 // Hash gives the same hash with or without its fast path, for every kind of
 // list the fast path takes, and for some it doesn't.
 func TestHashFastPathSame(t *testing.T) {
-	ref := Scalar(Array(1, 2))
-	hashRef := Scalar(Hash("a", 1))
+	ref := Value(Array(1, 2))
+	hashRef := Value(Hash("a", 1))
 	lists := [][]any{
 		{},
 		{"k"},
@@ -31,7 +31,7 @@ func TestHashFastPathSame(t *testing.T) {
 		{"a", 1, "b"},                 // a trailing key maps to undef
 		{"ref", ref, "hash", hashRef}, // references stay one value
 		{"bytes", []byte{0xff, 0x00}, "n", int64(7)},
-		{"sv", Scalar("x"), "undef", &SV{}},
+		{"sv", Value("x"), "undef", &SV{}},
 		{"£", "45,000", "from", 0, "to", 7},
 		{1, "one", 2, "two"},         // not string keys: no fast path
 		{"a", Array(1, 2)},           // flattens: no fast path
@@ -45,7 +45,7 @@ func TestHashFastPathSame(t *testing.T) {
 		}
 	}
 	// Values are copies, as before: changing one afterwards changes nothing.
-	v := Scalar("orig")
+	v := Value("orig")
 	h := Hash("k", v)
 	v.Set("changed")
 	if h.Get("k").Str() != "orig" {
@@ -73,14 +73,14 @@ func TestSFastPathSame(t *testing.T) {
 			fast, slow := withFastPaths(func() string {
 				var s *SV
 				if bytes {
-					s = Scalar([]byte(strings.Map(func(r rune) rune {
+					s = Value([]byte(strings.Map(func(r rune) rune {
 						if r > 0xff {
 							return 'z'
 						}
 						return r
 					}, text)))
 				} else {
-					s = Scalar(text)
+					s = Value(text)
 				}
 				defer func() { recover() }() // a pattern such as "." is regex; both paths treat it the same
 				got := s.S(pat, repl, flags...)

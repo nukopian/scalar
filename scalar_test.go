@@ -29,8 +29,8 @@ func TestStr(t *testing.T) {
 		{uint64(math.MaxUint64), "1.84467440737096e+19"},
 	}
 	for _, tt := range tests {
-		if got := Scalar(tt.in).Str(); got != tt.want {
-			t.Errorf("Scalar(%#v).Str() = %q, want %q", tt.in, got, tt.want)
+		if got := Value(tt.in).Str(); got != tt.want {
+			t.Errorf("Value(%#v).Str() = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }
@@ -64,13 +64,13 @@ func TestNumOK(t *testing.T) {
 		{"1e999", math.Inf(1), true},
 	}
 	for _, tt := range tests {
-		got, ok := Scalar(tt.in).NumOK()
+		got, ok := Value(tt.in).NumOK()
 		if got != tt.want || ok != tt.wantOK {
-			t.Errorf("Scalar(%#v).NumOK() = (%v, %v), want (%v, %v)", tt.in, got, ok, tt.want, tt.wantOK)
+			t.Errorf("Value(%#v).NumOK() = (%v, %v), want (%v, %v)", tt.in, got, ok, tt.want, tt.wantOK)
 		}
 	}
-	if f, ok := Scalar("nan").NumOK(); !math.IsNaN(f) || !ok {
-		t.Errorf(`Scalar("nan").NumOK() = (%v, %v), want (NaN, true)`, f, ok)
+	if f, ok := Value("nan").NumOK(); !math.IsNaN(f) || !ok {
+		t.Errorf(`Value("nan").NumOK() = (%v, %v), want (NaN, true)`, f, ok)
 	}
 }
 
@@ -92,9 +92,9 @@ func TestIntOK(t *testing.T) {
 		{math.NaN(), 0, false},
 	}
 	for _, tt := range tests {
-		got, ok := Scalar(tt.in).IntOK()
+		got, ok := Value(tt.in).IntOK()
 		if got != tt.want || ok != tt.wantOK {
-			t.Errorf("Scalar(%#v).IntOK() = (%v, %v), want (%v, %v)", tt.in, got, ok, tt.want, tt.wantOK)
+			t.Errorf("Value(%#v).IntOK() = (%v, %v), want (%v, %v)", tt.in, got, ok, tt.want, tt.wantOK)
 		}
 	}
 }
@@ -121,8 +121,8 @@ func TestBool(t *testing.T) {
 		{Hash(), true},
 	}
 	for _, tt := range tests {
-		if got := Scalar(tt.in).Bool(); got != tt.want {
-			t.Errorf("Scalar(%#v).Bool() = %v, want %v", tt.in, got, tt.want)
+		if got := Value(tt.in).Bool(); got != tt.want {
+			t.Errorf("Value(%#v).Bool() = %v, want %v", tt.in, got, tt.want)
 		}
 	}
 }
@@ -233,8 +233,8 @@ func TestCopiesAreValues(t *testing.T) {
 	}
 
 	// Copying a reference shares the referent, as in Perl.
-	ref := Scalar(a)
-	Scalar(ref).AV().Push(3)
+	ref := Value(a)
+	Value(ref).AV().Push(3)
 	if a.Length() != 3 {
 		t.Error("copied reference should share the array")
 	}
@@ -320,7 +320,7 @@ func TestLengthAndScalar(t *testing.T) {
 		{"0E0", 3},
 	}
 	for _, tt := range tests {
-		if got := Scalar(tt.in).Length(); got != tt.want {
+		if got := Value(tt.in).Length(); got != tt.want {
 			t.Errorf("length(%#v) = %d, want %d", tt.in, got, tt.want)
 		}
 	}
@@ -424,7 +424,7 @@ func TestCopy(t *testing.T) {
 	}
 
 	// Shallow, as in Perl: a copied reference shares the array.
-	ref := Scalar(a)
+	ref := Value(a)
 	ref.Copy().AV().Push(3)
 	if a.Length() != 3 {
 		t.Error("a copied reference should point at the same array")
@@ -458,7 +458,7 @@ func TestConversions(t *testing.T) {
 		{"uint64 fits", uint64(64), Int, "64"},
 		{"uint64 too big", uint64(math.MaxUint64), Float, "18446744073709552000"},
 		{"float32", float32(1.5), Float, "1.5"},
-		{"SV value", *Scalar("v"), String, `"v"`},
+		{"SV value", *Value("v"), String, `"v"`},
 		{"pointer", &n, Int, "7"},
 		{"nil pointer", nilPtr, Undef, "null"},
 		{"[]string", []string{"a", "b"}, ArrayRef, `["a","b"]`},
@@ -471,7 +471,7 @@ func TestConversions(t *testing.T) {
 		{"nested", map[string]any{"xs": []any{1, map[string]any{"y": true}}}, HashRef, `{"xs":[1,{"y":true}]}`},
 	}
 	for _, tt := range tests {
-		s := Scalar(tt.in)
+		s := Value(tt.in)
 		if s.Kind() != tt.kind {
 			t.Errorf("%s: kind %d, want %d", tt.name, s.Kind(), tt.kind)
 		}
@@ -496,24 +496,24 @@ func TestKindRefAndPrinting(t *testing.T) {
 		{Hash(), HashRef, "HASH"},
 	}
 	for _, tt := range tests {
-		s := Scalar(tt.in)
+		s := Value(tt.in)
 		if s.Kind() != tt.kind || s.Ref() != tt.ref {
 			t.Errorf("%#v: Kind %d Ref %q, want %d %q", tt.in, s.Kind(), s.Ref(), tt.kind, tt.ref)
 		}
 	}
 
 	a := Array()
-	ref := Scalar(a)
+	ref := Value(a)
 	if got, want := ref.String(), fmt.Sprintf("ARRAY(%p)", a); got != want {
 		t.Errorf("array ref prints as %q, want %q", got, want)
 	}
-	if !strings.HasPrefix(Scalar(Hash()).Str(), "HASH(0x") {
+	if !strings.HasPrefix(Value(Hash()).Str(), "HASH(0x") {
 		t.Error("hash ref should print as HASH(0x...)")
 	}
 	if ref.Num() == 0 || ref.Int() == 0 || !ref.Bool() {
 		t.Error("a reference is a non-zero address and true, as in Perl")
 	}
-	if Scalar("2.5").Num() != 2.5 || Scalar(math.Inf(-1)).Str() != "-Inf" {
+	if Value("2.5").Num() != 2.5 || Value(math.Inf(-1)).Str() != "-Inf" {
 		t.Error("Num/Str basics")
 	}
 }
@@ -530,7 +530,7 @@ func TestJSONEdges(t *testing.T) {
 		{(*AV)(nil), "null"},
 		{(*HV)(nil), "null"},
 		{(*SV)(nil), "null"},
-		{struct{ S *SV }{Scalar("x")}, `{"S":"x"}`},
+		{struct{ S *SV }{Value("x")}, `{"S":"x"}`},
 	}
 	for _, tt := range tests {
 		if got := mustJSON(t, tt.v); got != tt.want {
@@ -566,7 +566,7 @@ func TestIteration(t *testing.T) {
 		t.Errorf("breaking out of AV.All: %v", seen)
 	}
 	items := a.Items()
-	items[0] = Scalar(99)
+	items[0] = Value(99)
 	if a.Get(0).Int() != 1 || len(items) != 3 {
 		t.Error("Items should return a new slice")
 	}
@@ -638,20 +638,20 @@ func TestSubstr(t *testing.T) {
 		{"empty string, negative offset", "", -1, nil, ""},
 	}
 	for _, tt := range tests {
-		got := Scalar(tt.s).Substr(tt.offset, tt.length...)
+		got := Value(tt.s).Substr(tt.offset, tt.length...)
 		gotStr := got.Str()
 		if !got.Defined() {
 			gotStr = undef
 		}
 		if gotStr != tt.want {
-			t.Errorf("%s: substr(%q, %d, %v) = %q, want %q", tt.name, Scalar(tt.s).Str(), tt.offset, tt.length, gotStr, tt.want)
+			t.Errorf("%s: substr(%q, %d, %v) = %q, want %q", tt.name, Value(tt.s).Str(), tt.offset, tt.length, gotStr, tt.want)
 		}
 	}
 }
 
 func TestSubstrReplace(t *testing.T) {
 	// perlfunc: my $z = substr $s, 14, 7, "jumped from";
-	s := Scalar("The black cat climbed the green tree")
+	s := Value("The black cat climbed the green tree")
 	if got := s.SubstrReplace(14, 7, "jumped from").Str(); got != "climbed" {
 		t.Errorf("returned %q, want the replaced part", got)
 	}
@@ -660,7 +660,7 @@ func TestSubstrReplace(t *testing.T) {
 	}
 
 	// perlfunc: substr($name, 4) = 'dy'; and substr($name, 7) = 'gap' dies.
-	name := Scalar("fred")
+	name := Value("fred")
 	name.SubstrReplace(4, 0, "dy")
 	if name.Str() != "freddy" {
 		t.Errorf("appending at the end: %q", name)
@@ -686,7 +686,7 @@ func TestSubstrReplace(t *testing.T) {
 		{"price: 0", -1, 1, 42, "price: 42", "0"},
 	}
 	for _, tt := range tests {
-		s := Scalar(tt.s)
+		s := Value(tt.s)
 		removed := s.SubstrReplace(tt.offset, tt.length, tt.repl)
 		if s.Str() != tt.want || removed.Str() != tt.removed {
 			t.Errorf("substr(%q, %d, %d, %v): s = %q, returned %q; want %q, %q",
@@ -702,7 +702,7 @@ func TestSubstrReplace(t *testing.T) {
 	}
 
 	// Substr itself never changes s.
-	orig := Scalar("abc")
+	orig := Value("abc")
 	orig.Substr(0, 1)
 	if orig.Str() != "abc" {
 		t.Error("Substr changed s")
@@ -716,12 +716,12 @@ func TestOr(t *testing.T) {
 		def  any
 		want string
 	}{
-		{"undef takes the default", Scalar(nil), "n/a", "n/a"},
-		{"defined keeps its value", Scalar("x"), "n/a", "x"},
-		{"0 is defined", Scalar(0), 42, "0"},
-		{`"" is defined`, Scalar(""), "n/a", ""},
+		{"undef takes the default", Value(nil), "n/a", "n/a"},
+		{"defined keeps its value", Value("x"), "n/a", "x"},
+		{"0 is defined", Value(0), 42, "0"},
+		{`"" is defined`, Value(""), "n/a", ""},
 		{"nil *SV", nil, 7, "7"},
-		{"scalar default", Scalar(nil), Scalar("d"), "d"},
+		{"scalar default", Value(nil), Value("d"), "d"},
 	}
 	for _, tt := range tests {
 		if got := tt.s.Or(tt.def).Str(); got != tt.want {
@@ -738,8 +738,8 @@ func TestOr(t *testing.T) {
 	// Or returns a new scalar, so changing it can't change the original.
 	h := Hash("k", "v")
 	h.Get("k").Or("x").Set("changed")
-	def := Scalar("d")
-	Scalar(nil).Or(def).Set("changed")
+	def := Value("d")
+	Value(nil).Or(def).Set("changed")
 	if h.Get("k").Str() != "v" || def.Str() != "d" {
 		t.Error("Or should return a new scalar")
 	}
@@ -796,7 +796,7 @@ func TestPathOK(t *testing.T) {
 	}
 
 	// It never creates anything, unlike Path.
-	h := Scalar(Hash())
+	h := Value(Hash())
 	h.PathOK("a", "b", 0)
 	if h.HV().Length() != 0 {
 		t.Error("PathOK shouldn't autovivify")
@@ -805,7 +805,7 @@ func TestPathOK(t *testing.T) {
 	// Holes don't exist.
 	a := Array()
 	a.Set(2, "c")
-	if _, ok := Scalar(a).PathOK(0); ok {
+	if _, ok := Value(a).PathOK(0); ok {
 		t.Error("a hole doesn't exist")
 	}
 
@@ -842,7 +842,7 @@ func TestHashFlattening(t *testing.T) {
 		t.Errorf("Hash(array of pairs) = %s", got)
 	}
 	// Values that are references stay references.
-	nested := Hash("list", Scalar(Array(1, 2)))
+	nested := Hash("list", Value(Array(1, 2)))
 	if nested.Get("list").AV().Length() != 2 {
 		t.Error("a reference value should stay a reference")
 	}
@@ -874,10 +874,10 @@ func TestHashFromMaps(t *testing.T) {
 			t.Errorf("%s: %s, want %s", tt.name, got, tt.want)
 		}
 	}
-	if got := mustJSON(t, Scalar(map[int]string{7: "x"})); got != `{"7":"x"}` {
-		t.Errorf("Scalar(map[int]string) = %s", got)
+	if got := mustJSON(t, Value(map[int]string{7: "x"})); got != `{"7":"x"}` {
+		t.Errorf("Value(map[int]string) = %s", got)
 	}
-	if Scalar(map[int]string(nil)).Defined() {
+	if Value(map[int]string(nil)).Defined() {
 		t.Error("a nil map should be undef")
 	}
 }
@@ -929,21 +929,21 @@ func TestExistsVersusDefined(t *testing.T) {
 // error, not a crash. The same hash appearing twice isn't a cycle.
 func TestMarshalJSONCycles(t *testing.T) {
 	h := Hash("a", 1)
-	h.Set("self", Scalar(h))
-	for name, v := range map[string]any{"SV": Scalar(h), "HV": h, "AV": Array(Scalar(h))} {
+	h.Set("self", Value(h))
+	for name, v := range map[string]any{"SV": Value(h), "HV": h, "AV": Array(Value(h))} {
 		if _, err := json.Marshal(v); err == nil || !strings.Contains(err.Error(), "self-referencing HASH") {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
 
 	shared := Hash("x", 1)
-	twice := Hash("first", Scalar(shared), "second", Scalar(shared))
-	got, err := json.Marshal(Scalar(twice))
+	twice := Hash("first", Value(shared), "second", Value(shared))
+	got, err := json.Marshal(Value(twice))
 	if err != nil || string(got) != `{"first":{"x":1},"second":{"x":1}}` {
 		t.Errorf("shared hash: %s, %v", got, err)
 	}
 
-	expectPanic(t, "Any on a cycle", "self-referencing HASH", func() { Scalar(h).Any() })
+	expectPanic(t, "Any on a cycle", "self-referencing HASH", func() { Value(h).Any() })
 }
 
 // The format verbs treat a scalar as Perl's sprintf does.
@@ -967,7 +967,7 @@ func TestFormat(t *testing.T) {
 		{"%t", "0", "false"},
 		{"%t", "0.0", "true"},
 	} {
-		if got := fmt.Sprintf(tt.format, Scalar(tt.arg)); got != tt.want {
+		if got := fmt.Sprintf(tt.format, Value(tt.arg)); got != tt.want {
 			t.Errorf("Sprintf(%q, %v) = %q, want %q", tt.format, tt.arg, got, tt.want)
 		}
 	}
@@ -1199,7 +1199,7 @@ func TestHashPush(t *testing.T) {
 	}
 
 	// Values are copied in.
-	src := Scalar("orig")
+	src := Value("orig")
 	h.Push("g", src)
 	src.Set("changed")
 	if h.Get("g").Str() != "orig" {
@@ -1207,7 +1207,7 @@ func TestHashPush(t *testing.T) {
 	}
 	// A reference stays a reference to the same data, as in Perl.
 	list := Array(1)
-	h.Push("list", Scalar(list))
+	h.Push("list", Value(list))
 	list.Push(2)
 	if h.Get("list").AV().Length() != 2 {
 		t.Error("a pushed reference should point at the same array")

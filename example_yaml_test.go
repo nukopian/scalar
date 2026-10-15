@@ -58,8 +58,8 @@ spec: {replicas: 3}
 
 func ExampleSV_ToYAML() {
 	cfg := scalar.Hash("name", "web", "replicas", 3, "country", "no", "version", "1.0",
-		"ports", scalar.Scalar([]int{80, 443}))
-	out, _ := scalar.Scalar(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
+		"ports", scalar.Value([]int{80, 443}))
+	out, _ := scalar.Value(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
 	fmt.Print(string(out))
 	// Output:
 	// country: "no"
@@ -82,7 +82,7 @@ func ExampleAV_ToYAML() {
 }
 
 func ExampleHV_ToYAML() {
-	shared := scalar.Scalar(scalar.Hash("cpu", "500m"))
+	shared := scalar.Value(scalar.Hash("cpu", "500m"))
 	h := scalar.Hash("requests", shared, "limits", shared) // the same hash twice
 	out, _ := h.ToYAML()
 	fmt.Print(string(out)) // an anchor, then an alias
@@ -107,7 +107,7 @@ func ExampleSV_MarshalYAML() {
 	out, _ := yaml.Marshal(struct {
 		Name  string     `yaml:"name"`
 		Extra *scalar.SV `yaml:"extra"`
-	}{"web", scalar.Scalar(map[string]any{"ports": []int{80}})})
+	}{"web", scalar.Value(map[string]any{"ports": []int{80}})})
 	fmt.Print(string(out))
 	// Output:
 	// name: web

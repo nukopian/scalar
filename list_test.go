@@ -71,7 +71,7 @@ func TestMaxMinStr(t *testing.T) {
 		t.Error("MaxStr compares as strings")
 	}
 	// Ties keep the first.
-	x, y := Scalar("same"), Scalar("same")
+	x, y := Value("same"), Value("same")
 	tied := Array(x, y)
 	if tied.MaxStr() != tied.Get(0) || tied.MinStr() != tied.Get(0) {
 		t.Error("ties should keep the first element")

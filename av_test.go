@@ -17,7 +17,7 @@ func TestNegativeIndexReads(t *testing.T) {
 		t.Error("indices before the start should read as undef")
 	}
 	// Reading through them, even with an autovivifying deref, stays safe.
-	if a.Get(-4).HV().Get("x").Defined() || Scalar(a).Path(-10, "x", 0).Defined() {
+	if a.Get(-4).HV().Get("x").Defined() || Value(a).Path(-10, "x", 0).Defined() {
 		t.Error("reads through a non-creatable element should be undef")
 	}
 	if a.Length() != 3 {
@@ -45,7 +45,7 @@ func TestNegativeIndexWrites(t *testing.T) {
 }
 
 func TestWritesThroughNonReferences(t *testing.T) {
-	s := Scalar("str")
+	s := Value("str")
 	expectPanic(t, "array element of a string", "Not an ARRAY reference", func() { s.AV().Get(0).Set(1) })
 	expectPanic(t, "AV.Set on a string", "Not an ARRAY reference", func() { s.AV().Set(0, 1) })
 	expectPanic(t, "Push on a string", "Not an ARRAY reference", func() { s.AV().Push(1) })
@@ -222,9 +222,9 @@ func TestListFlattening(t *testing.T) {
 		t.Errorf("Push(array) = %s", show(a))
 	}
 	// push @a, \@b: a scalar holding a reference stays one element.
-	nested := Array("a").Push(Scalar(b))
+	nested := Array("a").Push(Value(b))
 	if nested.Length() != 2 || nested.Get(1).AV() != b {
-		t.Errorf("Push(Scalar(array)) should nest: %s", mustJSON(t, nested))
+		t.Errorf("Push(Value(array)) should nest: %s", mustJSON(t, nested))
 	}
 
 	// Hashes add key/value pairs (in the hash's order).
@@ -298,17 +298,17 @@ func TestListFlattening(t *testing.T) {
 
 	// A list of records: push @rows, \%row
 	rows := Array()
-	rows.Push(Scalar(Hash("name", "Ann")), Scalar(Hash("name", "Bob")))
+	rows.Push(Value(Hash("name", "Ann")), Value(Hash("name", "Bob")))
 	if rows.Length() != 2 || rows.Get(1).Path("name").Str() != "Bob" {
 		t.Errorf("records = %s", mustJSON(t, rows))
 	}
 }
 
 func TestScalarAndJSONKeepNesting(t *testing.T) {
-	// Scalar of a slice is an array reference, as before.
-	s := Scalar([]any{1, []any{2, 3}})
+	// Value of a slice is an array reference, as before.
+	s := Value([]any{1, []any{2, 3}})
 	if s.AV().Length() != 2 || s.Path(1).AV().Length() != 2 {
-		t.Errorf("Scalar(nested slice) = %s", mustJSON(t, s))
+		t.Errorf("Value(nested slice) = %s", mustJSON(t, s))
 	}
 	// JSON arrays stay nested.
 	doc, err := FromJSON([]byte(`{"m": [[1, 2], [3]], "h": [{"a": 1}]}`))
@@ -372,7 +372,7 @@ func TestAny(t *testing.T) {
 	}
 
 	// To[[]any] converts all the way down; holes are nil.
-	a := Array(1, Scalar(Hash("k", "v")))
+	a := Array(1, Value(Hash("k", "v")))
 	a.Set(3, "z")
 	if got, err := To[[]any](a); err != nil || !reflect.DeepEqual(got, []any{int64(1), map[string]any{"k": "v"}, nil, "z"}) {
 		t.Errorf("To[[]any] = %#v, %v", got, err)
@@ -380,16 +380,16 @@ func TestAny(t *testing.T) {
 
 	// The same array twice (not a cycle) is fine; a cycle panics.
 	shared := Array(1)
-	twice := Array(Scalar(shared), Scalar(shared))
+	twice := Array(Value(shared), Value(shared))
 	if got, err := To[[]any](twice); err != nil || !reflect.DeepEqual(got, []any{[]any{int64(1)}, []any{int64(1)}}) {
 		t.Errorf("shared = %#v", got)
 	}
 	loop := Hash("name", "x")
 	loop.Set("self", loop)
-	expectPanic(t, "cycle", "self-referencing HASH", func() { Scalar(loop).Any() })
+	expectPanic(t, "cycle", "self-referencing HASH", func() { Value(loop).Any() })
 
 	var nilSV *SV
-	if nilSV.Any() != nil || Scalar(nil).Any() != nil {
+	if nilSV.Any() != nil || Value(nil).Any() != nil {
 		t.Error("undef should be nil")
 	}
 }
@@ -398,10 +398,10 @@ func TestSliceFastPaths(t *testing.T) {
 	if got := show(Array([]string{"a", "b"}, []any{1, []any{2, Array(3)}})); got != "a,b,1,2,3" {
 		t.Errorf("flattening []string and nested []any = %s", got)
 	}
-	if got := mustJSON(t, Scalar([]string{"a", "b"})); got != `["a","b"]` {
-		t.Errorf("Scalar([]string) = %s", got)
+	if got := mustJSON(t, Value([]string{"a", "b"})); got != `["a","b"]` {
+		t.Errorf("Value([]string) = %s", got)
 	}
-	if Scalar([]any(nil)).Defined() || Scalar([]string(nil)).Defined() {
+	if Value([]any(nil)).Defined() || Value([]string(nil)).Defined() {
 		t.Error("nil slices should be undef")
 	}
 	if Array([]string(nil), []any(nil)).Length() != 0 {
@@ -429,7 +429,7 @@ func TestInPlace(t *testing.T) {
 	}
 
 	// Stable: equal elements keep their order.
-	rows := Array(Scalar(Hash("k", 1, "id", "a")), Scalar(Hash("k", 0, "id", "b")), Scalar(Hash("k", 1, "id", "c")))
+	rows := Array(Value(Hash("k", 1, "id", "a")), Value(Hash("k", 0, "id", "b")), Value(Hash("k", 1, "id", "c")))
 	rows.SortInPlace(func(x, y *SV) int { return NumCmp(x.Path("k"), y.Path("k")) })
 	if got := rows.Map(func(r *SV) any { return r.Path("id") }).Join(","); got != "b,a,c" {
 		t.Errorf("stable sort = %s", got)
@@ -506,7 +506,7 @@ func TestPopNShiftN(t *testing.T) {
 	}
 
 	// The elements are the array's own, and holes come back as undef.
-	own := Scalar("x")
+	own := Value("x")
 	f := Array()
 	f.Push(1)
 	f.items = append(f.items, nil, own) // 1, a hole, then own itself

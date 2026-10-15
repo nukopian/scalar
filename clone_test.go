@@ -9,7 +9,7 @@ func TestClone(t *testing.T) {
 	}
 	orig.At("blob").Set([]byte{0x89, 'P'})
 	shared := orig.At("tags").AV()
-	orig.HV().Set("again", Scalar(shared)) // the same array twice
+	orig.HV().Set("again", Value(shared)) // the same array twice
 	orig.HV().Set("self", orig)            // and a loop back to the top
 
 	c := orig.Clone()
@@ -52,13 +52,13 @@ func TestClone(t *testing.T) {
 	}
 
 	// Plain values, undef and nil receivers.
-	if Scalar(42).Clone().Int() != 42 || (*SV)(nil).Clone().Defined() {
+	if Value(42).Clone().Int() != 42 || (*SV)(nil).Clone().Defined() {
 		t.Error("cloning a plain value, or nil, should copy it")
 	}
 	if (*AV)(nil).Clone() != nil || (*HV)(nil).Clone() != nil {
 		t.Error("cloning a nil array or hash should give nil")
 	}
-	h := Hash("a", Scalar(Array(1, 2)))
+	h := Hash("a", Value(Array(1, 2)))
 	if ch := h.Clone(); ch.Get("a").AV() == h.Get("a").AV() || ch.Length() != 1 {
 		t.Error("HV.Clone should copy nested arrays")
 	}

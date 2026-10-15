@@ -16,8 +16,8 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := Array(" a ")
-	doc.HV().Set("list", Scalar(tags))
-	doc.HV().Set("again", Scalar(tags)) // the same array twice
+	doc.HV().Set("list", Value(tags))
+	doc.HV().Set("again", Value(tags)) // the same array twice
 	doc.HV().Set("self", doc)           // and a loop back to the top
 	doc.At("blob").Set([]byte(" b "))
 
@@ -78,7 +78,7 @@ func TestApply(t *testing.T) {
 	if calls != 2 || a.Exists(1) || a.Get(0).Int() != 10 || a.Get(3).Int() != 20 {
 		t.Errorf("holes: calls %d, exists(1) %v, %v %v", calls, a.Exists(1), a.Get(0), a.Get(3))
 	}
-	if s := Scalar("x").Apply(func(v *SV) any { return v.Uc() }); s.Str() != "X" {
+	if s := Value("x").Apply(func(v *SV) any { return v.Uc() }); s.Str() != "X" {
 		t.Errorf("a plain scalar: %q", s.Str())
 	}
 	if (*SV)(nil).Apply(func(v *SV) any { return v }) != nil {

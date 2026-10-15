@@ -63,7 +63,7 @@ func TestSetExtras(t *testing.T) {
 
 	// Members are copies, kept from the first insert; changing one changes
 	// nothing.
-	orig := Scalar("Go")
+	orig := Value("Go")
 	s := NewSet(orig, "Go")
 	orig.Set("changed")
 	s.Members().Get(0).Set("also changed")

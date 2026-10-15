@@ -14,7 +14,7 @@ package scalar
 // *DecodeError, says where the value is, as a path for At. On an error, To
 // returns T's zero value.
 //
-// v may be a scalar, an array, a hash, or any Go value Scalar accepts. A
+// v may be a scalar, an array, a hash, or any Go value Value accepts. A
 // set gives its members, as an array, and a bag its counts, as a hash, so
 // To[[]string](set) and To[map[string]int](bag) work.
 //
@@ -35,7 +35,7 @@ func To[T any](v any) (T, error) {
 }
 
 // toScalar is v as a scalar for To: arrays and hashes as references to
-// them, a set's members, a bag's counts, and anything else as Scalar has it.
+// them, a set's members, a bag's counts, and anything else as Value has it.
 func toScalar(v any) *SV {
 	switch x := v.(type) {
 	case *SV:
@@ -58,5 +58,5 @@ func toScalar(v any) *SV {
 	case *Bag:
 		return &SV{v: x.Counts()}
 	}
-	return Scalar(v)
+	return Value(v)
 }

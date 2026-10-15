@@ -47,10 +47,10 @@ func TestBoundedCache(t *testing.T) {
 // without end.
 func TestCachesAreBounded(t *testing.T) {
 	doc := Hash()
-	s := Scalar("x")
+	s := Value("x")
 	for i := range cacheLimit + 10 {
 		doc.Interpolate(fmt.Sprintf("$k%d", i))
-		Scalar(doc).At(fmt.Sprintf("k%d", i))
+		Value(doc).At(fmt.Sprintf("k%d", i))
 		s.M(fmt.Sprintf("x%d?", i))
 	}
 	for name, n := range map[string]int64{"At": atCache.n.Load(), "Interpolate": templateCache.n.Load(), "regex": regexCache.n.Load()} {

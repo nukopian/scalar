@@ -37,7 +37,7 @@ func (h *HV) Equal(other any) bool { return (&SV{v: h}).Equal(other) }
 // always the same one.
 func (s *SV) Diff(other any) string {
 	d := differ{seen: map[[2]any]bool{}}
-	return d.diff(s, Scalar(other), true, true, "")
+	return d.diff(s, Value(other), true, true, "")
 }
 
 // Diff says where a and other first differ; see SV.Diff.

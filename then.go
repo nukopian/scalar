@@ -9,14 +9,14 @@ package scalar
 //		Then(toAnnual).    // skipped if there wasn't one
 //		Or(0)
 //
-// f may return a scalar or any Go value, and nil for undef. With Scalar as
+// f may return a scalar or any Go value, and nil for undef. With Value as
 // the unit, Then is the bind of a Maybe monad in which undef is Nothing:
 // TestThenMonadLaws checks the laws.
 func (s *SV) Then(f func(v *SV) any) *SV {
 	if !s.Defined() {
 		return &SV{}
 	}
-	return Scalar(f(s))
+	return Value(f(s))
 }
 
 // When returns a copy of s if s is defined and pred(s) is true, and undef

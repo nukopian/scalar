@@ -254,7 +254,7 @@ The pattern is compiled once, when the program starts, as with Perl's
 ```go
 var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
 
-text := scalar.Scalar("Salary: £45,000 - £55,000 per annum")
+text := scalar.Value("Salary: £45,000 - £55,000 per annum")
 
 figures := scalar.Array()
 for _, m := range text.M(salaryFigure, "g").All() {
@@ -299,7 +299,7 @@ defaults := scalar.Hash("location", "Unknown", "remote", false)
 rows := scalar.Array()
 for _, title := range []string{"Go Developer", "Perl Developer"} {
 	row := scalar.Hash(defaults, "title", title)   // %row = (%defaults, title => $title)
-	rows.Push(scalar.Scalar(row))                  // push @rows, \%row
+	rows.Push(scalar.Value(row))                  // push @rows, \%row
 }
 rows.Get(1).Path("remote").Set(true)             // changes only the second row
 
@@ -331,10 +331,10 @@ back := scalar.Unpack("f<*", blob.Bytes()).NumSlice()   // a []float64 again
 
 ## Scalars
 
-Create a scalar with `Scalar`:
+Create a scalar with `Value`:
 
 ```go
-s := scalar.Scalar("42")
+s := scalar.Value("42")
 s.Str()    // "42"
 s.Int()    // 42
 s.Num()    // 42.0
@@ -362,7 +362,7 @@ including `"0.0"`, `"00"` and `" "`.
 
 ### Undef
 
-The zero value of `SV` is undef, and so is `scalar.Scalar(nil)`. Check for it
+The zero value of `SV` is undef, and so is `scalar.Value(nil)`. Check for it
 with `Defined()`.
 
 Undef is how `scalar` says "nothing here". A read that finds nothing returns
@@ -403,14 +403,14 @@ annual := posting.At("salary.text").
 
 Both return new scalars, so writing to the result never changes the
 original or creates a missing element. For readers who know the term:
-undef is Maybe's Nothing, `Scalar` is the unit and `Then` is the bind, and
+undef is Maybe's Nothing, `Value` is the unit and `Then` is the bind, and
 `TestThenMonadLaws` checks that the monad laws hold.
 
 ### Length
 
 `Length()` counts the characters in the string form of the value, like Perl's
 `length`. It counts characters, not bytes, so `"café"` has length 4, and a
-number is measured as it prints: `scalar.Scalar(12345).Length()` is 5. The one
+number is measured as it prints: `scalar.Value(12345).Length()` is 5. The one
 difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
 
 ### Substrings
@@ -419,7 +419,7 @@ difference from Perl is undef: Perl's `length(undef)` is undef, and here it's 0.
 characters, not bytes.
 
 ```go
-s := scalar.Scalar("The black cat climbed the green tree")
+s := scalar.Value("The black cat climbed the green tree")
 
 s.Substr(4, 5)     // "black"                    substr($s, 4, 5)
 s.Substr(14)       // "climbed the green tree"   substr($s, 14)
@@ -465,7 +465,7 @@ contains `£`, `é` or `•`. The positions from `Index` can go straight into
 `Substr`:
 
 ```go
-salary := scalar.Scalar("Salary: £45,000 – £55,000")
+salary := scalar.Value("Salary: £45,000 – £55,000")
 salary.Substr(salary.Index("£"), 7)   // "£45,000"
 salary.Substr(salary.RIndex("£"))     // "£55,000"
 ```
@@ -605,10 +605,10 @@ each verb implies:
 
 | Verbs | Context | Example |
 |---|---|---|
-| `%d`, `%b`, `%o`, `%x`, `%X`, `%c` | integer (see `Int`) | `fmt.Sprintf("%d", scalar.Scalar("42 apples"))` is `"42"` |
-| `%e`, `%E`, `%f`, `%F`, `%g`, `%G` | number (see `Num`) | `fmt.Sprintf("%05.2f", scalar.Scalar("3.14159"))` is `"03.14"` |
-| `%t` | boolean (see `Bool`) | `fmt.Sprintf("%t", scalar.Scalar("0"))` is `"false"` |
-| `%s`, `%q`, `%v` and the rest | string (see `Str`) | `fmt.Sprintf("%5s", scalar.Scalar("ab"))` is `"   ab"` |
+| `%d`, `%b`, `%o`, `%x`, `%X`, `%c` | integer (see `Int`) | `fmt.Sprintf("%d", scalar.Value("42 apples"))` is `"42"` |
+| `%e`, `%E`, `%f`, `%F`, `%g`, `%G` | number (see `Num`) | `fmt.Sprintf("%05.2f", scalar.Value("3.14159"))` is `"03.14"` |
+| `%t` | boolean (see `Bool`) | `fmt.Sprintf("%t", scalar.Value("0"))` is `"false"` |
+| `%s`, `%q`, `%v` and the rest | string (see `Str`) | `fmt.Sprintf("%5s", scalar.Value("ab"))` is `"   ab"` |
 
 ```go
 fmt.Printf("%d items, £%.2f each\n", count, price)   // printf "%d items, £%.2f each\n", $count, $price
@@ -771,8 +771,8 @@ A scalar always adds one element, even when it holds a reference. That's how
 you nest an array or hash, as with Perl's `\@b` and `\%h`:
 
 ```go
-a.Push(scalar.Scalar(b))        // push @a, \@b      (one element: a reference)
-rows.Push(scalar.Scalar(row))   // push @rows, \%row (a list of records)
+a.Push(scalar.Value(b))        // push @a, \@b      (one element: a reference)
+rows.Push(scalar.Value(row))   // push @rows, \%row (a list of records)
 ```
 
 `Map` flattens too, as Perl's `map` does, so the function can return several
@@ -1391,10 +1391,10 @@ can be a `*SV` or a plain Go value.
 | `$a++`, `$a--` | `a.Inc()`, `a.Dec()` |
 
 ```go
-scalar.Scalar("10").Add(5)       // 15
-scalar.Scalar("10").Concat(5)    // "105"
-scalar.Scalar("10").NumEq(10.0)  // true
-scalar.Scalar("10").Eq("10.0")   // false
+scalar.Value("10").Add(5)       // 15
+scalar.Value("10").Concat(5)    // "105"
+scalar.Value("10").NumEq(10.0)  // true
+scalar.Value("10").Eq("10.0")   // false
 ```
 
 Things to know:
@@ -1551,7 +1551,7 @@ add to a pattern.
 ### Matching
 
 ```go
-s := scalar.Scalar("Salary: £45,000 - £55,000")
+s := scalar.Value("Salary: £45,000 - £55,000")
 
 if s.M(`(?i)salary`) != nil { ... }
 
@@ -1583,7 +1583,7 @@ for _, m := range s.M(`£([\d,]+)`, "g").All() {
 describes one match:
 
 ```go
-d := scalar.Scalar("2026-10-11").Named(`(?<year>\d{4})-(?<month>\d\d)`)
+d := scalar.Value("2026-10-11").Named(`(?<year>\d{4})-(?<month>\d\d)`)
 d.Get("year").Int() // 2026
 ```
 
@@ -1598,10 +1598,10 @@ many substitutions it made, as a scalar (so use `.Int()` to get a Go `int64`).
 If nothing matched, the scalar is left exactly as it was.
 
 ```go
-s := scalar.Scalar("a  b   c")
+s := scalar.Value("a  b   c")
 s.S(`\s+`, " ", "g")       // s is now "a b c"; returns 2
 
-name := scalar.Scalar("Smith, John")
+name := scalar.Value("Smith, John")
 name.S(`(\w+), (\w+)`, "$2 $1")   // "John Smith"
 ```
 
@@ -1618,7 +1618,7 @@ For computed replacements, as in `s///e`, pass a function. It gets the match
 in the same layout as `M` returns:
 
 ```go
-s := scalar.Scalar("10 apples and 3 pears")
+s := scalar.Value("10 apples and 3 pears")
 s.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g")
 // "20 apples and 6 pears"
 ```
@@ -1626,12 +1626,12 @@ s.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g")
 ### Split
 
 ```go
-scalar.Scalar("a,b,,c,,").Split(`,`)         // a, b, "", c   (trailing empties dropped)
-scalar.Scalar("a,b,,c,,").Split(`,`, -1)     // a, b, "", c, "", ""
-scalar.Scalar("a,b,c,d").Split(`,`, 2)       // a, "b,c,d"
-scalar.Scalar("a1b2c").Split(`(\d)`)         // a, 1, b, 2, c   (captures included)
-scalar.Scalar("  some  words ").Split(" ")   // some, words     (awk mode)
-scalar.Scalar("abc").Split(``)               // a, b, c
+scalar.Value("a,b,,c,,").Split(`,`)         // a, b, "", c   (trailing empties dropped)
+scalar.Value("a,b,,c,,").Split(`,`, -1)     // a, b, "", c, "", ""
+scalar.Value("a,b,c,d").Split(`,`, 2)       // a, "b,c,d"
+scalar.Value("a1b2c").Split(`(\d)`)         // a, 1, b, 2, c   (captures included)
+scalar.Value("  some  words ").Split(" ")   // some, words     (awk mode)
+scalar.Value("abc").Split(``)               // a, b, c
 ```
 
 These follow Perl's `split` rules, including what happens with empty fields
@@ -1643,13 +1643,13 @@ and zero-width matches.
 characters matched, as a scalar.
 
 ```go
-s := scalar.Scalar("hello")
+s := scalar.Value("hello")
 s.Tr("a-z", "A-Z")                                 // "HELLO"; returns 5
 
-scalar.Scalar("banana").Tr("a", "")                // count only: returns 3
-scalar.Scalar("h-e-l-l-o").Tr("-", "", "d")        // delete: "hello"
-scalar.Scalar("a    b").Tr(" ", " ", "s")          // squeeze: "a b"
-scalar.Scalar("hi, you!").Tr("a-zA-Z", " ", "cs")  // "hi you "
+scalar.Value("banana").Tr("a", "")                // count only: returns 3
+scalar.Value("h-e-l-l-o").Tr("-", "", "d")        // delete: "hello"
+scalar.Value("a    b").Tr(" ", " ", "s")          // squeeze: "a b"
+scalar.Value("hi, you!").Tr("a-zA-Z", " ", "cs")  // "hi you "
 ```
 
 To use a literal hyphen, write `\-`.
@@ -1682,7 +1682,7 @@ from a Go `[]byte`, or by `Pack`. Its kind is `scalar.Bytes`, and `s.Bytes()`
 gives the bytes back as a `[]byte` (a copy).
 
 ```go
-png := scalar.Scalar(data)       // data is a []byte
+png := scalar.Value(data)       // data is a []byte
 png.Length()                     // the number of bytes
 png.M(`^\x89PNG`) != nil          // patterns match bytes
 header := png.Substr(0, 8)       // still a byte string
@@ -1704,7 +1704,7 @@ on the `unicode_strings` feature: **each byte is one character, from 0 to
   string: `Uc` of `\xff` (`ÿ`) is `Ÿ`, which has no single byte.
 - Joining text to a byte string joins characters: `é` (U+00E9) becomes the
   one byte `\xe9`, while `☺` makes the result text. To append text's UTF-8
-  bytes, append `scalar.Scalar([]byte(text))`.
+  bytes, append `scalar.Value([]byte(text))`.
 - `eq`, `lt` and the other comparisons compare characters, so the byte
   string `"\xe9"` equals the text `"é"`.
 
@@ -2058,7 +2058,7 @@ reference to the same data.
 
 ### Copying values and references
 
-- Copying a scalar copies its value: `other.Copy()`, `scalar.Scalar(other)`
+- Copying a scalar copies its value: `other.Copy()`, `scalar.Value(other)`
   or `s.Set(other)` all do this. So do `Push` and the other methods that take
   lists, for every value they add.
 - Copying a reference doesn't copy the array or hash it points to. Both copies
@@ -2177,16 +2177,16 @@ example here works and prints what it says. Edit the examples, not this section,
 
 ### Reference: Scalars
 
-#### `Scalar`
+#### `Value`
 
-Scalar returns a scalar holding x.
+Value returns a scalar holding x.
 
 ```go
-fmt.Println(scalar.Scalar(42).Kind() == scalar.Int)
-fmt.Println(scalar.Scalar(3.5).Kind() == scalar.Float)
-fmt.Println(scalar.Scalar("text").Kind() == scalar.String)
-fmt.Println(scalar.Scalar([]string{"a", "b"}).Ref()) // a slice becomes an array reference
-fmt.Println(scalar.Scalar(nil).Defined())            // nil is undef
+fmt.Println(scalar.Value(42).Kind() == scalar.Int)
+fmt.Println(scalar.Value(3.5).Kind() == scalar.Float)
+fmt.Println(scalar.Value("text").Kind() == scalar.String)
+fmt.Println(scalar.Value([]string{"a", "b"}).Ref()) // a slice becomes an array reference
+fmt.Println(scalar.Value(nil).Defined())            // nil is undef
 ```
 
 ```
@@ -2202,7 +2202,7 @@ false
 Set assigns x to s and returns s.
 
 ```go
-s := scalar.Scalar("old")
+s := scalar.Value("old")
 s.Set(10)                     // $s = 10
 fmt.Println(s.Add(1))         // it's a number now
 s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
@@ -2236,7 +2236,7 @@ fmt.Println(h.Get("count"))
 Clone returns a deep copy of s, as Storable's dclone does: arrays and hashes it refers to are copied too, all the way down, so changing the clone never changes the original.
 
 ```go
-h := scalar.Hash("defaults", scalar.Scalar(map[string]any{"tags": []any{"go"}}))
+h := scalar.Hash("defaults", scalar.Value(map[string]any{"tags": []any{"go"}}))
 shallow := h.Get("defaults").Copy() // my $row = $h{defaults}: the same hash
 deep := h.Get("defaults").Clone()   // my $row = dclone($h{defaults}): its own
 deep.At("tags").AV().Push("perl")
@@ -2260,7 +2260,7 @@ fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
 	"skills": []string{"Go", "SQL"},
 	"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
 }))
-fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Scalar(nil).Equal("")) // undef equals only undef
+fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Value(nil).Equal("")) // undef equals only undef
 ```
 
 ```
@@ -2310,7 +2310,7 @@ Kind reports what s currently holds.
 
 ```go
 for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
-	switch scalar.Scalar(x).Kind() {
+	switch scalar.Value(x).Kind() {
 	case scalar.Undef:
 		fmt.Println("undef")
 	case scalar.Bool:
@@ -2347,8 +2347,8 @@ hash
 Defined is Perl's defined().
 
 ```go
-fmt.Println(scalar.Scalar(nil).Defined())
-fmt.Println(scalar.Scalar("").Defined()) // empty, but defined
+fmt.Println(scalar.Value(nil).Defined())
+fmt.Println(scalar.Value("").Defined()) // empty, but defined
 fmt.Println(scalar.Hash().Get("missing").Defined())
 ```
 
@@ -2363,7 +2363,7 @@ false
 Any returns s as a plain Go value, in the shapes encoding/json uses: undef is nil; booleans, integers, floats and strings are bool, int64, float64 and string; array references become []any and hash references map[string]any, converted all the way down.
 
 ```go
-s := scalar.Scalar(map[string]any{"tags": []any{"go", 1}})
+s := scalar.Value(map[string]any{"tags": []any{"go", 1}})
 plain := s.Any().(map[string]any) // plain Go, sharing nothing with s
 fmt.Println(plain["tags"])
 ```
@@ -2377,8 +2377,8 @@ fmt.Println(plain["tags"])
 Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s is defined, otherwise def's.
 
 ```go
-fmt.Println(scalar.Scalar(nil).Or("default")) // $x // "default"
-fmt.Println(scalar.Scalar(0).Or("default"))   // 0 is defined, so it's kept
+fmt.Println(scalar.Value(nil).Or("default")) // $x // "default"
+fmt.Println(scalar.Value(0).Or("default"))   // 0 is defined, so it's kept
 ```
 
 ```
@@ -2410,7 +2410,7 @@ digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
 figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
 annual := func(v *scalar.SV) any { return v.Mul(12) }
 for _, text := range []string{"£4,000 a month", "Competitive"} {
-	fmt.Println(scalar.Scalar(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+	fmt.Println(scalar.Value(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
 }
 ```
 
@@ -2442,9 +2442,9 @@ none
 Ref is Perl's ref(): "ARRAY", "HASH", or "" for non-references.
 
 ```go
-fmt.Println(scalar.Scalar(scalar.Array(1)).Ref())
-fmt.Println(scalar.Scalar(scalar.Hash()).Ref())
-fmt.Printf("%q\n", scalar.Scalar("text").Ref())
+fmt.Println(scalar.Value(scalar.Array(1)).Ref())
+fmt.Println(scalar.Value(scalar.Hash()).Ref())
+fmt.Printf("%q\n", scalar.Value("text").Ref())
 ```
 
 ```
@@ -2458,10 +2458,10 @@ HASH
 Str returns s in string context.
 
 ```go
-fmt.Println(scalar.Scalar(42).Str())
-fmt.Println(scalar.Scalar(0.1 + 0.2).Str()) // Perl's 15 significant digits
-fmt.Println(scalar.Scalar(true).Str())
-fmt.Printf("%q\n", scalar.Scalar(nil).Str())
+fmt.Println(scalar.Value(42).Str())
+fmt.Println(scalar.Value(0.1 + 0.2).Str()) // Perl's 15 significant digits
+fmt.Println(scalar.Value(true).Str())
+fmt.Printf("%q\n", scalar.Value(nil).Str())
 ```
 
 ```
@@ -2476,7 +2476,7 @@ fmt.Printf("%q\n", scalar.Scalar(nil).Str())
 String implements `fmt.Stringer`.
 
 ```go
-fmt.Println(scalar.Scalar(1e21)) // fmt uses String, as Perl's print would
+fmt.Println(scalar.Value(1e21)) // fmt uses String, as Perl's print would
 ```
 
 ```
@@ -2511,9 +2511,9 @@ fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints i
 FromDump reads a structure written by Dump, or by Perl's Data::Dumper, and returns it, as FromJSON reads JSON.
 
 ```go
-tags := scalar.Scalar(scalar.Array("go"))
+tags := scalar.Value(scalar.Array("go"))
 doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
-back, err := scalar.FromDump(scalar.Scalar(doc).Dump())                          // a round trip
+back, err := scalar.FromDump(scalar.Value(doc).Dump())                          // a round trip
 fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
 
 perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
@@ -2680,7 +2680,7 @@ doc := scalar.MustFromDump(`[42, "42", "2.5", 2.5, "12345678901", !!1, undef]`)
 names := map[scalar.Kind]string{scalar.Int: "int", scalar.String: "string", scalar.Float: "float",
 	scalar.Bool: "bool", scalar.Undef: "undef"}
 fmt.Println(doc.AV().Map(func(v *scalar.SV) any { return names[v.Kind()] }).Join(" "))
-fmt.Println(scalar.Scalar("42").Dump(), scalar.Scalar(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
+fmt.Println(scalar.Value("42").Dump(), scalar.Value(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
 ```
 
 ```
@@ -2710,13 +2710,13 @@ scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, n
 Bytes returns s as a Go []byte: a byte string's bytes, or anything else's bytes in string context (see Str), so text gives its UTF-8 encoding.
 
 ```go
-png := scalar.Scalar([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
+png := scalar.Value([]byte("\x89PNG\r\n\x1a\n..."))  // a []byte makes a byte string
 fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
 fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
 fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
 blob := png.Bytes()                                   // back to a Go []byte (a copy)
 fmt.Println(len(blob))
-fmt.Println(scalar.Scalar("café").Bytes()) // text gives its UTF-8 bytes
+fmt.Println(scalar.Value("café").Bytes()) // text gives its UTF-8 bytes
 ```
 
 ```
@@ -2733,8 +2733,8 @@ Format implements `fmt.Formatter`, so that Go's format verbs treat s as Perl's s
 
 ```go
 fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
-	scalar.Scalar("42 apples"), scalar.Scalar("3.14159"), scalar.Scalar(255),
-	scalar.Scalar("ab"), scalar.Scalar("0"))
+	scalar.Value("42 apples"), scalar.Value("3.14159"), scalar.Value(255),
+	scalar.Value("ab"), scalar.Value("0"))
 ```
 
 ```
@@ -2746,8 +2746,8 @@ fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
 Num returns s in numeric context.
 
 ```go
-fmt.Println(scalar.Scalar("3.5kg").Num()) // the numeric prefix, as Perl does
-fmt.Println(scalar.Scalar("abc").Num())
+fmt.Println(scalar.Value("3.5kg").Num()) // the numeric prefix, as Perl does
+fmt.Println(scalar.Value("abc").Num())
 ```
 
 ```
@@ -2761,7 +2761,7 @@ NumOK is Num, plus false wherever Perl would warn: undef, empty or non-numeric s
 
 ```go
 for _, x := range []any{"42", " 42 ", "42abc", "", nil} {
-	n, ok := scalar.Scalar(x).NumOK()
+	n, ok := scalar.Value(x).NumOK()
 	fmt.Println(n, ok) // ok is false wherever Perl would warn
 }
 ```
@@ -2779,8 +2779,8 @@ for _, x := range []any{"42", " 42 ", "42abc", "", nil} {
 Int returns s in integer context, truncating toward zero.
 
 ```go
-fmt.Println(scalar.Scalar(-3.9).Int()) // truncates toward zero
-fmt.Println(scalar.Scalar("12 items").Int())
+fmt.Println(scalar.Value(-3.9).Int()) // truncates toward zero
+fmt.Println(scalar.Value("12 items").Int())
 ```
 
 ```
@@ -2793,9 +2793,9 @@ fmt.Println(scalar.Scalar("12 items").Int())
 IntOK is Int, plus false wherever NumOK would be false, and for NaN or floats outside the int64 range (which are clamped).
 
 ```go
-i, ok := scalar.Scalar("9223372036854775807").IntOK() // exact, however large
+i, ok := scalar.Value("9223372036854775807").IntOK() // exact, however large
 fmt.Println(i, ok)
-i, ok = scalar.Scalar(1e30).IntOK() // out of range: clamped
+i, ok = scalar.Value(1e30).IntOK() // out of range: clamped
 fmt.Println(i, ok)
 ```
 
@@ -2810,7 +2810,7 @@ Bool returns s in boolean context: undef, "", "0", 0 and 0.0 are false; everythi
 
 ```go
 for _, x := range []any{nil, "", "0", 0, 0.0, "0.0", "00", " ", "a"} {
-	fmt.Print(scalar.Scalar(x).Bool(), " ")
+	fmt.Print(scalar.Value(x).Bool(), " ")
 }
 fmt.Println()
 ```
@@ -2827,7 +2827,7 @@ AV dereferences s as an array.
 var s scalar.SV   // undef
 s.AV().Push(1, 2) // push @$s, 1, 2: autovivifies an array
 fmt.Println(s.AV().Join(","))
-fmt.Println(scalar.Scalar("text").AV() == nil) // not an array
+fmt.Println(scalar.Value("text").AV() == nil) // not an array
 ```
 
 ```
@@ -3033,11 +3033,11 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 
 #### `SV.Length`
 
-Length is Perl's length($s): the number of characters (not bytes) in s in string context, so Scalar(12345).Length() is 5 and "café" is 4.
+Length is Perl's length($s): the number of characters (not bytes) in s in string context, so Value(12345).Length() is 5 and "café" is 4.
 
 ```go
-fmt.Println(scalar.Scalar("café").Length()) // characters, not bytes
-fmt.Println(scalar.Scalar(12345).Length())  // in string context
+fmt.Println(scalar.Value("café").Length()) // characters, not bytes
+fmt.Println(scalar.Value(12345).Length())  // in string context
 ```
 
 ```
@@ -3050,7 +3050,7 @@ fmt.Println(scalar.Scalar(12345).Length())  // in string context
 Substr is Perl's substr($s, offset) or substr($s, offset, length): a new scalar holding part of s in string context, counted in characters.
 
 ```go
-s := scalar.Scalar("Senior Go Developer")
+s := scalar.Value("Senior Go Developer")
 fmt.Println(s.Substr(7))            // substr($s, 7)
 fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
 fmt.Println(s.Substr(-9))           // from the end
@@ -3071,7 +3071,7 @@ false
 SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
 
 ```go
-s := scalar.Scalar("Junior Go Developer")
+s := scalar.Value("Junior Go Developer")
 old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
 fmt.Println(s, "/", old)
 ```
@@ -3085,7 +3085,7 @@ Senior Go Developer / Junior
 Index is Perl's index($s, substr[, position]): the character position of the first occurrence of substr at or after position (default 0), or -1.
 
 ```go
-s := scalar.Scalar("café au lait")
+s := scalar.Value("café au lait")
 fmt.Println(s.Index("au"))   // a character position, ready for Substr
 fmt.Println(s.Index("a", 2)) // starting from position 2
 fmt.Println(s.Index("tea"))
@@ -3102,7 +3102,7 @@ fmt.Println(s.Index("tea"))
 RIndex is Perl's rindex($s, substr[, position]): the character position of the last occurrence of substr starting at or before position (default the end of the string), or -1.
 
 ```go
-s := scalar.Scalar("a/b/c")
+s := scalar.Value("a/b/c")
 fmt.Println(s.RIndex("/"))    // the last one
 fmt.Println(s.RIndex("/", 2)) // the last one at or before position 2
 ```
@@ -3117,7 +3117,7 @@ fmt.Println(s.RIndex("/", 2)) // the last one at or before position 2
 Lc is Perl's lc: s in lower case, using Unicode's full case mappings.
 
 ```go
-fmt.Println(scalar.Scalar("ÉCOLE Go").Lc())
+fmt.Println(scalar.Value("ÉCOLE Go").Lc())
 ```
 
 ```
@@ -3129,7 +3129,7 @@ fmt.Println(scalar.Scalar("ÉCOLE Go").Lc())
 Uc is Perl's uc: s in upper case, using Unicode's full case mappings, so "straße" becomes "STRASSE".
 
 ```go
-fmt.Println(scalar.Scalar("straße").Uc()) // full Unicode mappings
+fmt.Println(scalar.Value("straße").Uc()) // full Unicode mappings
 ```
 
 ```
@@ -3141,7 +3141,7 @@ STRASSE
 Fc is Perl's fc: s case-folded, for comparing strings regardless of case.
 
 ```go
-a, b := scalar.Scalar("Straße"), scalar.Scalar("STRASSE")
+a, b := scalar.Value("Straße"), scalar.Value("STRASSE")
 fmt.Println(a.Lc().Eq(b.Lc())) // lc isn't enough for this
 fmt.Println(a.Fc().Eq(b.Fc())) // fc is: compare case-insensitively with it
 ```
@@ -3156,7 +3156,7 @@ true
 UcFirst is Perl's ucfirst: s with its first character in title case.
 
 ```go
-fmt.Println(scalar.Scalar("élan vital").UcFirst())
+fmt.Println(scalar.Value("élan vital").UcFirst())
 ```
 
 ```
@@ -3168,7 +3168,7 @@ fmt.Println(scalar.Scalar("élan vital").UcFirst())
 LcFirst is Perl's lcfirst: s with its first character in lower case.
 
 ```go
-fmt.Println(scalar.Scalar("HELLO").LcFirst())
+fmt.Println(scalar.Value("HELLO").LcFirst())
 ```
 
 ```
@@ -3180,7 +3180,7 @@ hELLO
 Trim is Perl's trim (builtin::trim, Perl 5.36): s without leading or trailing whitespace, including Unicode spaces such as no-break space.
 
 ```go
-fmt.Printf("%q\n", scalar.Scalar("\u00a0 padded \t").Trim()) // Unicode spaces too
+fmt.Printf("%q\n", scalar.Value("\u00a0 padded \t").Trim()) // Unicode spaces too
 ```
 
 ```
@@ -3193,7 +3193,7 @@ QuoteMeta is Perl's quotemeta: x in string context with every character that cou
 
 ```go
 fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
-posting := scalar.Scalar("Skills: C++ and .NET")
+posting := scalar.Value("Skills: C++ and .NET")
 fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
 ```
 
@@ -3227,7 +3227,7 @@ Up to 55000
 Interpolate fills in a template from h; see `SV.Interpolate`.
 
 ```go
-row := scalar.Hash("name", "Ada", "langs", scalar.Scalar([]string{"Go", "Perl"}))
+row := scalar.Hash("name", "Ada", "langs", scalar.Value([]string{"Go", "Perl"}))
 fmt.Println(row.Interpolate("$name writes @langs"))
 ```
 
@@ -3268,7 +3268,7 @@ ListSeparator returns a copy of t that joins the elements of an array with sep, 
 
 ```go
 t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
-fmt.Println(scalar.Hash("skills", scalar.Scalar([]string{"Go", "SQL"})).Interpolate(t))
+fmt.Println(scalar.Hash("skills", scalar.Value([]string{"Go", "SQL"})).Interpolate(t))
 ```
 
 ```
@@ -3294,9 +3294,9 @@ $title in $location
 Add is Perl's +.
 
 ```go
-fmt.Println(scalar.Scalar("40").Add(2))          // "40" + 2
-fmt.Println(scalar.Scalar(1.5).Add("1.5"))       // floats when needed
-fmt.Println(scalar.Scalar(math.MaxInt64).Add(1)) // an integer that would overflow becomes a float
+fmt.Println(scalar.Value("40").Add(2))          // "40" + 2
+fmt.Println(scalar.Value(1.5).Add("1.5"))       // floats when needed
+fmt.Println(scalar.Value(math.MaxInt64).Add(1)) // an integer that would overflow becomes a float
 ```
 
 ```
@@ -3310,7 +3310,7 @@ fmt.Println(scalar.Scalar(math.MaxInt64).Add(1)) // an integer that would overfl
 Sub is Perl's -.
 
 ```go
-fmt.Println(scalar.Scalar(10).Sub("2.5"))
+fmt.Println(scalar.Value(10).Sub("2.5"))
 ```
 
 ```
@@ -3322,7 +3322,7 @@ fmt.Println(scalar.Scalar(10).Sub("2.5"))
 Mul is Perl's *.
 
 ```go
-fmt.Println(scalar.Scalar("6").Mul(7))
+fmt.Println(scalar.Value("6").Mul(7))
 ```
 
 ```
@@ -3334,8 +3334,8 @@ fmt.Println(scalar.Scalar("6").Mul(7))
 Div is Perl's /.
 
 ```go
-fmt.Println(scalar.Scalar(7).Div(2)) // not integer division
-fmt.Println(scalar.Scalar(8).Div(2))
+fmt.Println(scalar.Value(7).Div(2)) // not integer division
+fmt.Println(scalar.Value(8).Div(2))
 ```
 
 ```
@@ -3348,8 +3348,8 @@ fmt.Println(scalar.Scalar(8).Div(2))
 Mod is Perl's %: both operands are truncated to integers, and a nonzero result takes the sign of the right operand (-7 % 3 is 2).
 
 ```go
-fmt.Println(scalar.Scalar(7).Mod(3))
-fmt.Println(scalar.Scalar(-7).Mod(3)) // takes the sign of the right operand
+fmt.Println(scalar.Value(7).Mod(3))
+fmt.Println(scalar.Value(-7).Mod(3)) // takes the sign of the right operand
 ```
 
 ```
@@ -3362,8 +3362,8 @@ fmt.Println(scalar.Scalar(-7).Mod(3)) // takes the sign of the right operand
 Pow is Perl's **.
 
 ```go
-fmt.Println(scalar.Scalar(2).Pow(10))
-fmt.Println(scalar.Scalar(2).Pow(-1))
+fmt.Println(scalar.Value(2).Pow(10))
+fmt.Println(scalar.Value(2).Pow(-1))
 ```
 
 ```
@@ -3376,9 +3376,9 @@ fmt.Println(scalar.Scalar(2).Pow(-1))
 Neg is Perl's unary minus, string madness included: -"foo" is "-foo", -"-foo" is "+foo", and -"+foo" is "-foo".
 
 ```go
-fmt.Println(scalar.Scalar(5).Neg())
-fmt.Println(scalar.Scalar("foo").Neg()) // string madness, as in Perl
-fmt.Println(scalar.Scalar("-foo").Neg())
+fmt.Println(scalar.Value(5).Neg())
+fmt.Println(scalar.Value("foo").Neg()) // string madness, as in Perl
+fmt.Println(scalar.Value("-foo").Neg())
 ```
 
 ```
@@ -3392,7 +3392,7 @@ fmt.Println(scalar.Scalar("-foo").Neg())
 Concat is Perl's .
 
 ```go
-fmt.Println(scalar.Scalar("Go").Concat(1.5)) // "Go" . 1.5
+fmt.Println(scalar.Value("Go").Concat(1.5)) // "Go" . 1.5
 ```
 
 ```
@@ -3404,8 +3404,8 @@ Go1.5
 Repeat is Perl's x operator on a scalar.
 
 ```go
-fmt.Println(scalar.Scalar("ab").Repeat(3)) // "ab" x 3
-fmt.Printf("%q\n", scalar.Scalar("ab").Repeat(0))
+fmt.Println(scalar.Value("ab").Repeat(3)) // "ab" x 3
+fmt.Printf("%q\n", scalar.Value("ab").Repeat(0))
 ```
 
 ```
@@ -3418,9 +3418,9 @@ ababab
 Inc is Perl's ++: it modifies s in place and returns it.
 
 ```go
-n := scalar.Scalar(9)
+n := scalar.Value(9)
 n.Inc()
-id := scalar.Scalar("az9")
+id := scalar.Value("az9")
 id.Inc() // Perl's magic string increment
 fmt.Println(n, id)
 ```
@@ -3434,7 +3434,7 @@ fmt.Println(n, id)
 Dec is Perl's --: it modifies s in place and returns it.
 
 ```go
-s := scalar.Scalar("aa")
+s := scalar.Value("aa")
 s.Dec() // never magic: "aa" is 0 as a number
 fmt.Println(s)
 ```
@@ -3464,7 +3464,7 @@ fmt.Println(totals.Get("sum"))
 SubInPlace is Perl's -=.
 
 ```go
-s := scalar.Scalar(10)
+s := scalar.Value(10)
 s.SubInPlace(3) // $s -= 3
 fmt.Println(s)
 ```
@@ -3478,7 +3478,7 @@ fmt.Println(s)
 MulInPlace is Perl's *=.
 
 ```go
-s := scalar.Scalar(4)
+s := scalar.Value(4)
 s.MulInPlace(2.5) // $s *= 2.5
 fmt.Println(s)
 ```
@@ -3492,7 +3492,7 @@ fmt.Println(s)
 DivInPlace is Perl's /=.
 
 ```go
-s := scalar.Scalar(9)
+s := scalar.Value(9)
 s.DivInPlace(2) // $s /= 2
 fmt.Println(s)
 ```
@@ -3506,7 +3506,7 @@ fmt.Println(s)
 ModInPlace is Perl's %=.
 
 ```go
-s := scalar.Scalar(17)
+s := scalar.Value(17)
 s.ModInPlace(5) // $s %= 5
 fmt.Println(s)
 ```
@@ -3520,7 +3520,7 @@ fmt.Println(s)
 PowInPlace is Perl's **=.
 
 ```go
-s := scalar.Scalar(3)
+s := scalar.Value(3)
 s.PowInPlace(2) // $s **= 2
 fmt.Println(s)
 ```
@@ -3534,7 +3534,7 @@ fmt.Println(s)
 ConcatInPlace is Perl's .=.
 
 ```go
-s := scalar.Scalar("Go")
+s := scalar.Value("Go")
 s.ConcatInPlace(" developer") // $s .= " developer"
 fmt.Println(s)
 ```
@@ -3548,7 +3548,7 @@ Go developer
 RepeatInPlace is Perl's x=.
 
 ```go
-s := scalar.Scalar("-")
+s := scalar.Value("-")
 s.RepeatInPlace(5) // $s x= 5
 fmt.Println(s)
 ```
@@ -3562,8 +3562,8 @@ fmt.Println(s)
 Eq is Perl's eq.
 
 ```go
-fmt.Println(scalar.Scalar(1.0).Eq("1")) // eq compares strings: 1.0 is "1"
-fmt.Println(scalar.Scalar("1.0").Eq(1))
+fmt.Println(scalar.Value(1.0).Eq("1")) // eq compares strings: 1.0 is "1"
+fmt.Println(scalar.Value("1.0").Eq(1))
 ```
 
 ```
@@ -3576,7 +3576,7 @@ false
 Ne is Perl's ne.
 
 ```go
-fmt.Println(scalar.Scalar("go").Ne("Go"))
+fmt.Println(scalar.Value("go").Ne("Go"))
 ```
 
 ```
@@ -3588,7 +3588,7 @@ true
 Lt is Perl's lt.
 
 ```go
-fmt.Println(scalar.Scalar("10").Lt("9")) // as strings, "10" sorts first
+fmt.Println(scalar.Value("10").Lt("9")) // as strings, "10" sorts first
 ```
 
 ```
@@ -3600,7 +3600,7 @@ true
 Le is Perl's le.
 
 ```go
-fmt.Println(scalar.Scalar("a").Le("a"))
+fmt.Println(scalar.Value("a").Le("a"))
 ```
 
 ```
@@ -3612,7 +3612,7 @@ true
 Gt is Perl's gt.
 
 ```go
-fmt.Println(scalar.Scalar("b").Gt("abc"))
+fmt.Println(scalar.Value("b").Gt("abc"))
 ```
 
 ```
@@ -3624,7 +3624,7 @@ true
 Ge is Perl's ge.
 
 ```go
-fmt.Println(scalar.Scalar("abc").Ge("abd"))
+fmt.Println(scalar.Value("abc").Ge("abd"))
 ```
 
 ```
@@ -3636,8 +3636,8 @@ false
 NumEq is Perl's ==.
 
 ```go
-fmt.Println(scalar.Scalar("1.0").NumEq(1)) // == compares numbers
-fmt.Println(scalar.Scalar("NaN").NumEq("NaN"))
+fmt.Println(scalar.Value("1.0").NumEq(1)) // == compares numbers
+fmt.Println(scalar.Value("NaN").NumEq("NaN"))
 ```
 
 ```
@@ -3650,7 +3650,7 @@ false
 NumNe is Perl's !=.
 
 ```go
-fmt.Println(scalar.Scalar("10").NumNe(10.0))
+fmt.Println(scalar.Value("10").NumNe(10.0))
 ```
 
 ```
@@ -3662,7 +3662,7 @@ false
 NumLt is Perl's <.
 
 ```go
-fmt.Println(scalar.Scalar("10").NumLt("9")) // as numbers, 9 is smaller
+fmt.Println(scalar.Value("10").NumLt("9")) // as numbers, 9 is smaller
 ```
 
 ```
@@ -3674,7 +3674,7 @@ false
 NumLe is Perl's <=.
 
 ```go
-fmt.Println(scalar.Scalar(2).NumLe("2.0"))
+fmt.Println(scalar.Value(2).NumLe("2.0"))
 ```
 
 ```
@@ -3686,7 +3686,7 @@ true
 NumGt is Perl's >.
 
 ```go
-fmt.Println(scalar.Scalar("9007199254740993").NumGt("9007199254740992")) // integers compare exactly
+fmt.Println(scalar.Value("9007199254740993").NumGt("9007199254740992")) // integers compare exactly
 ```
 
 ```
@@ -3698,7 +3698,7 @@ true
 NumGe is Perl's >=.
 
 ```go
-fmt.Println(scalar.Scalar(-1).NumGe(0))
+fmt.Println(scalar.Value(-1).NumGe(0))
 ```
 
 ```
@@ -3714,7 +3714,7 @@ Array returns an array of vals, as Perl's (...) list does: arrays and hashes amo
 ```go
 a := scalar.Array("a", []string{"b", "c"}, scalar.Array("d")) // lists flatten, as in Perl
 fmt.Println(a.Length(), a.Join(","))
-nested := scalar.Array(1, scalar.Scalar(scalar.Array(2, 3))) // a reference stays one element
+nested := scalar.Array(1, scalar.Value(scalar.Array(2, 3))) // a reference stays one element
 fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
 ```
 
@@ -3728,7 +3728,7 @@ fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
 String returns a on one line, as Dump does but with Indent = 0, so `fmt.Println`(a) shows its elements, nested arrays and hashes included: [1,"a",[2]].
 
 ```go
-a := scalar.Array("Go", 1, scalar.Scalar(scalar.Array(2, 3)))
+a := scalar.Array("Go", 1, scalar.Value(scalar.Array(2, 3)))
 fmt.Println(a) // fmt uses String: the elements, on one line
 ```
 
@@ -3892,7 +3892,7 @@ Push is Perl's push: it appends vals and returns a.
 ```go
 a := scalar.Array("a")
 a.Push("b", []string{"c", "d"})           // push @a, "b", @list
-a.Push(scalar.Scalar(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
+a.Push(scalar.Value(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
 fmt.Println(a.Length(), a.Get(-1).Ref())
 ```
 
@@ -4247,7 +4247,7 @@ fmt.Println(year, month, day, rest.Length())
 Clone returns a deep copy of a, as dclone(\@a) does; see `SV.Clone`.
 
 ```go
-rows := scalar.Array(scalar.Scalar(map[string]any{"title": "Go Developer"})) // one row: a hash reference
+rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
 mine := rows.Clone()                                                         // dclone(\@rows): the rows too, not just the list
 mine.Get(0).At("title").Set("Perl Developer")
 fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
@@ -4287,7 +4287,7 @@ fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
 Apply calls f on every plain value in a, all the way down, as rmap { ...
 
 ```go
-prices := scalar.Array(10, scalar.Scalar([]any{20, 30}))
+prices := scalar.Array(10, scalar.Value([]any{20, 30}))
 prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
 fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
 ```
@@ -4334,7 +4334,7 @@ fmt.Println(h) // keys sorted, and quoted only when they need to be
 Dump returns h as Data::Dumper prints \%h; see `SV.Dump`.
 
 ```go
-tags := scalar.Scalar(scalar.Array("go"))
+tags := scalar.Value(scalar.Array("go"))
 h := scalar.Hash("tags", tags, "again", tags) // the same array twice
 fmt.Println(h.Dump())
 ```
@@ -4468,7 +4468,7 @@ false
 Clone returns a deep copy of h, as dclone(\%h) does; see `SV.Clone`.
 
 ```go
-defaults := scalar.Hash("remote", false, "tags", scalar.Scalar([]string{"go"}))
+defaults := scalar.Hash("remote", false, "tags", scalar.Value([]string{"go"}))
 row := defaults.Clone() // dclone(\%defaults): nested arrays too
 row.Get("tags").AV().Push("perl")
 merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
@@ -5528,7 +5528,7 @@ fmt.Println(string(out))
 M is $s =~ /re/ with captures.
 
 ```go
-s := scalar.Scalar("Salary: £45,000 - £55,000")
+s := scalar.Value("Salary: £45,000 - £55,000")
 if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
 	fmt.Println("matched")
 }
@@ -5555,7 +5555,7 @@ false
 Named is $s =~ /re/ followed by reading %+.
 
 ```go
-d := scalar.Scalar("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+d := scalar.Value("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
 fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
 ```
 
@@ -5568,15 +5568,15 @@ fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
 S is Perl's s///.
 
 ```go
-s := scalar.Scalar("a  b   c")
+s := scalar.Value("a  b   c")
 n := s.S(`\s+`, " ", "g") // $s =~ s/\s+/ /g
 fmt.Println(s, n)
-name := scalar.Scalar("Lovelace, Ada")
+name := scalar.Value("Lovelace, Ada")
 name.S(`(\w+), (\w+)`, "$2 $1") // $1 and $2 in the replacement
 fmt.Println(name)
-clean := scalar.Scalar("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
+clean := scalar.Value("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
 fmt.Println(clean)
-doubled := scalar.Scalar("3 apples, 4 pears")
+doubled := scalar.Value("3 apples, 4 pears")
 doubled.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g") // s///e
 fmt.Println(doubled)
 ```
@@ -5593,10 +5593,10 @@ xy
 Split is Perl's split /re/, $s.
 
 ```go
-fmt.Println(scalar.Scalar("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
-fmt.Println(scalar.Scalar("a1b2c").Split(`(\d)`).Join("|"))       // captures included
-fmt.Println(scalar.Scalar("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
-fmt.Println(scalar.Scalar("  some  words ").Split(" ").Join("|")) // awk mode
+fmt.Println(scalar.Value("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
+fmt.Println(scalar.Value("a1b2c").Split(`(\d)`).Join("|"))       // captures included
+fmt.Println(scalar.Value("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
+fmt.Println(scalar.Value("  some  words ").Split(" ").Join("|")) // awk mode
 ```
 
 ```
@@ -5611,11 +5611,11 @@ some|words
 Tr is Perl's tr/// (y///).
 
 ```go
-s := scalar.Scalar("hello")
+s := scalar.Value("hello")
 s.Tr("a-z", "A-Z") // $s =~ tr/a-z/A-Z/
 fmt.Println(s)
-fmt.Println(scalar.Scalar("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
-fmt.Println(scalar.Scalar("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
+fmt.Println(scalar.Value("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
+fmt.Println(scalar.Value("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
 ```
 
 ```
@@ -5643,11 +5643,11 @@ MustCompile is Compile, panicking if the pattern is invalid.
 
 ```go
 salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
-s := scalar.Scalar("£45,000 to £55,000")
+s := scalar.Value("£45,000 to £55,000")
 fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
 fmt.Println(s.S(salary, "£X", "gr"))
 insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
-fmt.Println(scalar.Scalar("REMOTE").M(insensitive) != nil)
+fmt.Println(scalar.Value("REMOTE").M(insensitive) != nil)
 ```
 
 ```
@@ -5739,11 +5739,11 @@ true false
 MarshalJSON implements `json.Marshaler`.
 
 ```go
-h := scalar.Hash("b", 1, "a", scalar.Scalar(scalar.Array("x", nil)))
-out, _ := json.Marshal(scalar.Scalar(h)) // keys sorted, undef as null
+h := scalar.Hash("b", 1, "a", scalar.Value(scalar.Array("x", nil)))
+out, _ := json.Marshal(scalar.Value(h)) // keys sorted, undef as null
 fmt.Println(string(out))
-h.Set("self", scalar.Scalar(h)) // a loop can't be JSON: an error, not a crash
-_, err := json.Marshal(scalar.Scalar(h))
+h.Set("self", scalar.Value(h)) // a loop can't be JSON: an error, not a crash
+_, err := json.Marshal(scalar.Value(h))
 fmt.Println(err != nil)
 ```
 
@@ -5885,8 +5885,8 @@ ToYAML writes s as a YAML document, with two-space indentation, as Kubernetes an
 
 ```go
 cfg := scalar.Hash("name", "web", "replicas", 3, "country", "no", "version", "1.0",
-	"ports", scalar.Scalar([]int{80, 443}))
-out, _ := scalar.Scalar(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
+	"ports", scalar.Value([]int{80, 443}))
+out, _ := scalar.Value(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
 fmt.Print(string(out))
 ```
 
@@ -5921,7 +5921,7 @@ fmt.Print(string(out))
 ToYAML writes h as a YAML mapping; see `SV.ToYAML`.
 
 ```go
-shared := scalar.Scalar(scalar.Hash("cpu", "500m"))
+shared := scalar.Value(scalar.Hash("cpu", "500m"))
 h := scalar.Hash("requests", shared, "limits", shared) // the same hash twice
 out, _ := h.ToYAML()
 fmt.Print(string(out)) // an anchor, then an alias
@@ -5958,7 +5958,7 @@ MarshalYAML lets a scalar be a field of a struct written with the YAML package's
 out, _ := yaml.Marshal(struct {
 	Name  string     `yaml:"name"`
 	Extra *scalar.SV `yaml:"extra"`
-}{"web", scalar.Scalar(map[string]any{"ports": []int{80}})})
+}{"web", scalar.Value(map[string]any{"ports": []int{80}})})
 fmt.Print(string(out))
 ```
 
@@ -6045,9 +6045,9 @@ fmt.Printf("%q %v\n", skills, years)
 #### `To.number`
 
 ```go
-salary, err := scalar.To[int](scalar.Scalar(" 55000 ")) // a numeric string, as Perl reads it
+salary, err := scalar.To[int](scalar.Value(" 55000 ")) // a numeric string, as Perl reads it
 fmt.Println(salary, err)
-rate, err := scalar.To[float64](scalar.Scalar("37.5"))
+rate, err := scalar.To[float64](scalar.Value("37.5"))
 fmt.Println(rate, err)
 ```
 

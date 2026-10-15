@@ -52,7 +52,7 @@ func flatten(vals []any) []*SV {
 			}
 			return
 		case nil, *SV, string, bool, int, int64, float64, []byte: // a []byte is one byte string
-			out = append(out, Scalar(v))
+			out = append(out, Value(v))
 			return
 		// The most common slices skip reflection.
 		case []string:
@@ -73,10 +73,10 @@ func flatten(vals []any) []*SV {
 			}
 		case reflect.Map:
 			for it := rv.MapRange(); it.Next(); {
-				out = append(out, &SV{v: mapKey(it.Key())}, Scalar(it.Value().Interface()))
+				out = append(out, &SV{v: mapKey(it.Key())}, Value(it.Value().Interface()))
 			}
 		default:
-			out = append(out, Scalar(v))
+			out = append(out, Value(v))
 		}
 	}
 	for _, v := range vals {
@@ -201,12 +201,12 @@ func (a *AV) Delete(i int) *SV {
 // array among vals adds its elements, and a hash adds its key/value pairs,
 // so a.Push(b) is push @a, @b. Go slices and maps flatten the
 // same way. To add a nested array or hash, push a scalar holding a
-// reference to it: a.Push(Scalar(b)) is push @a, \@b. Values are copied.
+// reference to it: a.Push(Value(b)) is push @a, \@b. Values are copied.
 func (a *AV) Push(vals ...any) *AV {
 	a.mustExist()
 	if plainValues(vals) {
 		for _, v := range vals {
-			a.items = append(a.items, Scalar(v))
+			a.items = append(a.items, Value(v))
 		}
 		return a
 	}
@@ -524,7 +524,7 @@ func (a *AV) fillHoles() {
 func (a *AV) copy() *AV {
 	out := &AV{items: make([]*SV, a.Length())}
 	for i, s := range a.All() {
-		out.items[i] = Scalar(s)
+		out.items[i] = Value(s)
 	}
 	return out
 }
