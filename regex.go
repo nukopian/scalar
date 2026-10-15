@@ -266,13 +266,26 @@ func (s *SV) Named(re any, flags ...string) *HV {
 // re is a pattern string or a *Regexp.
 func (s *SV) S(re any, repl any, flags ...string) *SV {
 	f := parseFlags("S", "imsxgr", flags)
-	rx := regex("S", re, f)
-	str, isBytes := s.text()
 	limit := 1
 	if f.has('g') {
 		limit = -1
 	}
 
+	// A pattern that matches only itself, with plain replacement text, needs
+	// no regex: S(",", "", "gr") is strings.ReplaceAll.
+	pat, isString := re.(string)
+	text, plain := repl.(string)
+	if fastPaths && isString && plain && literalPattern(pat) && !f.has('i') && !f.has('x') && !strings.Contains(text, "$") {
+		str, isBytes := s.text()
+		n := strings.Count(str, pat)
+		if limit == 1 {
+			n = min(n, 1)
+		}
+		return s.substituted(strings.Replace(str, pat, text, limit), n, isBytes, f)
+	}
+
+	rx := regex("S", re, f)
+	str, isBytes := s.text()
 	n := 0
 	var out string
 	switch r := repl.(type) {
@@ -321,7 +334,12 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 	if n == 0 {
 		out = str
 	}
+	return s.substituted(out, n, isBytes, f)
+}
 
+// substituted finishes S: with "r", the new string; otherwise s takes it, if
+// anything was replaced, and the count is returned.
+func (s *SV) substituted(out string, n int, isBytes bool, f flagSet) *SV {
 	if f.has('r') {
 		return textResult(out, isBytes)
 	}

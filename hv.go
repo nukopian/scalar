@@ -23,6 +23,9 @@ type HV struct {
 // merges like %h = (%defaults, k => "v"), with later keys winning. Keys are
 // stringified; a trailing key without a value maps to undef.
 func Hash(kv ...any) *HV {
+	if h, ok := plainHash(kv); ok {
+		return h
+	}
 	flat := flatten(kv)
 	h := newHV((len(flat) + 1) / 2)
 	for i := 0; i < len(flat); i += 2 {

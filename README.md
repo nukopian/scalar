@@ -1151,6 +1151,11 @@ The rules are the same as Perl's:
 - Going *through* a missing key creates it, even if you are only reading.
   `h.Get("a").HV().Get("b")` creates `$h{a}` but not `$h{a}{b}`.
 
+Reading a missing key does cost something: it gives a new undef scalar,
+ready to create the key if you write to it. To ask only whether a key is
+there, as in a loop over many records, `h.Exists(k)` costs nothing:
+`m.HV().Exists("k")` rather than `m.At("k").Defined()`.
+
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints), and
 `At` takes the same route as one string. Both are methods of a scalar,
 follow the same rules, and replace a chain of `AV()` and `HV()`:
