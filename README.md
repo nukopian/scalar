@@ -2132,6 +2132,17 @@ original's own, as described under [Hashes](#hashes).
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.
 
+## Acknowledgements
+
+The ideas here aren't new. `scalar` borrows Perl's way with data: undef
+that passes harmlessly through a chain, autovivification, context, list
+utilities, and a regex at every turn. It's tested against Perl itself to
+keep its behaviour faithful. Thanks to the Perl community for decades of
+thought about handling messy data well.
+
+Much of the code was written with Claude, Anthropic's AI model, working
+from my direction and review.
+
 ## Reference
 
 One example for every function and method, with the output it prints.
