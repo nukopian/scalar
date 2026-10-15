@@ -39,6 +39,23 @@ func plainHash(kv []any) (*HV, bool) {
 	return h, true
 }
 
+// plainValues reports whether no value in vals flattens, so that Push can
+// append copies of them directly, as flatten would, without the list it
+// builds.
+func plainValues(vals []any) bool {
+	if !fastPaths {
+		return false
+	}
+	for _, v := range vals {
+		switch v.(type) {
+		case nil, *SV, string, bool, int, int64, float64, []byte:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // literalPattern reports whether pattern matches only itself, so that S can
 // replace it with the strings package instead of a regex. The flags that
 // would change that (i and x) are checked by the caller.

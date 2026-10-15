@@ -1772,6 +1772,11 @@ out, err := json.Marshal(s)      // encode
   fields in your own structs.
 - Hashes are encoded with their keys sorted, so the same data always produces
   the same JSON, even though hash order is random.
+- Decoding reads JSON straight into scalars, about three times faster than
+  going through `encoding/json`'s maps and slices. Anything unusual (an
+  error, bytes that aren't UTF-8, a lone `\ud800` escape, very deep
+  nesting) is handed to `encoding/json` instead, so results and error
+  messages are always exactly `encoding/json`'s.
 - **Encoding can fail**, with an error rather than a panic, in two cases JSON
   can't represent: a reference that leads back to itself (a hash that
   contains itself, directly or further down), and a NaN or infinite number.

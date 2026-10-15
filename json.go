@@ -21,6 +21,16 @@ func FromJSON(data []byte) (*SV, error) {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (s *SV) UnmarshalJSON(data []byte) error {
+	if v, ok := readJSON(data); ok {
+		s.Set(v)
+		return nil
+	}
+	return s.unmarshalJSONSlow(data)
+}
+
+// unmarshalJSONSlow decodes with encoding/json, for whatever readJSON
+// doesn't take, errors included.
+func (s *SV) unmarshalJSONSlow(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	var x any
@@ -60,6 +70,9 @@ func (h *HV) MarshalJSON() ([]byte, error) {
 	}
 	return (&SV{v: h}).MarshalJSON()
 }
+
+// jsonNumber is a number's text as a json.Number, for normalizeJSONNumber.
+func jsonNumber(text []byte) json.Number { return json.Number(text) }
 
 func normalizeJSONNumber(n json.Number) any {
 	if i, err := strconv.ParseInt(string(n), 10, 64); err == nil {

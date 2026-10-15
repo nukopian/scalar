@@ -204,6 +204,12 @@ func (a *AV) Delete(i int) *SV {
 // reference to it: a.Push(Scalar(b)) is push @a, \@b. Values are copied.
 func (a *AV) Push(vals ...any) *AV {
 	a.mustExist()
+	if plainValues(vals) {
+		for _, v := range vals {
+			a.items = append(a.items, Scalar(v))
+		}
+		return a
+	}
 	a.items = append(a.items, flatten(vals)...)
 	return a
 }
