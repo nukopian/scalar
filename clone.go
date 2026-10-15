@@ -1,7 +1,5 @@
 package scalar
 
-import "slices"
-
 // Clone returns a deep copy of s, as Storable's dclone does: arrays and
 // hashes it refers to are copied too, all the way down, so changing the
 // clone never changes the original. Compare Copy, which is shallow, as
@@ -51,7 +49,11 @@ func (c cloner) sv(s *SV) *SV {
 	case *HV:
 		return &SV{v: c.hv(v)}
 	case []byte:
-		return &SV{v: slices.Clone(v)}
+		// Shared, not copied: nothing in scalar changes a byte string in
+		// place, as every operation makes a new one, so the clone can't see
+		// a change through it. Value and Bytes still copy at the boundary,
+		// where the caller's own slice could change.
+		return &SV{v: v}
 	}
 	return &SV{v: s.v}
 }

@@ -63,3 +63,23 @@ func TestClone(t *testing.T) {
 		t.Error("HV.Clone should copy nested arrays")
 	}
 }
+
+// A clone shares byte strings, which nothing changes in place: changing
+// either side replaces its value, leaving the other alone.
+func TestCloneSharesByteStrings(t *testing.T) {
+	orig := Value(Hash("b", []byte{1, 2, 3}))
+	clone := orig.Clone()
+	if clone.At("b").Str() != "\x01\x02\x03" || clone.At("b").Kind() != Bytes {
+		t.Fatalf("clone: %v", clone.At("b"))
+	}
+	clone.At("b").ConcatInPlace("x")
+	clone.At("b").S(`\x01`, "z")
+	if orig.At("b").Str() != "\x01\x02\x03" {
+		t.Errorf("original changed: %q", orig.At("b").Str())
+	}
+	b := orig.At("b").Bytes()
+	b[0] = 9
+	if orig.At("b").Str() != "\x01\x02\x03" || clone.At("b").Str() == "" {
+		t.Error("Bytes didn't return a copy")
+	}
+}
