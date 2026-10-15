@@ -355,6 +355,10 @@ Strings are turned into numbers the Perl way:
 `Num()` and `Int()` never fail. If you need to know whether a value really was
 a number, use `NumOK()` or `IntOK()`.
 
+For a value that may be missing, as Go's `*string` or `*float64` fields
+are, use `scalar.To[*float64](s)`: it gives `nil` for undef and a checked
+value otherwise. See [Optional values](#missing-null-and-optional-values).
+
 ### True and false
 
 These are false: undef, `""`, `"0"`, `0` and `0.0`. Everything else is true,
@@ -1961,18 +1965,35 @@ for an `*AV`, as does `scalar.To[[]string]([]any{"Go", "SQL"})` for a Go value.
 - **The result is a copy.** It shares nothing with the data it came from, so
   changing one never changes the other.
 
-### Missing and null
+### Missing, null and optional values
 
 Undef, whether it came from a missing key or a JSON `null`, isn't an error.
 `To` gives the zero value: `nil` for a pointer, slice or map, `0`, `""` and
 so on otherwise. Inside a struct, undef sets a pointer, slice, map or
 interface field to nil and leaves any other field as it is, as `null` does
-with `json.Unmarshal`. To tell a missing value from a zero, ask for a
-pointer:
+with `json.Unmarshal`.
+
+So an optional value is a pointer. Asking for one tells a missing value
+from a zero, which `Str`, `Int` and `Num` can't, as they give `""` and `0`
+for undef:
 
 ```go
-bonus, err := scalar.To[*int](doc.At("bonus"))   // nil if there's no bonus, or it's null
+bonus, err := scalar.To[*int](doc.At("bonus"))     // nil if there's no bonus, or it's null
+min, err := scalar.To[*float64](doc.At("min"))     // nil, or a pointer to the number
+period, err := scalar.To[*string](doc.At("period"))
 ```
+
+There's no `StrPtr` or `NumPtr` method, because `To[*T]` does this for any
+type, and inside structs too, so a struct with `*string` and `*float64`
+fields (as the model's metadata has) fills in one call. It's also checked:
+`To[*float64]` refuses `"competitive"` with an error, where `Num` would make
+it `0` and a pointer method would have to choose between the two.
+
+| You want | Use |
+|---|---|
+| A value, with Perl's conversions, never failing | `Str()`, `Int()`, `Num()` |
+| A value, and whether it really was one | `IntOK()`, `NumOK()` |
+| An optional value: nil if missing, checked if not | `scalar.To[*int](s)`, `scalar.To[*string](s)` |
 
 `To` never creates anything, so asking for a path that isn't there leaves
 the data as it was.
@@ -6352,6 +6373,36 @@ fmt.Println(perks == nil, err)
 ```
 <nil> <nil>
 true <nil>
+```
+
+#### `To.optional`
+
+An optional value is a pointer: nil if the value is undef, missing or null, and otherwise a pointer to it, converted and checked. There's no StrPtr or NumPtr method, as To\[\*T] does it for any type, and refuses a value that doesn't fit, where Num would quietly make "abc" 0.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": null, "period": "Year", "bonus": "competitive"}`))
+
+min, _ := scalar.To[*float64](doc.At("min"))
+max, _ := scalar.To[*float64](doc.At("max"))      // null: nil
+none, _ := scalar.To[*string](doc.At("currency")) // missing: nil
+fmt.Println(*min, max, none)
+
+_, err := scalar.To[*float64](doc.At("bonus")) // "competitive" isn't a number
+fmt.Println(err)
+
+// The same, for a struct's optional fields, as the model's metadata has.
+type Pay struct {
+	Min, Max *float64
+	Period   *string
+}
+p, _ := scalar.To[Pay](doc)
+fmt.Println(*p.Min, p.Max, *p.Period)
+```
+
+```
+45000 <nil> <nil>
+scalar: Decode: want float64, got "competitive"
+45000 <nil> Year
 ```
 
 #### `To.error`

@@ -97,6 +97,34 @@ func ExampleTo_missing() {
 	// true <nil>
 }
 
+// An optional value is a pointer: nil if the value is undef, missing or
+// null, and otherwise a pointer to it, converted and checked. There's no
+// StrPtr or NumPtr method, as To[*T] does it for any type, and refuses a
+// value that doesn't fit, where Num would quietly make "abc" 0.
+func ExampleTo_optional() {
+	doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": null, "period": "Year", "bonus": "competitive"}`))
+
+	min, _ := scalar.To[*float64](doc.At("min"))
+	max, _ := scalar.To[*float64](doc.At("max"))      // null: nil
+	none, _ := scalar.To[*string](doc.At("currency")) // missing: nil
+	fmt.Println(*min, max, none)
+
+	_, err := scalar.To[*float64](doc.At("bonus")) // "competitive" isn't a number
+	fmt.Println(err)
+
+	// The same, for a struct's optional fields, as the model's metadata has.
+	type Pay struct {
+		Min, Max *float64
+		Period   *string
+	}
+	p, _ := scalar.To[Pay](doc)
+	fmt.Println(*p.Min, p.Max, *p.Period)
+	// Output:
+	// 45000 <nil> <nil>
+	// scalar: Decode: want float64, got "competitive"
+	// 45000 <nil> Year
+}
+
 func ExampleTo_error() {
 	doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
 	type Posting struct {
