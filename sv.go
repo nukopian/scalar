@@ -463,25 +463,31 @@ func (s *SV) PathOK(keys ...any) (v *SV, ok bool) {
 	if cur == nil {
 		return &SV{}, false
 	}
-	for _, k := range keys {
-		var steps []atStep
-		switch k := k.(type) {
-		case string:
-			steps = []atStep{{kind: stepKey, key: k}}
-		case int:
-			steps = []atStep{{kind: stepIndex, index: k}}
-		case *PathExpr:
-			steps = k.steps
-		default:
-			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
-		}
-		for _, st := range steps {
-			if cur = st.peek(cur); cur == nil {
-				return &SV{}, false
-			}
+	for _, st := range pathSteps(keys) {
+		if cur = st.peek(cur); cur == nil {
+			return &SV{}, false
 		}
 	}
 	return cur, true
+}
+
+// pathSteps turns Path's keys into the steps At takes: a string is a hash
+// key, taken whole, an int an array index, and a *PathExpr its own steps.
+func pathSteps(keys []any) []atStep {
+	var steps []atStep
+	for _, k := range keys {
+		switch k := k.(type) {
+		case string:
+			steps = append(steps, atStep{kind: stepKey, key: k})
+		case int:
+			steps = append(steps, atStep{kind: stepIndex, index: k})
+		case *PathExpr:
+			steps = append(steps, k.steps...)
+		default:
+			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
+		}
+	}
+	return steps
 }
 
 // StrCmp is Perl's cmp, for use with AV.Sort.

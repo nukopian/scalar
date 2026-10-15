@@ -137,8 +137,8 @@ func Example_salaryFromText() {
 	text := scalar.Value("Salary: £45,000 - £55,000 per annum")
 
 	figures := scalar.Array()
-	for _, m := range text.M(salaryFigure, "g").All() {
-		figures.Push(m.AV().Get(1).S(`,`, "", "gr")) // "45,000" → "45000"
+	for m := range text.Matches(salaryFigure) {
+		figures.Push(m.Get(1).S(`,`, "", "gr")) // "45,000" → "45000"
 	}
 	fmt.Println(figures.MinNum(), figures.MaxNum())
 

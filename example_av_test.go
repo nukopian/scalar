@@ -357,3 +357,60 @@ func ExampleAV_Apply() {
 	// Output:
 	// 12 24 36
 }
+
+func ExampleAV_At() {
+	rows, _ := scalar.FromJSON([]byte(`[{"name":"Ada"},{"name":"Grace"}]`))
+	a := rows.AV()
+	fmt.Println(a.At("[1].name")) // $a[1]{name}
+	a.At("[2].name").Set("Alan")  // $a[2]{name} = "Alan": creates the row
+	fmt.Println(a.Length(), a.At("[-1].name"))
+	// Output:
+	// Grace
+	// 3 Alan
+}
+
+func ExampleAV_AtOK() {
+	a := scalar.Array(1, nil)
+	_, ok := a.AtOK("[1]") // exists, though undef
+	_, past := a.AtOK("[2]")
+	fmt.Println(ok, past)
+	// Output:
+	// true false
+}
+
+func ExampleAV_DeleteAt() {
+	a := scalar.Array("a", "b", "c")
+	fmt.Println(a.DeleteAt("[-1]"), a.Length()) // delete $a[-1]: the last goes, so it's shorter
+	fmt.Println(a.DeleteAt("[0]"), a.Length())  // delete $a[0]: a hole, so it isn't
+	// Output:
+	// c 2
+	// a 2
+}
+
+func ExampleAV_Path() {
+	a := scalar.Array()
+	a.Path(0, "tags", 1).Set("go") // $a[0]{tags}[1] = "go"
+	fmt.Println(a.Path(0, "tags", 1), a.At("[0].tags").AV().Length())
+	// Output:
+	// go 2
+}
+
+func ExampleAV_PathOK() {
+	a := scalar.Array(scalar.Value(scalar.Hash("id", 7)))
+	v, ok := a.PathOK(0, "id")
+	_, missing := a.PathOK(0, "name")
+	fmt.Println(v, ok, missing)
+	// Output:
+	// 7 true false
+}
+
+func ExampleAV_DeletePath() {
+	rows, _ := scalar.FromJSON([]byte(`[{"id":1,"tmp":"x"},{"id":2,"tmp":"y"}]`))
+	a := rows.AV()
+	for i := range a.Length() {
+		a.DeletePath(i, "tmp") // delete $a[$i]{tmp}
+	}
+	fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
+	// Output:
+	// [id] [id]
+}

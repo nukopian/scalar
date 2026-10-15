@@ -257,8 +257,8 @@ var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
 text := scalar.Value("Salary: £45,000 - £55,000 per annum")
 
 figures := scalar.Array()
-for _, m := range text.M(salaryFigure, "g").All() {
-	figures.Push(m.AV().Get(1).S(`,`, "", "gr"))   // "45,000" → "45000"
+for m := range text.Matches(salaryFigure) {         // while ($text =~ /$salaryFigure/g)
+	figures.Push(m.Get(1).S(`,`, "", "gr"))         // "45,000" → "45000"
 }
 fmt.Println(figures.MinNum(), figures.MaxNum())    // 45000 55000
 ```
@@ -1157,8 +1157,10 @@ there, as in a loop over many records, `h.Exists(k)` costs nothing:
 `m.HV().Exists("k")` rather than `m.At("k").Defined()`.
 
 `Path(...)` walks a mix of hash keys (strings) and array indexes (ints), and
-`At` takes the same route as one string. Both are methods of a scalar,
-follow the same rules, and replace a chain of `AV()` and `HV()`:
+`At` takes the same route as one string. Both follow the same rules and
+replace a chain of `AV()` and `HV()`. They're methods of scalars, hashes
+and arrays alike, so `h.At("a.b")` is `$h{a}{b}` and `a.At("[0].name")` is
+`$a[0]{name}`; writing through one changes that hash or array:
 
 ```go
 var doc scalar.SV
@@ -1183,6 +1185,12 @@ doc.At("rules[0].name").Set("x") // writing autovivifies
 v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anything
 doc.DeleteAt("salary.bonus")     // delete $doc->{salary}{bonus}
 ```
+
+`DeletePath` is `DeleteAt` with the route as `Path` takes it, for keys that
+come from data and might contain dots or brackets:
+`doc.DeletePath(section, key)` is `delete $doc->{$section}{$key}`. Both
+remove only the last step, and create nothing on the way, so a missing
+path deletes nothing.
 
 | Step | Means |
 |---|---|
@@ -1498,13 +1506,13 @@ escaping.
 ### Compiling patterns up front
 
 `scalar.MustCompile` compiles a pattern once and returns a `*scalar.Regexp`,
-like Perl's `qr//`. `M`, `Named`, `S` and `Split` take one wherever they
-take a pattern string:
+like Perl's `qr//`. `M`, `Matches`, `Named`, `S` and `Split` take one
+wherever they take a pattern string:
 
 ```go
 var salary = scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/;
 
-for _, m := range s.M(salary, "g").All() { ... }
+for m := range s.Matches(salary) { ... }
 s.S(salary, "£X", "g")
 ```
 
@@ -1568,15 +1576,21 @@ match at index 0. That way `Get(n)` is always `$n`.
 `s.M(re).Get(1).Str()` is just `""`. A group that didn't take part in the
 match is undef.
 
-With `g`, `M` finds every match and returns one array per match, each
-laid out the same way. If nothing matches, it also returns `nil`, so
-`m != nil` means "matched" either way:
+To go through every match, as Perl's `while ($s =~ /re/g)` does, loop
+over `Matches`. Each `m` is laid out as `M` lays out one match, so
+`m.Get(1)` is `$1`, and breaking out of the loop stops the search:
 
 ```go
-for _, m := range s.M(`£([\d,]+)`, "g").All() {
-	fmt.Println(m.AV().Get(1))   // 45,000 then 55,000
+for m := range s.Matches(`£([\d,]+)`) {
+	fmt.Println(m.Get(1))   // 45,000 then 55,000
 }
 ```
+
+With `g`, `M` finds every match at once, and returns an array with one
+element per match: a reference to that match's array, as Perl's arrays of
+arrays hold references. Reach into it with a path, `all.At("[1][1]")`, or
+by dereferencing, `all.Get(1).AV().Get(1)`. If nothing matches, it returns
+`nil` too, so `m != nil` means "matched" either way.
 
 `Named` returns the named groups of the first match as a hash, like Perl's
 `%+`, or `nil` if nothing matched. It doesn't take `g`, because `%+` only ever
@@ -3029,6 +3043,23 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 2.5 9 10
 ```
 
+#### `SV.DeletePath`
+
+DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete $s->{$section}{$key} does in Perl.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"pay":{"min":45000,"max":55000},"v1.2":{"note":"x"}}`))
+fmt.Println(doc.DeletePath("pay", "max"))   // delete $doc->{pay}{max}
+fmt.Println(doc.DeletePath("v1.2", "note")) // keys are taken whole, dots and all
+fmt.Println(doc.At("pay").HV().KeysSlice(), doc.DeletePath("pay", "bonus").Defined())
+```
+
+```
+55000
+x
+[min] false
+```
+
 ### Reference: Strings
 
 #### `SV.Length`
@@ -4296,6 +4327,99 @@ fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
 12 24 36
 ```
 
+#### `AV.At`
+
+At is `SV.At`, starting at a.
+
+```go
+rows, _ := scalar.FromJSON([]byte(`[{"name":"Ada"},{"name":"Grace"}]`))
+a := rows.AV()
+fmt.Println(a.At("[1].name")) // $a[1]{name}
+a.At("[2].name").Set("Alan")  // $a[2]{name} = "Alan": creates the row
+fmt.Println(a.Length(), a.At("[-1].name"))
+```
+
+```
+Grace
+3 Alan
+```
+
+#### `AV.AtOK`
+
+AtOK is `SV.AtOK`, starting at a.
+
+```go
+a := scalar.Array(1, nil)
+_, ok := a.AtOK("[1]") // exists, though undef
+_, past := a.AtOK("[2]")
+fmt.Println(ok, past)
+```
+
+```
+true false
+```
+
+#### `AV.DeleteAt`
+
+DeleteAt is `SV.DeleteAt`, starting at a.
+
+```go
+a := scalar.Array("a", "b", "c")
+fmt.Println(a.DeleteAt("[-1]"), a.Length()) // delete $a[-1]: the last goes, so it's shorter
+fmt.Println(a.DeleteAt("[0]"), a.Length())  // delete $a[0]: a hole, so it isn't
+```
+
+```
+c 2
+a 2
+```
+
+#### `AV.Path`
+
+Path is `SV.Path`, starting at a.
+
+```go
+a := scalar.Array()
+a.Path(0, "tags", 1).Set("go") // $a[0]{tags}[1] = "go"
+fmt.Println(a.Path(0, "tags", 1), a.At("[0].tags").AV().Length())
+```
+
+```
+go 2
+```
+
+#### `AV.PathOK`
+
+PathOK is `SV.PathOK`, starting at a.
+
+```go
+a := scalar.Array(scalar.Value(scalar.Hash("id", 7)))
+v, ok := a.PathOK(0, "id")
+_, missing := a.PathOK(0, "name")
+fmt.Println(v, ok, missing)
+```
+
+```
+7 true false
+```
+
+#### `AV.DeletePath`
+
+DeletePath is `SV.DeletePath`, starting at a.
+
+```go
+rows, _ := scalar.FromJSON([]byte(`[{"id":1,"tmp":"x"},{"id":2,"tmp":"y"}]`))
+a := rows.AV()
+for i := range a.Length() {
+	a.DeletePath(i, "tmp") // delete $a[$i]{tmp}
+}
+fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
+```
+
+```
+[id] [id]
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -4657,6 +4781,95 @@ fmt.Println(sum)
 
 ```
 3
+```
+
+#### `HV.At`
+
+At is `SV.At`, starting at h.
+
+```go
+tallies := scalar.Hash()
+tallies.At("benefits.right").Inc() // $tallies{benefits}{right}++
+tallies.At("benefits.right").Inc()
+tallies.At("benefits.missing").Inc()
+fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallies.At("summary.right").Int())
+```
+
+```
+2 1 0
+```
+
+#### `HV.AtOK`
+
+AtOK is `SV.AtOK`, starting at h.
+
+```go
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", nil)))
+_, ok := h.AtOK("pay.min") // exists, though undef
+_, missing := h.AtOK("pay.max")
+fmt.Println(ok, missing)
+```
+
+```
+true false
+```
+
+#### `HV.DeleteAt`
+
+DeleteAt is `SV.DeleteAt`, starting at h.
+
+```go
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+fmt.Println(h.DeleteAt("pay.max")) // delete $h{pay}{max}
+fmt.Println(h.At("pay").HV().KeysSlice())
+```
+
+```
+55000
+[min]
+```
+
+#### `HV.Path`
+
+Path is `SV.Path`, starting at h.
+
+```go
+h := scalar.Hash()
+h.Path("a.b", "c").Set(1) // $h{"a.b"}{c} = 1: Path keys are taken whole, dots and all
+fmt.Println(h.Path("a.b", "c"), h.At(`["a.b"].c`))
+```
+
+```
+1 1
+```
+
+#### `HV.PathOK`
+
+PathOK is `SV.PathOK`, starting at h.
+
+```go
+h := scalar.Hash("tags", scalar.Value(scalar.Array("go")))
+v, ok := h.PathOK("tags", 0)
+_, past := h.PathOK("tags", 5)
+fmt.Println(v, ok, past)
+```
+
+```
+go true false
+```
+
+#### `HV.DeletePath`
+
+DeletePath is `SV.DeletePath`, starting at h.
+
+```go
+section, key := "pay", "max" // from data
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
+```
+
+```
+55000
 ```
 
 ### Reference: List utilities
@@ -5535,9 +5748,8 @@ if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
 m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
 fmt.Println(m.Get(0)) // $&
 fmt.Println(m.Get(1), m.Get(2))
-for _, each := range s.M(`£([\d,]+)`, "g").All() { // $s =~ /£([\d,]+)/g
-	fmt.Println(each.AV().Get(1))
-}
+all := s.M(`£([\d,]+)`, "g")                // @all = all the matches: one array of captures each
+fmt.Println(all.Length(), all.At("[1][1]")) // $all[1][1]: the second match's $1
 fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
 ```
 
@@ -5545,8 +5757,7 @@ fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
 matched
 £45,000 - £55,000
 45,000 55,000
-45,000
-55,000
+2 55,000
 false
 ```
 
@@ -5666,6 +5877,29 @@ fmt.Println(scalar.MustCompile(`\d+`, "i"))
 
 ```
 \d+
+```
+
+#### `SV.Matches`
+
+Matches is Perl's while ($s =~ /re/g) { ...
+
+```go
+s := scalar.Value("Salary: £45,000 - £55,000")
+for m := range s.Matches(`£([\d,]+)`) { // while ($s =~ /£([\d,]+)/g)
+	fmt.Println(m.Get(1)) // $1
+}
+for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
+	if m.Get(1).Str() == "b" {
+		fmt.Println("found b:", m.Get(2))
+		break // stops the search
+	}
+}
+```
+
+```
+45,000
+55,000
+found b: 2
 ```
 
 ### Reference: Pack and unpack

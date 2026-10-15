@@ -17,16 +17,14 @@ func ExampleSV_M() {
 	m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
 	fmt.Println(m.Get(0)) // $&
 	fmt.Println(m.Get(1), m.Get(2))
-	for _, each := range s.M(`£([\d,]+)`, "g").All() { // $s =~ /£([\d,]+)/g
-		fmt.Println(each.AV().Get(1))
-	}
+	all := s.M(`£([\d,]+)`, "g")                // @all = all the matches: one array of captures each
+	fmt.Println(all.Length(), all.At("[1][1]")) // $all[1][1]: the second match's $1
 	fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
 	// Output:
 	// matched
 	// £45,000 - £55,000
 	// 45,000 55,000
-	// 45,000
-	// 55,000
+	// 2 55,000
 	// false
 }
 
@@ -104,4 +102,21 @@ func ExampleRegexp_String() {
 	fmt.Println(scalar.MustCompile(`\d+`, "i"))
 	// Output:
 	// \d+
+}
+
+func ExampleSV_Matches() {
+	s := scalar.Value("Salary: £45,000 - £55,000")
+	for m := range s.Matches(`£([\d,]+)`) { // while ($s =~ /£([\d,]+)/g)
+		fmt.Println(m.Get(1)) // $1
+	}
+	for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
+		if m.Get(1).Str() == "b" {
+			fmt.Println("found b:", m.Get(2))
+			break // stops the search
+		}
+	}
+	// Output:
+	// 45,000
+	// 55,000
+	// found b: 2
 }

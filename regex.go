@@ -19,11 +19,12 @@ import (
 // named captures all work. Patterns are compiled on first use and cached, so
 // they can be written inline as in Perl. The cache holds 4,096 patterns, so
 // patterns built from data can't make it grow without end. They can also be compiled up front,
-// as with Perl's qr//, with Compile or MustCompile: M, Named, S and Split
-// take either a pattern string or a *Regexp.
+// as with Perl's qr//, with Compile or MustCompile: M, Matches, Named, S and
+// Split take either a pattern string or a *Regexp.
 //
-// Flags are passed as an optional trailing string, as in Perl: M, Named
-// and S take "i", "m", "s" and "x"; M and S also take "g", and S takes "r".
+// Flags are passed as an optional trailing string, as in Perl: M, Matches,
+// Named and S take "i", "m", "s" and "x"; M and S also take "g" (Matches
+// always is), and S takes "r".
 // Split's optional argument is its limit, so its flags go inside the
 // pattern, as in (?i). Invalid patterns, unknown flags and timeouts panic,
 // as Perl would die.
@@ -99,8 +100,8 @@ func compileErr(pattern string, f flagSet) (*regexp2.Regexp, error) {
 }
 
 // Regexp is a compiled pattern, like the result of Perl's qr//. Its flags
-// ("i", "m", "s", "x") are fixed when it's compiled; M, Named, S and Split
-// accept it wherever they accept a pattern string:
+// ("i", "m", "s", "x") are fixed when it's compiled; M, Matches, Named, S and
+// Split accept it wherever they accept a pattern string:
 //
 //	re := scalar.MustCompile(`£([\d,]+)`, "i") // my $re = qr/£([\d,]+)/i;
 //	s.M(re, "g")                               // $s =~ /$re/g
@@ -233,6 +234,29 @@ func (s *SV) M(re any, flags ...string) *AV {
 		out.items = append(out.items, &SV{v: matchAV(m, isBytes)})
 	}
 	return out
+}
+
+// Matches is Perl's while ($s =~ /re/g) { ... }: it yields each match's
+// captures in turn, laid out as M lays them out, so m.Get(1) is $1:
+//
+//	for m := range s.Matches(`£([\d,]+)`) {
+//		fmt.Println(m.Get(1)) // 45,000, then 55,000
+//	}
+//
+// It takes M's flags except "g", which it always is. It finds matches as the
+// loop asks for them, so stopping early stops the search. To have them all
+// at once, use M with "g".
+func (s *SV) Matches(re any, flags ...string) iter.Seq[*AV] {
+	f := parseFlags("Matches", "imsx", flags)
+	rx := regex("Matches", re, f)
+	str, isBytes := s.text()
+	return func(yield func(*AV) bool) {
+		for m := range matches(rx, []rune(str)) {
+			if !yield(matchAV(m, isBytes)) {
+				return
+			}
+		}
+	}
 }
 
 // Named is $s =~ /re/ followed by reading %+. It returns nil if there

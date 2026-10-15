@@ -232,3 +232,56 @@ func ExampleHV_All() {
 	// Output:
 	// 3
 }
+
+func ExampleHV_At() {
+	tallies := scalar.Hash()
+	tallies.At("benefits.right").Inc() // $tallies{benefits}{right}++
+	tallies.At("benefits.right").Inc()
+	tallies.At("benefits.missing").Inc()
+	fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallies.At("summary.right").Int())
+	// Output:
+	// 2 1 0
+}
+
+func ExampleHV_AtOK() {
+	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", nil)))
+	_, ok := h.AtOK("pay.min") // exists, though undef
+	_, missing := h.AtOK("pay.max")
+	fmt.Println(ok, missing)
+	// Output:
+	// true false
+}
+
+func ExampleHV_DeleteAt() {
+	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+	fmt.Println(h.DeleteAt("pay.max")) // delete $h{pay}{max}
+	fmt.Println(h.At("pay").HV().KeysSlice())
+	// Output:
+	// 55000
+	// [min]
+}
+
+func ExampleHV_Path() {
+	h := scalar.Hash()
+	h.Path("a.b", "c").Set(1) // $h{"a.b"}{c} = 1: Path keys are taken whole, dots and all
+	fmt.Println(h.Path("a.b", "c"), h.At(`["a.b"].c`))
+	// Output:
+	// 1 1
+}
+
+func ExampleHV_PathOK() {
+	h := scalar.Hash("tags", scalar.Value(scalar.Array("go")))
+	v, ok := h.PathOK("tags", 0)
+	_, past := h.PathOK("tags", 5)
+	fmt.Println(v, ok, past)
+	// Output:
+	// go true false
+}
+
+func ExampleHV_DeletePath() {
+	section, key := "pay", "max" // from data
+	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+	fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
+	// Output:
+	// 55000
+}

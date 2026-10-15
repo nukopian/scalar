@@ -104,9 +104,20 @@ func (s *SV) AtOK(path string) (v *SV, ok bool) {
 // which creates the levels on the way to what it deletes, DeleteAt never
 // creates anything: if a step on the way is missing, or isn't an array or
 // hash, there's nothing to delete. A malformed path panics, as for At.
-func (s *SV) DeleteAt(path string) *SV {
-	steps := compileAt(path)
-	if len(steps) == 0 {
+func (s *SV) DeleteAt(path string) *SV { return s.deleteSteps(compileAt(path)) }
+
+// DeletePath is DeleteAt with the route as Path takes it: keys taken whole,
+// dots and all, so it suits keys that come from data, as
+// delete $s->{$section}{$key} does in Perl.
+//
+//	doc.DeletePath("salary", "bonus") // delete $doc->{salary}{bonus}
+//	doc.DeletePath("skills", -1)      // delete $doc->{skills}[-1]
+func (s *SV) DeletePath(keys ...any) *SV { return s.deleteSteps(pathSteps(keys)) }
+
+// deleteSteps removes what the last of steps leads to, walking the others
+// without creating anything, for DeleteAt and DeletePath.
+func (s *SV) deleteSteps(steps []atStep) *SV {
+	if len(steps) == 0 || s == nil {
 		return &SV{} // s itself can't be deleted
 	}
 	cur := s
@@ -320,4 +331,63 @@ func parseQuoted(path string, i int, closer byte, fail func(int, string, ...any)
 func isInteger(s string) bool {
 	s = strings.TrimPrefix(s, "-")
 	return s != "" && strings.Trim(s, "0123456789") == ""
+}
+
+// The same, starting at a hash or an array rather than a scalar: h.At("a.b")
+// is $h{a}{b}, and a.At("[0].name") is $a[0]{name}. Writing through the
+// result changes the hash or array itself. A nil hash or array reads as
+// undef, and writing through it panics, as Get on one does.
+
+// At is SV.At, starting at h.
+func (h *HV) At(path string) *SV { return h.ref().At(path) }
+
+// AtOK is SV.AtOK, starting at h.
+func (h *HV) AtOK(path string) (v *SV, ok bool) { return h.ref().AtOK(path) }
+
+// DeleteAt is SV.DeleteAt, starting at h.
+func (h *HV) DeleteAt(path string) *SV { return h.ref().DeleteAt(path) }
+
+// DeletePath is SV.DeletePath, starting at h.
+func (h *HV) DeletePath(keys ...any) *SV { return h.ref().DeletePath(keys...) }
+
+// Path is SV.Path, starting at h.
+func (h *HV) Path(keys ...any) *SV { return h.ref().Path(keys...) }
+
+// PathOK is SV.PathOK, starting at h.
+func (h *HV) PathOK(keys ...any) (v *SV, ok bool) { return h.ref().PathOK(keys...) }
+
+// At is SV.At, starting at a.
+func (a *AV) At(path string) *SV { return a.ref().At(path) }
+
+// AtOK is SV.AtOK, starting at a.
+func (a *AV) AtOK(path string) (v *SV, ok bool) { return a.ref().AtOK(path) }
+
+// DeleteAt is SV.DeleteAt, starting at a.
+func (a *AV) DeleteAt(path string) *SV { return a.ref().DeleteAt(path) }
+
+// DeletePath is SV.DeletePath, starting at a.
+func (a *AV) DeletePath(keys ...any) *SV { return a.ref().DeletePath(keys...) }
+
+// Path is SV.Path, starting at a.
+func (a *AV) Path(keys ...any) *SV { return a.ref().Path(keys...) }
+
+// PathOK is SV.PathOK, starting at a.
+func (a *AV) PathOK(keys ...any) (v *SV, ok bool) { return a.ref().PathOK(keys...) }
+
+// ref is a scalar holding a reference to h, for walking a path from it.
+// For a nil h, it's a scalar that can't be created, so reading through it is
+// undef and writing panics.
+func (h *HV) ref() *SV {
+	if h == nil {
+		return &SV{noCreate: "Not a HASH reference"}
+	}
+	return &SV{v: h}
+}
+
+// ref is a scalar holding a reference to a, as HV.ref is for a hash.
+func (a *AV) ref() *SV {
+	if a == nil {
+		return &SV{noCreate: notArrayRef}
+	}
+	return &SV{v: a}
 }

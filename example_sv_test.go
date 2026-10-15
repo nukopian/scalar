@@ -595,3 +595,14 @@ func ExampleNumCmp() {
 	// Output:
 	// 2.5 9 10
 }
+
+func ExampleSV_DeletePath() {
+	doc, _ := scalar.FromJSON([]byte(`{"pay":{"min":45000,"max":55000},"v1.2":{"note":"x"}}`))
+	fmt.Println(doc.DeletePath("pay", "max"))   // delete $doc->{pay}{max}
+	fmt.Println(doc.DeletePath("v1.2", "note")) // keys are taken whole, dots and all
+	fmt.Println(doc.At("pay").HV().KeysSlice(), doc.DeletePath("pay", "bonus").Defined())
+	// Output:
+	// 55000
+	// x
+	// [min] false
+}
