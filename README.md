@@ -2184,6 +2184,15 @@ original's own, as described under [Hashes](#hashes).
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.
 
+## Licence
+
+Copyright 2026 Iain Campbell. `scalar` is free software; you can
+redistribute it and/or modify it under the same terms as Perl itself:
+either the GNU General Public License, version 1 or (at your option) any
+later version, or the Artistic License, as they come with Perl
+(`Artistic-1.0-Perl OR GPL-1.0-or-later`). Both are in [LICENSE](LICENSE).
+The grammar package, in [grammar/](grammar/), has a licence of its own.
+
 ## Acknowledgements
 
 The ideas here aren't new. `scalar` borrows Perl's way with data: undef
@@ -2192,8 +2201,15 @@ utilities, and a regex at every turn. It's tested against Perl itself to
 keep its behaviour faithful. Thanks to the Perl community for decades of
 thought about handling messy data well.
 
-Much of the code was written with Claude, Anthropic's AI model, working
-from my direction and review.
+`scalar` was conceived and directed by Iain Campbell (nukopian). He set
+its rules: Perl as the baseline, checked against Perl itself, with any
+difference from Perl only where Go can't follow, each one documented;
+tests first; and speed changes kept only when measured. He decided what
+to build and what not to, and reviewed and committed each change. Most of
+the code, tests and documentation were written by Claude, Anthropic's AI
+model, working to that direction, from the package's first commit on 11
+October 2026. Commits up to 15 October mostly don't record Claude's part
+in a `Co-Authored-By` trailer; later ones do.
 
 ## Reference
 
