@@ -53,6 +53,43 @@ and list utilities, carried over faithfully and checked against Perl itself.
 You don't need to know Perl to use them. The comparisons with Perl in this
 README are there for readers who do.
 
+## Why scalar exists
+
+I'm relatively new to Go, though not to programming: C, REXX, Perl,
+Python, JavaScript, XSLT and Scala came first. Go's concepts weren't the
+hard part. What struck me was how painful and repetitive even basic tasks
+can be: a struct to write before you can read a field, a check for every
+value that might be missing, a loop for what's a one-liner elsewhere. I
+understand why Go's idioms matter. But sometimes a job needs doing, and
+doing quickly, and brains like shortcuts.
+
+The barrier between an idea and its implementation is often the language,
+its ecosystem and the time it takes to learn them. Many of the shortcuts I
+wanted already exist, proven over decades, in languages I've used.
+`scalar` borrows them:
+
+- Perl's way with messy data: nested paths, a regex at every turn, `//`,
+  `map` and `grep`.
+- Functional programming's Maybe, Scala's `Option`, in which a missing
+  value flows quietly through a chain of `Then` and `Or`.
+- XPath's way of querying a tree, as JSONPath, with Python's slices.
+- The set theory of sets and bags.
+- Go's own iterators and generics, to get back to typed Go at the end.
+
+Then solving a problem quickly and well enough doesn't mean torturing
+yourself for linguistic purity, or giving up on Go for another language
+and its ecosystem. Be practical, and pragmatic.
+
+Primarily, this is for my own use, when I'm in a hurry, but also for
+anyone who wants a helping hand turning ideas, experiments and proofs of
+concept into something that works: especially people learning Go, and Go
+programmers tired of schlepping. It isn't for Go purists, and doesn't try
+to be. Think of it as a half-way house. It gets you to a working result
+quickly, and leaves room to improve. When production performance begins
+to bite and the data's shape has settled, `To` hands the data back as
+ordinary typed Go, and the code that stays can become as idiomatic as it
+needs to be.
+
 ## Compared with plain Go
 
 Two jobs are awkward in plain Go.
