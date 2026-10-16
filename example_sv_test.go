@@ -606,3 +606,12 @@ func ExampleSV_DeletePath() {
 	// x
 	// [min] false
 }
+
+func ExampleSV_Undef() {
+	h := scalar.Hash("bonus", 5000)
+	fmt.Println(h.Get("bonus").Undef().Defined()) // undef $h{bonus}: returns it, now undef
+	fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Delete removes it
+	// Output:
+	// false
+	// true
+}

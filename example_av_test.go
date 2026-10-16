@@ -414,3 +414,12 @@ func ExampleAV_DeletePath() {
 	// Output:
 	// [id] [id]
 }
+
+func ExampleAV_Undef() {
+	a := scalar.Array("x", "y")
+	doc := scalar.Hash("tags", scalar.Value(a)) // another reference to a
+	a.Undef()                                   // undef @a
+	fmt.Println(a.Length(), doc.At("tags").AV().Length())
+	// Output:
+	// 0 0
+}

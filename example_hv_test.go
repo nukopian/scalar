@@ -285,3 +285,12 @@ func ExampleHV_DeletePath() {
 	// Output:
 	// 55000
 }
+
+func ExampleHV_Undef() {
+	seen := scalar.Hash("go", 1, "perl", 1)
+	seen.Undef() // undef %seen: emptied, ready for the next batch
+	seen.Set("raku", 1)
+	fmt.Println(seen.KeysSlice())
+	// Output:
+	// [raku]
+}

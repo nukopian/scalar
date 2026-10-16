@@ -151,6 +151,17 @@ func (h *HV) Delete(key string) *SV {
 	return s
 }
 
+// Undef is Perl's undef %h: it empties h in place, so everything referring
+// to h sees it empty, and returns h, now empty. Each starts again from the
+// beginning. A nil h panics, as Perl dies on undef %$x for a non-hash.
+func (h *HV) Undef() *HV {
+	if h == nil {
+		panic("scalar: Not a HASH reference")
+	}
+	h.m, h.order, h.eachKeys, h.eachPos = map[string]*SV{}, nil, nil, 0
+	return h
+}
+
 func (h *HV) keys() []string {
 	if h == nil {
 		return nil

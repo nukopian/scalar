@@ -67,6 +67,14 @@ func (s *SV) Set(x any) *SV {
 	return s
 }
 
+// Undef is Perl's undef $s: s becomes undef, and Undef returns it, now
+// undef. A reference s held is dropped, and what it referred to is left
+// alone. An element of an array or hash keeps its place, as in Perl: after
+// h.Get("k").Undef(), "k" still exists, with an undef value (and a missing
+// key is created, as undef $h{k} creates it). To remove an element, use
+// Delete.
+func (s *SV) Undef() *SV { return s.Set(nil) }
+
 // Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
 // Elements returned by Get, Path, All and Values are the stored values
 // themselves; Copy gives you one you can change without affecting the

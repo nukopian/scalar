@@ -367,7 +367,10 @@ including `"0.0"`, `"00"` and `" "`.
 ### Undef
 
 The zero value of `SV` is undef, and so is `scalar.Value(nil)`. Check for it
-with `Defined()`.
+with `Defined()`, and make a scalar undef with `Undef()`, Perl's `undef $s`,
+which returns the scalar, now undef. As in Perl, undef'ing an element of an
+array or hash keeps its place: after `h.Get("k").Undef()`, `"k"` still
+exists, with an undef value. `Delete` removes it.
 
 Undef is how `scalar` says "nothing here". A read that finds nothing returns
 undef rather than failing, and undef passes along a chain of reads, so
@@ -683,6 +686,7 @@ a.SetLastIndex(2)              // $#a = 2   (truncate or extend)
 a.Exists(3)                    // exists $a[3]
 a.Defined(3)                   // defined $a[3]
 a.Delete(3)                    // delete $a[3]
+a.Undef()                      // undef @a     (emptied in place: every reference to a sees it empty)
 a.Values()                     // values @a
 a.Values(0, -1)                // @a[0, -1]    (the elements themselves, as Perl aliases them)
 a.Pairs(0, -1)                 // %a[0, -1]    (index/value pairs: 0, $a[0], -1, $a[-1])
@@ -966,6 +970,7 @@ h.Push("a", 1, "b", 2) // $h{a} = 1; $h{b} = 2   (pairs, another hash or a Go ma
 h.Exists("age")        // exists $h{age}    (the key is there, even if its value is undef)
 h.Defined("age")       // defined $h{age}   (the key is there and its value isn't undef)
 h.Delete("age")        // delete $h{age}
+h.Undef()              // undef %h          (emptied in place: every reference to h sees it empty)
 h.Length()             // scalar(keys %h)
 h.Scalar()             // scalar(%h), same as Length
 
@@ -3081,6 +3086,21 @@ x
 [min] false
 ```
 
+#### `SV.Undef`
+
+Undef is Perl's undef $s: s becomes undef, and Undef returns it, now undef.
+
+```go
+h := scalar.Hash("bonus", 5000)
+fmt.Println(h.Get("bonus").Undef().Defined()) // undef $h{bonus}: returns it, now undef
+fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Delete removes it
+```
+
+```
+false
+true
+```
+
 ### Reference: Strings
 
 #### `SV.Length`
@@ -4441,6 +4461,21 @@ fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
 [id] [id]
 ```
 
+#### `AV.Undef`
+
+Undef is Perl's undef @a: it empties a in place, so everything referring to a sees it empty, and returns a, now empty.
+
+```go
+a := scalar.Array("x", "y")
+doc := scalar.Hash("tags", scalar.Value(a)) // another reference to a
+a.Undef()                                   // undef @a
+fmt.Println(a.Length(), doc.At("tags").AV().Length())
+```
+
+```
+0 0
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -4891,6 +4926,21 @@ fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
 
 ```
 55000
+```
+
+#### `HV.Undef`
+
+Undef is Perl's undef %h: it empties h in place, so everything referring to h sees it empty, and returns h, now empty.
+
+```go
+seen := scalar.Hash("go", 1, "perl", 1)
+seen.Undef() // undef %seen: emptied, ready for the next batch
+seen.Set("raku", 1)
+fmt.Println(seen.KeysSlice())
+```
+
+```
+[raku]
 ```
 
 ### Reference: List utilities

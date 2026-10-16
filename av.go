@@ -198,6 +198,15 @@ func (a *AV) Delete(i int) *SV {
 	return s
 }
 
+// Undef is Perl's undef @a: it empties a in place, so everything referring
+// to a sees it empty, and returns a, now empty. Each starts again from the
+// beginning. A nil a panics, as Perl dies on undef @$x for a non-array.
+func (a *AV) Undef() *AV {
+	a.mustExist()
+	a.items, a.eachPos = nil, 0
+	return a
+}
+
 // Push is Perl's push: it appends vals and returns a. As in Perl, an
 // array among vals adds its elements, and a hash adds its key/value pairs,
 // so a.Push(b) is push @a, @b. Go slices and maps flatten the
