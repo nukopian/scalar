@@ -294,3 +294,15 @@ func ExampleHV_Undef() {
 	// Output:
 	// [raku]
 }
+
+// Map builds a new hash, renaming keys or changing values or both. The old
+// hash is unchanged.
+func ExampleHV_Map() {
+	pay := scalar.Hash("min", 40000, "max", 50000)
+	k := pay.Map(func(key string, v *scalar.SV) (string, any) {
+		return "pay_" + key, v.Div(1000).Str() + "k"
+	})
+	fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
+	// Output:
+	// 40k 50k 40000
+}

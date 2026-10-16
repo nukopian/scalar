@@ -973,6 +973,8 @@ h.Delete("age")        // delete $h{age}
 h.Undef()              // undef %h          (emptied in place: every reference to h sees it empty)
 h.Length()             // scalar(keys %h)
 h.Scalar()             // scalar(%h), same as Length
+h.Map(func(k string, v *scalar.SV) (string, any) { return k, v.Mul(2) })
+                       // %new = map { $_ => $h{$_} * 2 } keys %h   (a new hash; h is unchanged)
 
 h.Keys()            // keys %h
 h.Values()          // values %h
@@ -4941,6 +4943,24 @@ fmt.Println(seen.KeysSlice())
 
 ```
 [raku]
+```
+
+#### `HV.Map`
+
+Map builds a new hash from h, as %new = map { f($_, $h{$_}) } keys %h does: f gets each key and value, and returns the new key and value.
+
+Map builds a new hash, renaming keys or changing values or both. The old hash is unchanged.
+
+```go
+pay := scalar.Hash("min", 40000, "max", 50000)
+k := pay.Map(func(key string, v *scalar.SV) (string, any) {
+	return "pay_" + key, v.Div(1000).Str() + "k"
+})
+fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
+```
+
+```
+40k 50k 40000
 ```
 
 ### Reference: List utilities

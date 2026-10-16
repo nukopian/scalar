@@ -316,6 +316,19 @@ func (h *HV) All() iter.Seq2[string, *SV] {
 	}
 }
 
+// Map builds a new hash from h, as %new = map { f($_, $h{$_}) } keys %h
+// does: f gets each key and value, and returns the new key and value. Values
+// are copied in, as by Set, so h is left alone. If f gives two keys the same
+// new key, one value survives, but which one depends on hash order, as in
+// Perl. A nil h reads as empty. AV.Map is the array version.
+func (h *HV) Map(f func(k string, v *SV) (string, any)) *HV {
+	out := newHV(h.Length())
+	for k, v := range h.All() {
+		out.Set(f(k, v))
+	}
+	return out
+}
+
 // PairsMap returns h as a Go map from its keys to its own values, as
 // Pairs() would list them, for code that doesn't use this package. The map
 // is new, so adding or removing keys doesn't change h, but changing a value
