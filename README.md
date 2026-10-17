@@ -2296,6 +2296,31 @@ It isn't a substitute for Go types. A lock catches a mistake when the code
 runs; a struct catches it when the code compiles. Locking is for the data
 that has to stay in scalar.
 
+**Does locking make reads faster?** No, and it doesn't need to. Data that
+can't change could keep work it has done once, so we tried that, measured
+on the ASHE pay table, 15,000 rows of strings (`lock_bench_test.go`). The
+profiles found two costs that every value paid, locked or not, and those
+were fixed for everyone instead:
+
+| Read | Before | After | What it was |
+|---|---|---|---|
+| `Num` on 180,000 strings | 33 ms | 14.5 ms, no allocations | a regular expression; now a hand-written scanner |
+| `Equal` on two copies of the table | 123 ms, 36 MB | 28 ms, 3 MB | `Equal` built `Diff`'s report and threw it away |
+
+Four ideas that depend on a lock were measured, or thought through, and
+then dropped:
+
+- **Keep each value's number.** Now that `Num` is quick, this would save at
+  most 30%. In exchange, every scalar would grow by 8 bytes, locked or not.
+- **Remember what `At` found, per path.** A lookup would fall from about
+  110 ns to 20 ns, but nothing does enough lookups for that to matter. Each
+  hash would grow, and `Unlock` would have to throw the cache away.
+- **Make `Clone` of a locked structure free.** A locked structure can
+  already be shared as it is. `Clone`'s job is to give an unlocked copy,
+  so this would change what it does.
+- **Sort each hash's keys once.** Only `Dump` and `Diff` sort them, and
+  neither is on a hot path.
+
 ## Caveats
 
 - **It panics where Perl would die.** Most Go code returns errors instead of
