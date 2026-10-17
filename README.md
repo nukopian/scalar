@@ -65,9 +65,9 @@ matter. But sometimes a job needs doing and doing quickly, and
 brains *do* prefer shortcuts.
 
 The barrier between an idea and its implementation is often the language,
-its ecosystem and the time it takes to learn them. Many of the shortcuts I
-wanted already exist, proven over decades, in languages I've used.
-`scalar` borrows them:
+its ecosystem, and the time it takes to learn them. Many of the shortcuts
+I've wanted already exist, proven over decades, in other languages and
+paradigms I've used, and `scalar` borrows from them:
 
 - Perl's way with messy data: nested paths, a regex at every turn, `//`,
   `map` and `grep`.
