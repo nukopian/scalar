@@ -71,7 +71,8 @@ func Value(x any) *SV {
 // would write them (Decode's way back), a type with its own MarshalJSON or
 // MarshalText is what that gives (time.Time is its RFC 3339 string), and
 // *SV is copied by value (a copied reference still points at the same
-// AV/HV, as in Perl). Anything else is stringified with fmt.Sprint.
+// AV/HV, as in Perl). Anything else is stringified with fmt.Sprint. A Go
+// value that contains itself panics, as encoding/json refuses one.
 func (s *SV) Set(x any) *SV {
 	s.vivify()
 	s.v = normalize(x)
@@ -546,7 +547,25 @@ func floatToInt(f float64) (int64, bool) {
 	return int64(f), true
 }
 
-func normalize(x any) any {
+// maxValueDepth is how deeply a Go value may nest on its way into a scalar,
+// as maxDumpDepth limits a dump. A value that contains itself would recurse
+// until the stack overflowed, which no recover catches; encoding/json
+// refuses one with an error, and Value, with no error to return, panics.
+const maxValueDepth = 10000
+
+func normalize(x any) any { return normalizeAt(x, 0) }
+
+// valueAt is Value for what's depth levels inside the value being converted.
+func valueAt(x any, depth int) *SV { return &SV{v: normalizeAt(x, depth)} }
+
+// enter checks the depth as a container is entered, so the panic names it.
+func enter(x any, depth int) {
+	if depth >= maxValueDepth {
+		panic(fmt.Sprintf("scalar: Value: a %T refers to itself, or is nested more than %d levels deep", x, maxValueDepth))
+	}
+}
+
+func normalizeAt(x any, depth int) any {
 	switch v := x.(type) {
 	case nil:
 		return nil
@@ -591,9 +610,10 @@ func normalize(x any) any {
 		if v == nil {
 			return nil // a nil slice is undef, not an empty array
 		}
+		enter(x, depth)
 		a := &AV{items: make([]*SV, len(v))}
 		for i, e := range v {
-			a.items[i] = Value(e) // nested arrays stay nested
+			a.items[i] = valueAt(e, depth+1) // nested arrays stay nested
 		}
 		return a
 	case []string:
@@ -606,9 +626,10 @@ func normalize(x any) any {
 		}
 		return a
 	case map[string]any:
+		enter(x, depth)
 		h := newHV(len(v))
 		for k, e := range v {
-			h.m[k] = Value(e)
+			h.m[k] = valueAt(e, depth+1)
 		}
 		return h
 	}
@@ -631,7 +652,8 @@ func normalize(x any) any {
 	rv := reflect.ValueOf(x)
 	switch rv.Kind() {
 	case reflect.Struct:
-		return structHash(rv)
+		enter(x, depth)
+		return structHash(rv, depth)
 	// Named types of the kinds above, such as type Kind string: by kind,
 	// as encoding/json writes them, not stringified.
 	case reflect.Bool:
@@ -648,25 +670,28 @@ func normalize(x any) any {
 		if rv.Kind() == reflect.Slice && rv.IsNil() {
 			return nil
 		}
+		enter(x, depth)
 		a := &AV{items: make([]*SV, rv.Len())}
 		for i := range rv.Len() {
-			a.items[i] = Value(rv.Index(i).Interface())
+			a.items[i] = valueAt(rv.Index(i).Interface(), depth+1)
 		}
 		return a
 	case reflect.Map:
 		if rv.IsNil() {
 			return nil
 		}
+		enter(x, depth)
 		h := newHV(rv.Len())
 		for it := rv.MapRange(); it.Next(); {
-			h.m[mapKey(it.Key())] = Value(it.Value().Interface())
+			h.m[mapKey(it.Key())] = valueAt(it.Value().Interface(), depth+1)
 		}
 		return h
 	case reflect.Pointer:
 		if rv.IsNil() {
 			return nil
 		}
-		return normalize(rv.Elem().Interface())
+		enter(x, depth)
+		return normalizeAt(rv.Elem().Interface(), depth+1)
 	}
 	return fmt.Sprint(x)
 }
@@ -676,7 +701,7 @@ func normalize(x any) any {
 // the fields of embedded structs promoted; none for a field tagged "-", or
 // tagged omitempty and empty. It's the way Decode, the way back, reads a
 // struct.
-func structHash(rv reflect.Value) *HV {
+func structHash(rv reflect.Value, depth int) *HV {
 	fs := structFields(rv.Type())
 	h := newHV(len(fs.byName))
 	for name, f := range fs.byName {
@@ -684,7 +709,7 @@ func structHash(rv reflect.Value) *HV {
 		if !ok || f.omitEmpty && isEmpty(v) {
 			continue
 		}
-		h.m[name] = Value(v.Interface())
+		h.m[name] = valueAt(v.Interface(), depth+1)
 	}
 	return h
 }

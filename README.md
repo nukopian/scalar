@@ -2105,6 +2105,11 @@ encoding/json would write it, by the same rules `Decode` reads it with
 `MarshalJSON` or `MarshalText` is what that gives: `time.Time` is its
 RFC 3339 string.
 
+A Go value that contains itself, such as a struct whose pointer field leads
+back to it, or a map holding itself, panics, naming its type. encoding/json
+refuses one with an error, but `Value` has no error to return, and
+following the loop would overflow the stack, which kills the program.
+
 ```go
 result.At("occupation").Set(occupations.Summarise(cd)) // a soc.Summary, as a hash
 ```
