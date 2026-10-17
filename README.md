@@ -1384,16 +1384,22 @@ resp.Find("$.content[?@.type == 'tool_use'].input")       // the tool_use block 
 | `match(s, 're')`, `search(s, 're')` | whether all of `s`, or some of it, matches an I-Regexp |
 
 **Comparison goes by JSON type**, as RFC 9535 says, not by Perl's string and
-numeric contexts: `1 == 1.0`, but `1 != "1"` and `1 != true`. `<` and the
-like compare two numbers, or two strings by their characters, and nothing
-else. A query that selects nothing is Nothing, which equals only Nothing:
+numeric contexts: `1 == 1.0`, but `1 != "1"` and `1 != true`. Two integers
+compare exactly, past float64's 2⁵³, as `NumEq` does. `<` and the like
+compare two numbers, or two strings by their characters, and nothing else.
+A byte string's characters are Latin-1, one a byte, as `Eq` and `Length`
+have them, in comparisons, `length` and the regular expressions. A query that selects nothing is Nothing, which equals only Nothing:
 `@.min == @.max` is true when neither is there. Arrays and hashes are equal
 element by element, but can't be written as literals. Data built in Go
 compares as it's stored: `Value("1")` is a string.
 
 **Regular expressions are I-Regexp** (RFC 9485), a small, safe common
 subset: no `\d` or `\w` (use `[0-9]`, `\p{L}`), no lazy quantifiers, no
-backreferences. `.` is any character but a line break. A pattern that isn't
+`(?...)` groups or flags, no backreferences; braces only as `{n}`, `{n,}` or
+`{n,m}`; `\p{..}` only for Unicode categories (`L`, `Lu`, `Nd`, …). `Find`
+takes exactly what RFC 9485's grammar does, though Go's regexp would take
+more. `.` is any character but a line break. A repeat over 1,000 (`a{1001}`)
+is beyond Go's regexp, and so false. A pattern that isn't
 I-Regexp makes `match` and `search` false, as the RFC says, rather than an
 error. One point the RFC leaves open: its grammar makes `^` and `$`
 ordinary characters, but its own translation to Go's regexp leaves them as
@@ -1419,6 +1425,9 @@ input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
 
 - **`Find` never creates anything.** Unlike `Path`, a missing key or index
   simply matches nothing.
+- **A hole in an array is undef,** as `MarshalJSON` writes it (`null`): `[*]`
+  finds it, `?@ == null` matches it. The undef found is a fresh one, so the
+  hole stays a hole, and writing to it panics.
 - **Hash order is unspecified,** as in JSONPath and Perl. Matches from `[*]`
   or `..` on a hash come back in the hash's own order.
 - **A malformed path panics,** like a bad regex. What's malformed is what
@@ -1428,8 +1437,11 @@ input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
   Nesting deeper than 1,000 is an error too, rather than a stack overflow.
 - **It passes the [JSONPath Compliance Test Suite](https://github.com/jsonpath-standard/jsonpath-compliance-test-suite),**
   all 715 cases (`TestCompliance`, with the suite in `testdata/cts`).
-- **References that loop back on themselves are visited once,** so `..`
-  can't get stuck.
+- **A part in two places is found in each,** as it would be after a JSON
+  round trip: `..` goes down every branch. **A reference that loops back** to
+  one of its ancestors isn't followed again, so `..` can't get stuck, and a
+  filter comparing structures that loop compares them safely, as `Equal`
+  does.
 
 ## Changing every value: `Apply`
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
 )
 
@@ -57,29 +56,39 @@ func query(from, root *SV, segs []segment) []*SV {
 }
 
 // walk visits n and then everything below it, in document order. JSON is a
-// tree, but references can make an array or hash appear more than once, or
-// even contain itself; visited makes sure each is visited only once.
-func walk(n *SV, visited map[any]bool, visit func(*SV)) {
+// tree, but references can make an array or hash appear in two places, or
+// contain itself. A part in two places is visited in each, as it would be
+// after a JSON round trip; ancestors holds the arrays and hashes on the way
+// down, so a loop back to one is followed only once.
+func walk(n *SV, ancestors map[any]bool, visit func(*SV)) {
 	switch v := n.v.(type) {
 	case *AV, *HV:
-		if visited[v] {
+		if ancestors[v] {
 			return
 		}
-		visited[v] = true
+		ancestors[v] = true
+		defer delete(ancestors, v)
 	}
 	visit(n)
-	children(n, func(c *SV) { walk(c, visited, visit) })
+	children(n, func(c *SV) { walk(c, ancestors, visit) })
+}
+
+// hole is what a hole in an array is to Find: undef, as MarshalJSON writes
+// it (null). It's a fresh scalar, so the hole isn't filled in.
+func hole(c *SV) *SV {
+	if c == nil {
+		return &SV{noCreate: "Modification of a hole in an array, found by Find, attempted"}
+	}
+	return c
 }
 
 // children calls f for each element of the array or hash that n refers to.
-// Array holes don't exist, so they're skipped.
+// A hole in an array is undef (see hole).
 func children(n *SV, f func(*SV)) {
 	switch v := n.v.(type) {
 	case *AV:
 		for _, c := range v.items {
-			if c != nil {
-				f(c)
-			}
+			f(hole(c))
 		}
 	case *HV:
 		for _, k := range v.keys() {
@@ -143,16 +152,14 @@ func (sel selector) apply(n, root *SV, out []*SV) []*SV {
 		}
 	case selIndex:
 		if a, ok := n.v.(*AV); ok {
-			if i, ok := a.index(sel.index); ok && i < len(a.items) && a.items[i] != nil {
-				out = append(out, a.items[i])
+			if i, ok := a.index(sel.index); ok && i < len(a.items) {
+				out = append(out, hole(a.items[i]))
 			}
 		}
 	case selSlice:
 		if a, ok := n.v.(*AV); ok {
 			for _, i := range sel.sliceIndexes(len(a.items)) {
-				if a.items[i] != nil {
-					out = append(out, a.items[i])
-				}
+				out = append(out, hole(a.items[i]))
 			}
 		}
 	}
@@ -198,16 +205,14 @@ func (sel selector) sliceIndexes(n int) []int {
 	return out
 }
 
-var pathCache sync.Map // string → []segment
+var pathCache = boundedCache[string, []segment]{limit: cacheLimit}
 
 func compilePath(path string) []segment {
-	if segs, ok := pathCache.Load(path); ok {
-		return segs.([]segment)
+	if segs, ok := pathCache.load(path); ok {
+		return segs
 	}
 	p := &pathParser{src: path}
-	segs := p.parse()
-	pathCache.Store(path, segs)
-	return segs
+	return pathCache.store(path, p.parse())
 }
 
 type pathParser struct {

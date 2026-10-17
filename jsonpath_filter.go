@@ -1,11 +1,9 @@
 package scalar
 
 import (
-	"math"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
 )
 
@@ -54,7 +52,7 @@ func (e andExpr) test(cur, root *SV) bool {
 }
 
 func (e notExpr) test(cur, root *SV) bool    { return !e.e.test(cur, root) }
-func (e existsExpr) test(cur, root *SV) bool { return len(e.q.nodes(cur, root)) > 0 }
+func (e existsExpr) test(cur, root *SV) bool { return e.q.exists(cur, root) }
 func (e funcTest) test(cur, root *SV) bool   { return e.call.logical(cur, root) }
 
 func (e compareExpr) test(cur, root *SV) bool {
@@ -81,6 +79,7 @@ func (e compareExpr) test(cur, root *SV) bool {
 type filterQuery struct {
 	relative bool
 	segs     []segment
+	single   bool // singular, as worked out when parsed
 }
 
 func (q filterQuery) nodes(cur, root *SV) []*SV {
@@ -89,6 +88,45 @@ func (q filterQuery) nodes(cur, root *SV) []*SV {
 		from = cur
 	}
 	return query(from, root, q.segs)
+}
+
+// exists reports whether q selects anything: for a singular query, by
+// following it without allocating.
+func (q filterQuery) exists(cur, root *SV) bool {
+	if q.single {
+		_, ok := q.one(cur, root)
+		return ok
+	}
+	return len(q.nodes(cur, root)) > 0
+}
+
+// one follows a singular query, step by step, and returns the node it
+// selects, if any.
+func (q filterQuery) one(cur, root *SV) (*SV, bool) {
+	n := root
+	if q.relative {
+		n = cur
+	}
+	for _, seg := range q.segs {
+		sel := seg.selectors[0]
+		switch v := n.val().(type) {
+		case *HV:
+			c, ok := v.m[sel.name]
+			if sel.kind != selName || !ok {
+				return nil, false
+			}
+			n = c
+		case *AV:
+			i, ok := v.index(sel.index)
+			if sel.kind != selIndex || !ok || i >= len(v.items) {
+				return nil, false
+			}
+			n = hole(v.items[i])
+		default:
+			return nil, false
+		}
+	}
+	return n, true
 }
 
 // singular reports whether q can select at most one node: only names and
@@ -127,8 +165,8 @@ func (l literalValue) value(_, _ *SV) value { return l.v }
 type singularValue struct{ q filterQuery }
 
 func (s singularValue) value(cur, root *SV) value {
-	if ns := s.q.nodes(cur, root); len(ns) == 1 {
-		return value{sv: ns[0]}
+	if n, ok := s.q.one(cur, root); ok {
+		return value{sv: n}
 	}
 	return nothing
 }
@@ -163,28 +201,29 @@ func kindOf(s *SV) jsonKind {
 	return jNull
 }
 
-func numberOf(s *SV) float64 {
-	switch v := s.val().(type) {
-	case int64:
-		return float64(v)
-	case float64:
-		return v
-	}
-	return math.NaN()
+// textOf is a string's text: a byte string's bytes as Latin-1 characters,
+// as Eq and Length have them.
+func textOf(s *SV) string {
+	t, _ := s.text()
+	return t
 }
 
 // equal is ==, as RFC 9535 section 2.3.5.2.2 defines it: Nothing equals
 // only Nothing; values of different JSON types are unequal; numbers
-// compare as numbers (1 == 1.0), strings by their characters, and arrays
-// and objects element by element.
+// compare as numbers (1 == 1.0, and exactly when both are integers),
+// strings by their characters (a byte string's are Latin-1, as Eq has
+// them), and arrays and objects element by element, safely when they
+// loop back on themselves, as Equal does.
 func (a value) equal(b value) bool {
 	if a.nothing || b.nothing {
 		return a.nothing && b.nothing
 	}
-	return jsonEqual(a.sv, b.sv)
+	return jsonEqual(a.sv, b.sv, map[[2]any]bool{})
 }
 
-func jsonEqual(a, b *SV) bool {
+// jsonEqual is == for two values. seen holds the pairs of arrays or hashes
+// being compared further up, which count as equal if they come round again.
+func jsonEqual(a, b *SV, seen map[[2]any]bool) bool {
 	ka, kb := kindOf(a), kindOf(b)
 	if ka != kb {
 		return false
@@ -195,30 +234,39 @@ func jsonEqual(a, b *SV) bool {
 	case jBool:
 		return a.val() == b.val()
 	case jNumber:
-		return numberOf(a) == numberOf(b)
+		c, ok := numCompare(a, b)
+		return ok && c == 0
 	case jString:
-		return a.Str() == b.Str()
+		return textOf(a) == textOf(b)
 	case jArray:
 		x, y := a.val().(*AV), b.val().(*AV)
+		if x == y || seen[[2]any{x, y}] {
+			return true
+		}
 		if len(x.items) != len(y.items) {
 			return false
 		}
+		seen[[2]any{x, y}] = true
 		for i := range x.items {
 			xe, _ := element(x, i)
 			ye, _ := element(y, i)
-			if !jsonEqual(xe, ye) {
+			if !jsonEqual(xe, ye, seen) {
 				return false
 			}
 		}
 		return true
 	case jObject:
 		x, y := a.val().(*HV), b.val().(*HV)
+		if x == y || seen[[2]any{x, y}] {
+			return true
+		}
 		if len(x.m) != len(y.m) {
 			return false
 		}
+		seen[[2]any{x, y}] = true
 		for k, xv := range x.m {
 			yv, ok := y.m[k]
-			if !ok || !jsonEqual(xv, yv) {
+			if !ok || !jsonEqual(xv, yv, seen) {
 				return false
 			}
 		}
@@ -236,9 +284,10 @@ func (a value) less(b value) bool {
 	ka, kb := kindOf(a.sv), kindOf(b.sv)
 	switch {
 	case ka == jNumber && kb == jNumber:
-		return numberOf(a.sv) < numberOf(b.sv)
+		c, ok := numCompare(a.sv, b.sv)
+		return ok && c < 0
 	case ka == jString && kb == jString:
-		return a.sv.Str() < b.sv.Str() // byte order of UTF-8 is code point order
+		return textOf(a.sv) < textOf(b.sv) // UTF-8's byte order is code point order
 	}
 	return false
 }
@@ -288,10 +337,8 @@ func (f *funcCall) value(cur, root *SV) value {
 			return nothing
 		}
 		switch x := v.sv.val().(type) {
-		case string:
-			return number(utf8.RuneCountInString(x))
-		case []byte:
-			return number(utf8.RuneCount(x))
+		case string, []byte:
+			return number(v.sv.Length()) // characters, a byte string's being Latin-1
 		case *AV:
 			return number(len(x.items))
 		case *HV:
@@ -315,8 +362,8 @@ func (f *funcCall) logical(cur, root *SV) bool {
 	if s.nothing || re.nothing || kindOf(s.sv) != jString || kindOf(re.sv) != jString {
 		return false
 	}
-	r, ok := iRegexp(re.sv.Str(), f.name == "match")
-	return ok && r.MatchString(s.sv.Str())
+	r, ok := iRegexp(textOf(re.sv), f.name == "match")
+	return ok && r.MatchString(textOf(s.sv))
 }
 
 func number(n int) value { return value{sv: &SV{v: int64(n)}} }
@@ -336,15 +383,17 @@ func (f funcValue) value(cur, root *SV) value { return f.call.value(cur, root) }
 // to anchor. match matches the whole string, search any part of it. A
 // pattern that isn't I-Regexp gives false, as the RFC says, not an error.
 
-var iRegexps sync.Map // "m"/"s" + pattern → *regexp.Regexp, or nil if invalid
+// iRegexps are the patterns translated: "m" or "s" (for match or search)
+// and the pattern → the regexp, or nil if it isn't I-Regexp. It's bounded,
+// as patterns may come from the data ($[?match(@.a, @.re)]).
+var iRegexps = boundedCache[string, *regexp.Regexp]{limit: cacheLimit}
 
 func iRegexp(pattern string, whole bool) (*regexp.Regexp, bool) {
 	key := "s" + pattern
 	if whole {
 		key = "m" + pattern
 	}
-	if r, ok := iRegexps.Load(key); ok {
-		re, _ := r.(*regexp.Regexp)
+	if re, ok := iRegexps.load(key); ok {
 		return re, re != nil
 	}
 	var re *regexp.Regexp
@@ -354,89 +403,247 @@ func iRegexp(pattern string, whole bool) (*regexp.Regexp, bool) {
 		}
 		re, _ = regexp.Compile(goRE)
 	}
-	iRegexps.Store(key, re)
+	re = iRegexps.store(key, re)
 	return re, re != nil
 }
 
 // translateIRegexp returns pattern as Go regexp syntax, and false if it
-// isn't I-Regexp.
+// isn't I-Regexp. It parses pattern by RFC 9485's grammar, so it takes no
+// more than I-Regexp does, though Go's regexp would: no (?...) groups or
+// flags, no \d or \w, no lazy quantifiers, braces only as {n}, {n,} or
+// {n,m}, \p{..} only for Unicode categories.
 func translateIRegexp(pattern string) (string, bool) {
-	var b strings.Builder
-	inClass := false
-	quantified := false // the last token was a quantifier, so a "?" now would make it lazy
-	for i := 0; i < len(pattern); {
-		r, size := utf8.DecodeRuneInString(pattern[i:])
-		if r == utf8.RuneError && size == 1 {
-			return "", false
-		}
-		i += size
-		wasQuantified := quantified
-		quantified = !inClass && (r == '*' || r == '+' || r == '?' || r == '}')
-		switch {
-		case r == '\\':
-			if i >= len(pattern) {
-				return "", false
-			}
-			e := pattern[i]
-			i++
-			switch {
-			case strings.IndexByte(`()*+-.?[\]^{|}`, e) >= 0:
-				b.WriteByte('\\')
-				b.WriteByte(e)
-			case e == 'n':
-				b.WriteString(`\n`)
-			case e == 'r':
-				b.WriteString(`\r`)
-			case e == 't':
-				b.WriteString(`\t`)
-			case e == 'p' || e == 'P':
-				end := strings.IndexByte(pattern[i:], '}')
-				if i >= len(pattern) || pattern[i] != '{' || end < 0 {
-					return "", false
-				}
-				b.WriteByte('\\')
-				b.WriteByte(e)
-				b.WriteString(pattern[i : i+end+1])
-				i += end + 1
-			default:
-				return "", false // \d, \w, \b and the rest aren't I-Regexp
-			}
-		case inClass:
-			if r == ']' {
-				inClass = false
-			}
-			if r == '[' {
-				return "", false // no nested classes or subtraction
-			}
-			b.WriteRune(r)
-		case r == '[':
-			inClass = true
-			b.WriteRune(r)
-			if strings.HasPrefix(pattern[i:], "^") {
-				b.WriteByte('^')
-				i++
-			}
-			if strings.HasPrefix(pattern[i:], "]") {
-				return "", false // an empty class
-			}
-		case r == '.':
-			b.WriteString(`[^\n\r]`)
-		case r == '?' && wasQuantified:
-			return "", false // a lazy quantifier isn't I-Regexp
-		default:
-			b.WriteRune(r)
-		}
-	}
-	if inClass {
+	x := &iRegexpParser{src: pattern}
+	if !x.alternatives() || x.i != len(x.src) {
 		return "", false
 	}
-	return b.String(), true
+	return x.out.String(), true
+}
+
+type iRegexpParser struct {
+	src string
+	i   int
+	out strings.Builder
+}
+
+func (x *iRegexpParser) peek() rune {
+	if x.i >= len(x.src) {
+		return -1
+	}
+	r, _ := utf8.DecodeRuneInString(x.src[x.i:])
+	return r
+}
+
+func (x *iRegexpParser) next() rune {
+	r, size := utf8.DecodeRuneInString(x.src[x.i:])
+	x.i += size
+	return r
+}
+
+// alternatives: branch *( "|" branch ).
+func (x *iRegexpParser) alternatives() bool {
+	for {
+		if !x.branch() {
+			return false
+		}
+		if x.peek() != '|' {
+			return true
+		}
+		x.next()
+		x.out.WriteByte('|')
+	}
+}
+
+// branch: *piece, each an atom and perhaps one quantifier.
+func (x *iRegexpParser) branch() bool {
+	for {
+		switch x.peek() {
+		case -1, '|', ')':
+			return true
+		}
+		if !x.atom() || !x.quantifier() {
+			return false
+		}
+	}
+}
+
+// atom: a normal character, ".", an escape, a class, or a group.
+func (x *iRegexpParser) atom() bool {
+	switch r := x.peek(); r {
+	case utf8.RuneError:
+		return false
+	case '.':
+		x.next()
+		x.out.WriteString(`[^\n\r]`)
+	case '\\':
+		return x.escape(false)
+	case '[':
+		return x.class()
+	case '(':
+		x.next()
+		if x.peek() == '?' {
+			return false // (?:...), (?i) and the rest aren't I-Regexp
+		}
+		x.out.WriteByte('(')
+		if !x.alternatives() || x.peek() != ')' {
+			return false
+		}
+		x.next()
+		x.out.WriteByte(')')
+	case '?', '*', '+', '{', '}', ')', '|', ']':
+		return false // a metacharacter where an atom must be
+	default:
+		x.next()
+		x.out.WriteRune(r) // ^ and $ too: see iRegexp
+	}
+	return true
+}
+
+// quantifier: perhaps *, +, ? or {n}, {n,} or {n,m}; never two.
+func (x *iRegexpParser) quantifier() bool {
+	switch x.peek() {
+	case '*', '+', '?':
+		x.out.WriteRune(x.next())
+	case '{':
+		start := x.i
+		x.next()
+		if !x.digits() {
+			return false
+		}
+		if x.peek() == ',' {
+			x.next()
+			x.digits()
+		}
+		if x.peek() != '}' {
+			return false
+		}
+		x.next()
+		x.out.WriteString(x.src[start:x.i])
+	default:
+		return true
+	}
+	switch x.peek() {
+	case '*', '+', '?', '{':
+		return false // a lazy quantifier, or two in a row
+	}
+	return true
+}
+
+func (x *iRegexpParser) digits() bool {
+	start := x.i
+	for x.i < len(x.src) && '0' <= x.src[x.i] && x.src[x.i] <= '9' {
+		x.i++
+	}
+	return x.i > start
+}
+
+// escape: \ and one of ( ) * + - . ? [ \ ] ^ { | } n r t, or a category,
+// \p{..} or \P{..}. In a class, only those that stand for one character
+// (oneChar) or a category may come.
+func (x *iRegexpParser) escape(inClass bool) bool {
+	x.next()
+	switch e := x.peek(); {
+	case e >= 0 && strings.ContainsRune(`()*+-.?[\]^{|}`, e):
+		x.next()
+		x.out.WriteByte('\\')
+		x.out.WriteRune(e)
+	case e == 'n' || e == 'r' || e == 't':
+		x.next()
+		x.out.WriteByte('\\')
+		x.out.WriteRune(e)
+	case e == 'p' || e == 'P':
+		x.next()
+		end := strings.IndexByte(x.src[x.i:], '}')
+		if x.peek() != '{' || end < 0 || !categories[x.src[x.i+1:x.i+end]] {
+			return false
+		}
+		x.out.WriteByte('\\')
+		x.out.WriteRune(e)
+		x.out.WriteString(x.src[x.i : x.i+end+1])
+		x.i += end + 1
+	default:
+		return false // \d, \w, \b and the rest aren't I-Regexp
+	}
+	return true
+}
+
+// categories are the Unicode categories \p{..} may name.
+var categories = func() map[string]bool {
+	m := map[string]bool{}
+	for _, c := range []string{"L", "Ll", "Lm", "Lo", "Lt", "Lu", "M", "Mc", "Me", "Mn", "N", "Nd", "Nl", "No",
+		"P", "Pc", "Pd", "Pe", "Pf", "Pi", "Po", "Ps", "Z", "Zl", "Zp", "Zs", "S", "Sc", "Sk", "Sm", "So",
+		"C", "Cc", "Cf", "Cn", "Co"} {
+		m[c] = true
+	}
+	return m
+}()
+
+// class: "[" ["^"] ("-" / item) *item ["-"] "]", an item a character,
+// a range of two, or a category; a character is any but - [ \ ], or an
+// escape of one.
+func (x *iRegexpParser) class() bool {
+	x.next()
+	x.out.WriteByte('[')
+	if x.peek() == '^' {
+		x.next()
+		x.out.WriteByte('^')
+	}
+	first := true
+	for {
+		switch r := x.peek(); {
+		case r == ']' && !first:
+			x.next()
+			x.out.WriteByte(']')
+			return true
+		case r == '-' && first:
+			x.next()
+			x.out.WriteString(`\-`)
+		case r == '-':
+			x.next()
+			if x.peek() != ']' {
+				return false // "-" only first or last, or in a range
+			}
+			x.out.WriteString(`\-`)
+		default:
+			isCat := r == '\\' && x.i+1 < len(x.src) && (x.src[x.i+1] == 'p' || x.src[x.i+1] == 'P')
+			if !x.classChar() {
+				return false
+			}
+			if !isCat && x.peek() == '-' && x.i+1 < len(x.src) && x.src[x.i+1] != ']' {
+				x.next()
+				x.out.WriteByte('-')
+				if x.peek() == '\\' && x.i+1 < len(x.src) && (x.src[x.i+1] == 'p' || x.src[x.i+1] == 'P') {
+					return false // a range ends in a character, not a category
+				}
+				if !x.classChar() {
+					return false
+				}
+				if x.peek() == '-' && x.i+1 < len(x.src) && x.src[x.i+1] != ']' {
+					return false // no "a-b-c"
+				}
+			}
+		}
+		first = false
+	}
+}
+
+// classChar: one character of a class, or an escape.
+func (x *iRegexpParser) classChar() bool {
+	switch r := x.peek(); r {
+	case -1, '[', ']', '-', utf8.RuneError:
+		return false
+	case '\\':
+		return x.escape(true)
+	default:
+		x.next()
+		x.out.WriteRune(r)
+		return true
+	}
 }
 
 // Parsing a filter's logical expression.
 
 func (p *pathParser) logicalExpr() logical {
-	defer p.nest()()
 	or := orExpr{p.andExpr()}
 	for {
 		save := p.pos
@@ -514,10 +721,6 @@ func (p *pathParser) parenRest() logical {
 func (p *pathParser) testExpr() logical {
 	start := p.pos
 	op, kind := p.operand()
-	if kind == "literal" {
-		p.pos = start
-		p.fail("a literal isn't a test; compare it")
-	}
 	return p.testOf(op, kind, start)
 }
 
@@ -536,6 +739,7 @@ func (p *pathParser) operand() (any, string) {
 	case c == '@' || c == '$':
 		p.pos++
 		q := filterQuery{relative: c == '@', segs: p.segments(true)}
+		q.single = q.singular()
 		return q, "query"
 	case c == '\'' || c == '"':
 		return value{sv: &SV{v: p.stringLiteral()}}, "literal"

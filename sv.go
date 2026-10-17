@@ -71,8 +71,9 @@ func Value(x any) *SV {
 // would write them (Decode's way back), a type with its own MarshalJSON or
 // MarshalText is what that gives (time.Time is its RFC 3339 string), and
 // *SV is copied by value (a copied reference still points at the same
-// AV/HV, as in Perl). Anything else is stringified with fmt.Sprint. A Go
-// value that contains itself panics, as encoding/json refuses one.
+// AV/HV, as in Perl); a nil *AV or *HV is undef, as a nil slice or map
+// is. Anything else is stringified with fmt.Sprint. A Go value that
+// contains itself panics, as encoding/json refuses one.
 func (s *SV) Set(x any) *SV {
 	s.vivify()
 	s.v = normalize(x)
@@ -573,7 +574,17 @@ func normalizeAt(x any, depth int) any {
 		return v.val()
 	case SV:
 		return v.v
-	case bool, string, *AV, *HV:
+	case bool, string:
+		return v
+	case *AV:
+		if v == nil {
+			return nil // a nil array is undef, as a nil slice is
+		}
+		return v
+	case *HV:
+		if v == nil {
+			return nil
+		}
 		return v
 	case []byte:
 		if v == nil {

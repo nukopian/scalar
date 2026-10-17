@@ -2,6 +2,7 @@ package scalar
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -166,11 +167,15 @@ func TestFindHolesAndCycles(t *testing.T) {
 	a := Array()
 	a.Set(2, "c")
 	root := Value(a)
-	if got := strs(root.Find("$[*]")); !slices.Equal(got, []string{"c"}) {
-		t.Errorf("holes should be skipped: %q", got)
+	// A hole is undef, as MarshalJSON writes it (null), and stays a hole.
+	if got := root.Find("$[*]"); got.Length() != 3 || got.Get(0).Defined() || got.Get(2).Str() != "c" {
+		t.Errorf("holes should be undef: %s", got.Dump())
 	}
-	if root.Find("$[0]") != nil {
-		t.Error("a hole doesn't exist")
+	if got := root.Find("$[0]"); got.Length() != 1 || got.Get(0).Defined() || a.Exists(0) {
+		t.Error("a hole should be found as undef, and not filled in")
+	}
+	if msg := panicOf(func() { root.Find("$[0]").Get(0).Set(1) }); !strings.Contains(msg, "a hole in an array") {
+		t.Errorf("writing to a hole found by Find: %q", msg)
 	}
 
 	// A hash that contains a reference to itself.

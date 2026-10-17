@@ -31,6 +31,9 @@ func (c *boundedCache[K, V]) load(k K) (V, bool) {
 	return v.(V), true
 }
 
+// len returns how many entries the cache holds, about.
+func (c *boundedCache[K, V]) len() int { return int(c.n.Load()) }
+
 // store adds v under k, unless another goroutine got there first, and
 // returns whichever is in the cache.
 func (c *boundedCache[K, V]) store(k K, v V) V {
