@@ -31,11 +31,11 @@ func numericPrefix(t string) string {
 		}
 	}
 	if !whole {
-		rest := strings.ToLower(t[start:min(len(t), start+8)])
+		rest := t[start:]
 		switch {
-		case strings.HasPrefix(rest, "infinity"):
+		case hasPrefixFold(rest, "infinity"):
 			return t[:start+8]
-		case strings.HasPrefix(rest, "inf"), strings.HasPrefix(rest, "nan"):
+		case hasPrefixFold(rest, "inf"), hasPrefixFold(rest, "nan"):
 			return t[:start+3]
 		}
 		return ""
@@ -57,6 +57,20 @@ func numericPrefix(t string) string {
 }
 
 func isASCIIDigit(b byte) bool { return '0' <= b && b <= '9' }
+
+// hasPrefixFold reports whether t starts with prefix, a lower-case ASCII
+// word, in any case. strings.ToLower would allocate for every capital.
+func hasPrefixFold(t, prefix string) bool {
+	if len(t) < len(prefix) {
+		return false
+	}
+	for i := 0; i < len(prefix); i++ {
+		if t[i]|0x20 != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
 
 // isIntText reports whether m, a numeric prefix, is a sign and digits
 // only, so that strconv.ParseInt is worth trying: a failed one allocates.
