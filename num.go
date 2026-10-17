@@ -1,13 +1,76 @@
 package scalar
 
 import (
-	"regexp"
 	"strconv"
 	"strings"
 )
 
-// numPrefix matches the longest numeric prefix Perl would accept.
-var numPrefix = regexp.MustCompile(`^[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan))`)
+// numericPrefix returns the longest numeric prefix of t Perl would accept,
+// or "": a sign, then digits with a fraction or a fraction alone, then an
+// exponent if digits follow it; or inf, infinity or nan, in any case. It's
+// the regex ^[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|(?i:inf(?:inity)?|nan)),
+// written out, as the regex was most of a numeric read's time
+// (TestNumericPrefix and FuzzNumericPrefix check them against each other).
+func numericPrefix(t string) string {
+	i := 0
+	if i < len(t) && (t[i] == '+' || t[i] == '-') {
+		i++
+	}
+	start := i
+	for i < len(t) && isASCIIDigit(t[i]) {
+		i++
+	}
+	whole := i > start
+	if i < len(t) && t[i] == '.' {
+		j := i + 1
+		for j < len(t) && isASCIIDigit(t[j]) {
+			j++
+		}
+		if whole || j > i+1 { // "4." and ".5", not "."
+			i, whole = j, true
+		}
+	}
+	if !whole {
+		rest := strings.ToLower(t[start:min(len(t), start+8)])
+		switch {
+		case strings.HasPrefix(rest, "infinity"):
+			return t[:start+8]
+		case strings.HasPrefix(rest, "inf"), strings.HasPrefix(rest, "nan"):
+			return t[:start+3]
+		}
+		return ""
+	}
+	if i < len(t) && (t[i] == 'e' || t[i] == 'E') {
+		j := i + 1
+		if j < len(t) && (t[j] == '+' || t[j] == '-') {
+			j++
+		}
+		k := j
+		for k < len(t) && isASCIIDigit(t[k]) {
+			k++
+		}
+		if k > j {
+			i = k
+		}
+	}
+	return t[:i]
+}
+
+func isASCIIDigit(b byte) bool { return '0' <= b && b <= '9' }
+
+// isIntText reports whether m, a numeric prefix, is a sign and digits
+// only, so that strconv.ParseInt is worth trying: a failed one allocates.
+func isIntText(m string) bool {
+	if m != "" && (m[0] == '+' || m[0] == '-') {
+		m = m[1:]
+	}
+	for i := 0; i < len(m); i++ {
+		if !isASCIIDigit(m[i]) {
+			return false
+		}
+	}
+	return m != ""
+}
 
 const perlSpace = " \t\n\r\f\v"
 
@@ -19,14 +82,16 @@ func parseNumber(s string) (iv int64, nv float64, isInt, ok bool) {
 		return 0, 0, true, true
 	}
 	t := strings.TrimLeft(s, perlSpace)
-	m := numPrefix.FindString(t)
+	m := numericPrefix(t)
 	if m == "" {
 		return 0, 0, true, false
 	}
 	ok = strings.TrimRight(t[len(m):], perlSpace) == ""
 
-	if i, err := strconv.ParseInt(m, 10, 64); err == nil {
-		return i, float64(i), true, ok
+	if isIntText(m) {
+		if i, err := strconv.ParseInt(m, 10, 64); err == nil {
+			return i, float64(i), true, ok
+		}
 	}
 	f, _ := strconv.ParseFloat(m, 64) // out-of-range yields ±Inf, as in Perl
 	return 0, f, false, ok
