@@ -225,7 +225,16 @@ func (p *pathParser) parse() []segment {
 		p.fail("a path must start with $")
 	}
 	var segs []segment
-	for p.skipSpace(); !p.done(); p.skipSpace() {
+	for {
+		// Space may come before a segment, but not at the end.
+		before := p.pos
+		p.skipSpace()
+		if p.done() {
+			if p.pos > before {
+				p.fail("space after the last segment")
+			}
+			break
+		}
 		switch {
 		case p.eat(".."):
 			segs = append(segs, segment{descendant: true, selectors: p.dotOrBracket()})
@@ -325,20 +334,33 @@ func (p *pathParser) selector() selector {
 	return sel
 }
 
-// integer parses an optional signed integer.
+// maxExact is the largest integer an index or slice bound may be, as RFC
+// 9535 says: the largest a JSON number holds exactly, 2^53-1.
+const maxExact = 1<<53 - 1
+
+// integer parses an optional signed integer, as RFC 9535 writes one: 0,
+// or digits not starting with 0, perhaps after a minus, so not "01" or
+// "-0", and within ±maxExact.
 func (p *pathParser) integer() (int, bool) {
 	start := p.pos
 	p.eat("-")
+	digits := p.pos
 	for !p.done() && '0' <= p.peek() && p.peek() <= '9' {
 		p.pos++
 	}
-	if p.pos == start || p.src[start:p.pos] == "-" {
+	text := p.src[digits:p.pos]
+	if text == "" {
 		p.pos = start
 		return 0, false
 	}
+	if text[0] == '0' && (len(text) > 1 || digits > start) {
+		p.pos = start
+		p.fail("an integer can't start with 0, or be -0")
+	}
 	n, err := strconv.Atoi(p.src[start:p.pos])
-	if err != nil {
-		p.fail("bad integer: %v", err)
+	if err != nil || n > maxExact || n < -maxExact {
+		p.pos = start
+		p.fail("an integer must be within ±%d", maxExact)
 	}
 	return n, true
 }
@@ -354,18 +376,24 @@ func (p *pathParser) stringLiteral() string {
 		}
 		c := p.src[p.pos]
 		p.pos++
-		switch c {
-		case quote:
+		switch {
+		case c == quote:
 			return b.String()
-		case '\\':
-			p.escape(&b)
+		case c == '\\':
+			p.escape(&b, quote)
+		case c < 0x20:
+			p.pos--
+			p.fail("a control character (U+%04X) must be escaped", c)
 		default:
 			b.WriteByte(c)
 		}
 	}
 }
 
-func (p *pathParser) escape(b *strings.Builder) {
+// escape parses an escape after a backslash in a string quoted with
+// quote: JSON's, but for the other quote, which needs none ("\'" is only
+// in a single-quoted string, "\"" in a double-quoted one).
+func (p *pathParser) escape(b *strings.Builder, quote byte) {
 	if p.done() {
 		p.fail("unterminated escape")
 	}
@@ -382,7 +410,7 @@ func (p *pathParser) escape(b *strings.Builder) {
 		b.WriteByte('\r')
 	case 't':
 		b.WriteByte('\t')
-	case '/', '\\', '\'', '"':
+	case '/', '\\', quote:
 		b.WriteByte(c)
 	case 'u':
 		// A character outside the Basic Multilingual Plane is written as a

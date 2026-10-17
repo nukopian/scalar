@@ -1371,7 +1371,11 @@ Things to know:
   simply matches nothing.
 - **Hash order is unspecified,** as in JSONPath and Perl. Matches from `[*]`
   or `..` on a hash come back in the hash's own order.
-- **A malformed path panics,** like a bad regex.
+- **A malformed path panics,** like a bad regex. What's malformed is what
+  RFC 9535 says is: an index with a leading zero (`[01]`) or `-0`, or past
+  ±(2⁵³−1); a raw control character in a quoted name, or the other quote
+  escaped (`['a\"b']`: write `['a"b']`); a space after the last segment.
+  `TestCompliance` runs the JSONPath Compliance Test Suite.
 - **References that loop back on themselves are visited once,** so `..`
   can't get stuck.
 

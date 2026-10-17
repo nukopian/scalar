@@ -193,7 +193,8 @@ func TestFindEscapesAndDescendantBrackets(t *testing.T) {
 		"$['a\\tb']":          "a\tb",
 		"$['a\\/b']":          "a/b",
 		"$['a\\\\b']":         "a\\b",
-		"$['a\\\"b']":         `a"b`,
+		`$['a"b']`:            `a"b`, // the other quote needs no escape
+		`$["a\"b"]`:           `a"b`, // its own does
 		"$['a\\bb']":          "a\bb",
 		"$['a\\fb']":          "a\fb",
 		"$['a\\rb']":          "a\rb",
@@ -227,7 +228,13 @@ func TestFindErrors(t *testing.T) {
 		"$['a":                    "unterminated string",
 		`$['\q']`:                 `unknown escape \q`,
 		"$[?@.isbn]":              "filter expressions aren't supported",
-		"$[99999999999999999999]": "bad integer",
+		"$[99999999999999999999]": "must be within",
+		"$[9007199254740992]":     "must be within", // 2^53
+		"$[01]":                   "can't start with 0",
+		"$[-0]":                   "can't start with 0",
+		`$['a\"b']`:               `unknown escape \"`,   // only "\'" in single quotes
+		"$['a\tb']":               "a control character", // a raw tab
+		"$ ":                      "space after the last segment",
 		"$['\\u12":                "short \\u escape",
 		"$['\\uzzzz']":            "bad \\u escape",
 		"$['\\":                   "unterminated escape",

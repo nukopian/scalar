@@ -127,7 +127,7 @@ func TestCompliance(t *testing.T) {
 	}
 	// What Find passed when this was last changed; raise these as it
 	// passes more. Fewer is a regression.
-	for g, floor := range map[string]int{"selectors": 243, "filters": 94} {
+	for g, floor := range map[string]int{"selectors": 330, "filters": 94} {
 		if c := counts[g]; c == nil || c.pass < floor {
 			t.Errorf("%s: %v passed, fewer than %d", g, c, floor)
 		}
