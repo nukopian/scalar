@@ -98,3 +98,16 @@ func ExampleSV_Find_filter() {
 	// Nurse
 	// SQL
 }
+
+func ExampleQuoteJSONPath() {
+	doc, _ := scalar.FromJSON([]byte(`{"sections": [
+		{"kind": "summary", "lines": ["We're hiring."]},
+		{"kind": "it's benefits", "lines": ["Pension", "Gym"]}
+	]}`))
+	kind := "it's benefits" // from Go, with a quote in it
+	fmt.Println(scalar.QuoteJSONPath(kind))
+	fmt.Println(doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]").Join(", "))
+	// Output:
+	// 'it\'s benefits'
+	// Pension, Gym
+}

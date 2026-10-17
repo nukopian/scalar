@@ -209,7 +209,7 @@ string and you get a string; ask for a number and you get a number.
 | For | Use | Perl |
 |---|---|---|
 | Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
-| Searching nested data | `Find("$..skills[*]")`, `Find("$.jobs[?@.salary.min > 30000]")`, JSONPath (RFC 9535, all of it) | |
+| Searching nested data | `Find("$..skills[*]")`, `Find("$.jobs[?@.salary.min > 30000]")`, JSONPath (RFC 9535, all of it); `QuoteJSONPath` to put a Go value into a query | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
 | Filling in text | `Interpolate("$title in $location: @skills")`, with `MustTemplate` to compile one and set the list separator | `"$title: @skills"`, `$"` |
@@ -1411,6 +1411,16 @@ require, and panic like any malformed path: `@.* == 1` (a query that could
 select several), `?length(@.a)` on its own (a value, not true or false),
 `match(@, 'x') == true` (true or false, not a value to compare), an unknown
 function, or the wrong number of arguments.
+
+**A value from Go goes in through `QuoteJSONPath`,** which writes it as a
+quoted, escaped literal, as `regexp.QuoteMeta` does for a pattern. Building
+the quotes by hand breaks on an apostrophe, and a value such as
+`']) || true || ('` would change the query:
+
+```go
+doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]")
+doc.Find("$[" + scalar.QuoteJSONPath(key) + "]")   // a key that isn't a plain word
+```
 
 For a condition the language can't say, the list utilities on the result are
 plain Go:
@@ -6588,6 +6598,25 @@ Café manager
 Developer
 Nurse
 SQL
+```
+
+#### `QuoteJSONPath`
+
+QuoteJSONPath returns s as a JSONPath string literal, quoted and escaped as RFC 9535 requires, to put a value or a name from Go into a query safely, as `regexp.QuoteMeta` does for a pattern:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"sections": [
+	{"kind": "summary", "lines": ["We're hiring."]},
+	{"kind": "it's benefits", "lines": ["Pension", "Gym"]}
+]}`))
+kind := "it's benefits" // from Go, with a quote in it
+fmt.Println(scalar.QuoteJSONPath(kind))
+fmt.Println(doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]").Join(", "))
+```
+
+```
+'it\'s benefits'
+Pension, Gym
 ```
 
 ### Reference: YAML

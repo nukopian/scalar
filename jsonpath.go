@@ -33,6 +33,43 @@ func (s *SV) Find(path string) *AV {
 	return &AV{items: nodes}
 }
 
+// QuoteJSONPath returns s as a JSONPath string literal, quoted and
+// escaped as RFC 9535 requires, to put a value or a name from Go into a
+// query safely, as regexp.QuoteMeta does for a pattern:
+//
+//	doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]")
+//	doc.Find("$[" + scalar.QuoteJSONPath(key) + "]")
+//
+// Building the literal by hand breaks, or changes the query, on a quote or
+// backslash in s.
+func QuoteJSONPath(s string) string {
+	var b strings.Builder
+	b.WriteByte('\'')
+	for _, r := range s {
+		switch {
+		case r == '\'' || r == '\\':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r == '\b':
+			b.WriteString(`\b`)
+		case r == '\f':
+			b.WriteString(`\f`)
+		case r == '\n':
+			b.WriteString(`\n`)
+		case r == '\r':
+			b.WriteString(`\r`)
+		case r == '\t':
+			b.WriteString(`\t`)
+		case r < 0x20:
+			fmt.Fprintf(&b, `\u%04x`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('\'')
+	return b.String()
+}
+
 // query returns the nodes segs select, starting at from, with root as the
 // query's $.
 func query(from, root *SV, segs []segment) []*SV {

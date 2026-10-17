@@ -325,3 +325,20 @@ func TestFindCachesBounded(t *testing.T) {
 		t.Errorf("iRegexps has %d entries, over %d", n, cacheLimit)
 	}
 }
+
+// QuoteJSONPath's literal finds exactly what it quotes, as a value in a
+// filter and as a name, however awkward.
+func TestQuoteJSONPath(t *testing.T) {
+	for _, v := range []string{"plain", "it's", `back\slash`, `"double"`, "tab\there", "line\nbreak", "\x01ctrl", "café ✓", "", "]) || true || ("} {
+		doc := Value([]any{map[string]any{"k": v}, map[string]any{"k": v + "x"}})
+		if got := doc.Find("$[?@.k == " + QuoteJSONPath(v) + "].k"); got.Length() != 1 || got.Get(0).Str() != v {
+			t.Errorf("filter on %q: %v", v, got)
+		}
+		h := Hash()
+		h.Set(v, 1)
+		h.Set(v+"x", 2)
+		if got := Value(h).Find("$[" + QuoteJSONPath(v) + "]"); got.Length() != 1 || got.Get(0).Int() != 1 {
+			t.Errorf("name %q: %v", v, got)
+		}
+	}
+}
