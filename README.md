@@ -209,7 +209,7 @@ string and you get a string; ask for a number and you get a number.
 | For | Use | Perl |
 |---|---|---|
 | Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
-| Searching nested data | `Find("$..skills[*]")`, JSONPath | |
+| Searching nested data | `Find("$..skills[*]")`, `Find("$.jobs[?@.salary.min > 30000]")`, JSONPath (RFC 9535, all of it) | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
 | Filling in text | `Interpolate("$title in $location: @skills")`, with `MustTemplate` to compile one and set the list separator | `"$title: @skills"`, `$"` |
@@ -1341,6 +1341,7 @@ doc.Find("$['salary-min']")       // keys that aren't plain words need brackets
 | `.*` or `[*]` | every element of an array or hash |
 | `..name`, `..*`, `..[0]` | the same, at any depth |
 | `[0,2]`, `['a','b']` | several at once |
+| `[?@.price < 10]` | the elements (or a hash's values) the filter is true for; see below |
 
 Each match is a scalar. Strings, numbers, booleans and nulls come back as plain
 values. Objects and arrays come back as references, so you can continue from
@@ -1355,17 +1356,66 @@ for _, s := range meta.Find("$.requiredSkills[*]").All() {
 }
 ```
 
-`Find` doesn't support JSONPath's filter expressions (`[?...]`). Use the list
-utilities on the result instead, which are plain Go:
+### Filters
+
+A filter, `[?...]`, selects the children of an array or hash for which an
+expression is true. In it, `@` is the child, and `$` the value `Find` was
+called on:
 
 ```go
-// The tool_use block in a Bedrock/Claude response.
+jobs.Find("$[?@.salary.min >= 30000].title")              // a comparison
+jobs.Find("$[?@.salary.max]")                             // has a maximum
+jobs.Find("$[?!@.remote]")                                // hasn't "remote" at all
+jobs.Find("$[?@.salary.min > $.threshold]")               // against the root
+jobs.Find("$[?@.type == 'contract' && @.days <= 5]")      // && || ! and ( )
+jobs.Find("$[?count(@.skills[*]) > 2]")                   // functions
+resp.Find("$.content[?@.type == 'tool_use'].input")       // the tool_use block in a Claude response
+```
+
+| In a filter | Means |
+|---|---|
+| `@.a`, `$.a` on their own | the query selects something: `@.remote` is true even if it's `false` |
+| `==`, `!=`, `<`, `<=`, `>`, `>=` | a comparison, of literals, queries that select one node at most (names and indexes only), or functions returning a value |
+| `'text'`, `"text"`, `42`, `-1.5e3`, `true`, `false`, `null` | literals, written as in JSON |
+| `&&`, `\|\|`, `!`, `( )` | and, or, not, grouping |
+| `length(v)` | a string's characters, an array's elements or a hash's keys |
+| `count(q)` | how many nodes a query selects |
+| `value(q)` | the value a query selects, if it selects one |
+| `match(s, 're')`, `search(s, 're')` | whether all of `s`, or some of it, matches an I-Regexp |
+
+**Comparison goes by JSON type**, as RFC 9535 says, not by Perl's string and
+numeric contexts: `1 == 1.0`, but `1 != "1"` and `1 != true`. `<` and the
+like compare two numbers, or two strings by their characters, and nothing
+else. A query that selects nothing is Nothing, which equals only Nothing:
+`@.min == @.max` is true when neither is there. Arrays and hashes are equal
+element by element, but can't be written as literals. Data built in Go
+compares as it's stored: `Value("1")` is a string.
+
+**Regular expressions are I-Regexp** (RFC 9485), a small, safe common
+subset: no `\d` or `\w` (use `[0-9]`, `\p{L}`), no lazy quantifiers, no
+backreferences. `.` is any character but a line break. A pattern that isn't
+I-Regexp makes `match` and `search` false, as the RFC says, rather than an
+error. One point the RFC leaves open: its grammar makes `^` and `$`
+ordinary characters, but its own translation to Go's regexp leaves them as
+anchors, and the compliance suite expects them to anchor; `Find` follows the
+translation and the suite.
+
+**Mistakes in a filter are caught when it's parsed,** as the RFC's type rules
+require, and panic like any malformed path: `@.* == 1` (a query that could
+select several), `?length(@.a)` on its own (a value, not true or false),
+`match(@, 'x') == true` (true or false, not a value to compare), an unknown
+function, or the wrong number of arguments.
+
+For a condition the language can't say, the list utilities on the result are
+plain Go:
+
+```go
 input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
-	return b.Path("type").Eq("tool_use")
+	return b.Path("type").Eq("tool_use") && b.At("input.query").Defined()
 }).Path("input")
 ```
 
-Things to know:
+### Things to know
 
 - **`Find` never creates anything.** Unlike `Path`, a missing key or index
   simply matches nothing.
@@ -1375,7 +1425,9 @@ Things to know:
   RFC 9535 says is: an index with a leading zero (`[01]`) or `-0`, or past
   ±(2⁵³−1); a raw control character in a quoted name, or the other quote
   escaped (`['a\"b']`: write `['a"b']`); a space after the last segment.
-  `TestCompliance` runs the JSONPath Compliance Test Suite.
+  Nesting deeper than 1,000 is an error too, rather than a stack overflow.
+- **It passes the [JSONPath Compliance Test Suite](https://github.com/jsonpath-standard/jsonpath-compliance-test-suite),**
+  all 715 cases (`TestCompliance`, with the suite in `testdata/cts`).
 - **References that loop back on themselves are visited once,** so `..`
   can't get stuck.
 
@@ -6501,6 +6553,29 @@ Go,Perl
 30,45
 Perl
 true
+```
+
+#### `SV.Find_filter`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"jobs": [
+	{"title": "Nurse", "salary": {"min": 32000}, "skills": ["care"]},
+	{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "skills": ["Go", "SQL"]},
+	{"title": "Café manager", "skills": []}
+]}`))
+fmt.Println(doc.Find("$.jobs[?@.salary.min >= 40000].title").Join(","))  // a comparison
+fmt.Println(doc.Find("$.jobs[?!@.salary].title").Join(","))              // no salary at all
+fmt.Println(doc.Find("$.jobs[?count(@.skills[*]) > 1].title").Join(",")) // a function
+fmt.Println(doc.Find("$.jobs[?match(@.title, 'N.*')].title").Join(","))  // I-Regexp, whole string
+fmt.Println(doc.Find("$..[?@ == 'SQL']").Join(","))                      // at any depth
+```
+
+```
+Developer
+Café manager
+Developer
+Nurse
+SQL
 ```
 
 ### Reference: YAML

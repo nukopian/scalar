@@ -79,3 +79,22 @@ func ExampleSV_Find() {
 	// Perl
 	// true
 }
+
+func ExampleSV_Find_filter() {
+	doc, _ := scalar.FromJSON([]byte(`{"jobs": [
+		{"title": "Nurse", "salary": {"min": 32000}, "skills": ["care"]},
+		{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "skills": ["Go", "SQL"]},
+		{"title": "Café manager", "skills": []}
+	]}`))
+	fmt.Println(doc.Find("$.jobs[?@.salary.min >= 40000].title").Join(","))  // a comparison
+	fmt.Println(doc.Find("$.jobs[?!@.salary].title").Join(","))              // no salary at all
+	fmt.Println(doc.Find("$.jobs[?count(@.skills[*]) > 1].title").Join(",")) // a function
+	fmt.Println(doc.Find("$.jobs[?match(@.title, 'N.*')].title").Join(","))  // I-Regexp, whole string
+	fmt.Println(doc.Find("$..[?@ == 'SQL']").Join(","))                      // at any depth
+	// Output:
+	// Developer
+	// Café manager
+	// Developer
+	// Nurse
+	// SQL
+}

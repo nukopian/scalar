@@ -13,11 +13,13 @@ import (
 // themselves, so changing one changes s. Matches of objects and arrays are
 // references: use HV(), AV(), Path or Find on them to go further.
 //
-// Supported: the root $, member names (.name or ['name']), indexes ([0],
-// [-1]), wildcards (.* or [*]), descendants (..name, ..*, ..[0]), slices
-// ([start:end:step]) and unions ([0,2], ['a','b']). Filter expressions
-// ([?...]) aren't: use Grep, FirstMatch and the other list utilities on the
-// result instead.
+// All of RFC 9535: the root $, member names (.name or ['name']), indexes
+// ([0], [-1]), wildcards (.* or [*]), descendants (..name, ..*, ..[0]),
+// slices ([start:end:step]), unions ([0,2], ['a','b']), and filters
+// ([?@.price < 10], with &&, ||, !, parentheses, $ and @ queries, and the
+// functions length, count, match, search and value). Filters compare by
+// JSON type, as the RFC says, not as Perl's contexts do: 1 == 1.0, but
+// 1 != "1". It passes the JSONPath Compliance Test Suite.
 //
 // Unlike Path, Find never creates anything: a missing key or index simply
 // matches nothing. A malformed path panics, as a bad regex does.
@@ -25,15 +27,25 @@ func (s *SV) Find(path string) *AV {
 	if s == nil {
 		return nil
 	}
-	nodes := []*SV{s}
-	for _, seg := range compilePath(path) {
+	nodes := query(s, s, compilePath(path))
+	if len(nodes) == 0 {
+		return nil
+	}
+	return &AV{items: nodes}
+}
+
+// query returns the nodes segs select, starting at from, with root as the
+// query's $.
+func query(from, root *SV, segs []segment) []*SV {
+	nodes := []*SV{from}
+	for _, seg := range segs {
 		var next []*SV
 		for _, n := range nodes {
 			if seg.descendant {
 				visited := map[any]bool{}
-				walk(n, visited, func(d *SV) { next = seg.apply(d, next) })
+				walk(n, visited, func(d *SV) { next = seg.apply(d, root, next) })
 			} else {
-				next = seg.apply(n, next)
+				next = seg.apply(n, root, next)
 			}
 		}
 		if len(next) == 0 {
@@ -41,7 +53,7 @@ func (s *SV) Find(path string) *AV {
 		}
 		nodes = next
 	}
-	return &AV{items: nodes}
+	return nodes
 }
 
 // walk visits n and then everything below it, in document order. JSON is a
@@ -88,6 +100,7 @@ const (
 	selIndex
 	selSlice
 	selWild
+	selFilter
 )
 
 type selector struct {
@@ -99,18 +112,27 @@ type selector struct {
 	start, end       int
 	hasStart, hasEnd bool
 	step             int
+
+	filter logical // selFilter: the expression each child must satisfy
 }
 
-// apply adds n's children selected by seg to out.
-func (seg segment) apply(n *SV, out []*SV) []*SV {
+// apply adds n's children selected by seg to out. root is the value the
+// query started at, for a filter's $.
+func (seg segment) apply(n, root *SV, out []*SV) []*SV {
 	for _, sel := range seg.selectors {
-		out = sel.apply(n, out)
+		out = sel.apply(n, root, out)
 	}
 	return out
 }
 
-func (sel selector) apply(n *SV, out []*SV) []*SV {
+func (sel selector) apply(n, root *SV, out []*SV) []*SV {
 	switch sel.kind {
+	case selFilter:
+		children(n, func(c *SV) {
+			if sel.filter.test(c, root) {
+				out = append(out, c)
+			}
+		})
 	case selWild:
 		children(n, func(c *SV) { out = append(out, c) })
 	case selName:
@@ -189,12 +211,31 @@ func compilePath(path string) []segment {
 }
 
 type pathParser struct {
-	src string
-	pos int
+	src   string
+	pos   int
+	depth int // how deeply filters, brackets and parentheses nest here
+}
+
+// maxPathDepth is how deeply a path's filters and parentheses may nest:
+// far more than any real query, and few enough that parsing one can't
+// overflow the stack, which no recover catches.
+const maxPathDepth = 1000
+
+// nest counts one more level of nesting, and returns a func to count it
+// back.
+func (p *pathParser) nest() func() {
+	if p.depth++; p.depth > maxPathDepth {
+		p.fail("nested more than %d deep", maxPathDepth)
+	}
+	return func() { p.depth-- }
 }
 
 func (p *pathParser) fail(format string, args ...any) {
-	panic(fmt.Sprintf("scalar: bad JSONPath %q at offset %d: %s", p.src, p.pos, fmt.Sprintf(format, args...)))
+	src := p.src
+	if len(src) > 200 { // a path that long is quoted by its start
+		src = src[:200] + "..."
+	}
+	panic(fmt.Sprintf("scalar: bad JSONPath %q at offset %d: %s", src, p.pos, fmt.Sprintf(format, args...)))
 }
 
 func (p *pathParser) done() bool { return p.pos >= len(p.src) }
@@ -224,16 +265,23 @@ func (p *pathParser) parse() []segment {
 	if !p.eat("$") {
 		p.fail("a path must start with $")
 	}
+	return p.segments(false)
+}
+
+// segments parses segments until the end of the path, or, for a query in
+// a filter (inFilter), until something that can't start a segment, such
+// as an operator or a closing bracket, leaving it unread.
+func (p *pathParser) segments(inFilter bool) []segment {
 	var segs []segment
 	for {
 		// Space may come before a segment, but not at the end.
 		before := p.pos
 		p.skipSpace()
-		if p.done() {
+		if p.done() && !inFilter {
 			if p.pos > before {
 				p.fail("space after the last segment")
 			}
-			break
+			return segs
 		}
 		switch {
 		case p.eat(".."):
@@ -245,11 +293,13 @@ func (p *pathParser) parse() []segment {
 			segs = append(segs, segment{selectors: p.dotOrBracket()})
 		case p.peek() == '[':
 			segs = append(segs, segment{selectors: p.bracket()})
+		case inFilter:
+			p.pos = before
+			return segs
 		default:
 			p.fail("expected ., .. or [")
 		}
 	}
-	return segs
 }
 
 // dotOrBracket parses what follows . or ..: a name, *, or (after .. only)
@@ -310,7 +360,9 @@ func (p *pathParser) selector() selector {
 	case c == '\'' || c == '"':
 		return selector{kind: selName, name: p.stringLiteral()}
 	case c == '?':
-		p.fail("filter expressions aren't supported; use Grep or FirstMatch on the result")
+		p.pos++
+		p.skipSpace()
+		return selector{kind: selFilter, filter: p.logicalExpr()}
 	}
 
 	start, hasStart := p.integer()

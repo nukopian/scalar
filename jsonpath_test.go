@@ -227,7 +227,6 @@ func TestFindErrors(t *testing.T) {
 		"$[0":                     "expected , or ]",
 		"$['a":                    "unterminated string",
 		`$['\q']`:                 `unknown escape \q`,
-		"$[?@.isbn]":              "filter expressions aren't supported",
 		"$[99999999999999999999]": "must be within",
 		"$[9007199254740992]":     "must be within", // 2^53
 		"$[01]":                   "can't start with 0",
