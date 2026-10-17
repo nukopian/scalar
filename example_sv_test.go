@@ -628,3 +628,44 @@ func ExampleSV_Undef() {
 	// false
 	// true
 }
+
+// Lock makes a structure read-only all the way down, as Perl's Hash::Util
+// does a hash: its keys are fixed, so even reading one it hasn't got
+// panics, where it would have autovivified, and a misspelled key is caught
+// at once.
+func ExampleSV_Lock() {
+	doc, _ := scalar.FromJSON([]byte(`{"title": "Care worker", "pay": {"min": 25000}}`))
+	doc.Lock()
+	fmt.Println(doc.At("pay.min"))
+	fmt.Println(catch(func() { doc.At("pay.max").Set(30000) }))
+	fmt.Println(catch(func() { doc.At("titel") })) // misspelled
+	// Output:
+	// 25000
+	// scalar: Attempt to access disallowed key 'max' in a restricted hash
+	// scalar: Attempt to access disallowed key 'titel' in a restricted hash
+}
+
+// Unlock undoes Lock, all the way down.
+func ExampleSV_Unlock() {
+	doc, _ := scalar.FromJSON([]byte(`{"pay": {"min": 25000}}`))
+	doc.Lock().Unlock()
+	doc.At("pay.max").Set(30000)
+	fmt.Println(doc.At("pay.max"))
+	// Output:
+	// 30000
+}
+
+// Locked reports whether Lock has made a value read-only; a Clone isn't.
+func ExampleSV_Locked() {
+	doc := scalar.Value(map[string]any{"a": 1}).Lock()
+	fmt.Println(doc.Locked(), doc.Clone().Locked())
+	// Output:
+	// true false
+}
+
+// catch runs f and returns what it panicked with.
+func catch(f func()) (msg any) {
+	defer func() { msg = recover() }()
+	f()
+	return nil
+}

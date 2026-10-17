@@ -16,6 +16,15 @@ import (
 type AV struct {
 	items   []*SV // nil entries are holes
 	eachPos int   // how far Each has got
+	locked  bool  // by Lock: read-only
+}
+
+// mustWrite panics if a is locked, as a change to a read-only array dies
+// in Perl.
+func (a *AV) mustWrite() {
+	if a != nil && a.locked {
+		panic("scalar: " + readOnlyMsg)
+	}
 }
 
 const notArrayRef = "Not an ARRAY reference"
@@ -108,6 +117,7 @@ func (a *AV) LastIndex() int {
 // SetLastIndex is Perl's $#a = n. It truncates the array, or extends it
 // with holes. Any n below -1 empties it.
 func (a *AV) SetLastIndex(n int) *AV {
+	a.mustWrite()
 	a.mustExist()
 	n = max(n, -1)
 	if n+1 <= len(a.items) {
@@ -152,6 +162,7 @@ func (a *AV) Get(i int) *SV {
 }
 
 func (a *AV) store(i int, s *SV) {
+	a.mustWrite()
 	if i >= len(a.items) {
 		a.items = append(a.items, make([]*SV, i+1-len(a.items))...)
 	}
@@ -182,6 +193,7 @@ func (a *AV) Defined(i int) bool {
 // didn't exist) and leaves a hole. Deleting the last element shrinks the
 // array, along with any holes before it.
 func (a *AV) Delete(i int) *SV {
+	a.mustWrite()
 	idx, ok := a.index(i)
 	if !ok || idx >= a.Length() || a.items[idx] == nil {
 		return &SV{}
@@ -202,6 +214,7 @@ func (a *AV) Delete(i int) *SV {
 // to a sees it empty, and returns a, now empty. Each starts again from the
 // beginning. A nil a panics, as Perl dies on undef @$x for a non-array.
 func (a *AV) Undef() *AV {
+	a.mustWrite()
 	a.mustExist()
 	a.items, a.eachPos = nil, 0
 	return a
@@ -213,6 +226,7 @@ func (a *AV) Undef() *AV {
 // same way. To add a nested array or hash, push a scalar holding a
 // reference to it: a.Push(Value(b)) is push @a, \@b. Values are copied.
 func (a *AV) Push(vals ...any) *AV {
+	a.mustWrite()
 	a.mustExist()
 	if plainValues(vals) {
 		for _, v := range vals {
@@ -227,6 +241,7 @@ func (a *AV) Push(vals ...any) *AV {
 // Unshift is Perl's unshift: it prepends vals, keeping their order, and
 // returns a. vals are flattened as by Push.
 func (a *AV) Unshift(vals ...any) *AV {
+	a.mustWrite()
 	a.mustExist()
 	a.items = append(flatten(vals), a.items...)
 	return a
@@ -234,6 +249,7 @@ func (a *AV) Unshift(vals ...any) *AV {
 
 // Pop removes and returns the last element, or undef if a is empty.
 func (a *AV) Pop() *SV {
+	a.mustWrite()
 	if a.Length() == 0 {
 		return &SV{}
 	}
@@ -245,6 +261,7 @@ func (a *AV) Pop() *SV {
 
 // Shift removes and returns the first element, or undef if a is empty.
 func (a *AV) Shift() *SV {
+	a.mustWrite()
 	if a.Length() == 0 {
 		return &SV{}
 	}
@@ -261,6 +278,7 @@ func (a *AV) Shift() *SV {
 // returns what there is. As with Pop, the elements are the array's own,
 // not copies. n must not be negative.
 func (a *AV) PopN(n int) *AV {
+	a.mustWrite()
 	n = countN("PopN", n, a.Length())
 	if n == 0 {
 		return &AV{}
@@ -274,6 +292,7 @@ func (a *AV) PopN(n int) *AV {
 // As with Shift, the elements are the array's own, not copies. n must not
 // be negative.
 func (a *AV) ShiftN(n int) *AV {
+	a.mustWrite()
 	n = countN("ShiftN", n, a.Length())
 	if n == 0 {
 		return &AV{}
@@ -300,6 +319,7 @@ func countN(op string, n, length int) int {
 // on. An offset past the end splices at the end. An offset before the
 // start panics, as Perl dies.
 func (a *AV) Splice(offset, length int, list ...any) *AV {
+	a.mustWrite()
 	a.mustExist()
 	n := len(a.items)
 	start, ok := a.index(offset)
@@ -428,7 +448,7 @@ func (a *AV) Each() (index int, value *SV, ok bool) {
 
 // resetEach starts Each again from the beginning.
 func (a *AV) resetEach() {
-	if a != nil {
+	if a != nil && a.eachPos != 0 { // only then, so reading a locked array writes nothing
 		a.eachPos = 0
 	}
 }
@@ -488,6 +508,7 @@ func (a *AV) Sort(cmp func(x, y *SV) int) *AV {
 // SortInPlace is Perl's @a = sort @a: it sorts a itself, as Sort would, and
 // returns a. As in Perl, holes become undef elements that exist.
 func (a *AV) SortInPlace(cmp func(x, y *SV) int) *AV {
+	a.mustWrite()
 	if a == nil {
 		return nil
 	}
@@ -506,6 +527,7 @@ func (a *AV) Reverse() *AV {
 // ReverseInPlace is Perl's @a = reverse @a: it reverses a itself and
 // returns a. As in Perl, holes become undef elements that exist.
 func (a *AV) ReverseInPlace() *AV {
+	a.mustWrite()
 	if a == nil {
 		return nil
 	}

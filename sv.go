@@ -8,8 +8,8 @@
 // Nothing here is safe for concurrent use, not even reading: At on a
 // missing path creates the levels on the way, and a hash caches its key
 // order as you read it. Keep each structure to one goroutine, and share
-// data as Go values (To, Decode) or a Clone; see the README's Concurrency
-// section.
+// data as Go values (To, Decode), a Clone, or a structure you've Locked;
+// see the README's Concurrency and Locking sections.
 package scalar
 
 import (
@@ -53,6 +53,10 @@ type SV struct {
 	// panics with this message; dereferencing it yields nil, so reads
 	// through it stay undef.
 	noCreate string
+
+	// ro marks a scalar Lock has made read-only: writing to it panics, and
+	// as an undef it doesn't autovivify.
+	ro bool
 }
 
 // Value returns a scalar holding x. See Set for how Go values are converted.
@@ -92,6 +96,9 @@ func (s *SV) Copy() *SV {
 }
 
 func (s *SV) vivify() {
+	if s.ro {
+		panic("scalar: " + readOnlyMsg)
+	}
 	if s.noCreate != "" {
 		panic("scalar: " + s.noCreate)
 	}
@@ -414,7 +421,7 @@ func (s *SV) AV() *AV {
 	case *AV:
 		return v
 	case nil:
-		if s.noCreate != "" {
+		if s.noCreate != "" || s.ro {
 			return nil
 		}
 		a := &AV{}
@@ -434,7 +441,7 @@ func (s *SV) HV() *HV {
 	case *HV:
 		return v
 	case nil:
-		if s.noCreate != "" {
+		if s.noCreate != "" || s.ro {
 			return nil
 		}
 		h := &HV{}

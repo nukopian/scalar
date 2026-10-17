@@ -423,3 +423,29 @@ func ExampleAV_Undef() {
 	// Output:
 	// 0 0
 }
+
+// A locked array can't grow, shrink or change, nor can its elements.
+func ExampleAV_Lock() {
+	a := scalar.Array(1, 2, 3).Lock()
+	fmt.Println(a.Get(0), a.Length())
+	fmt.Println(catch(func() { a.Push(4) }))
+	fmt.Println(catch(func() { a.Get(0).Set(9) }))
+	// Output:
+	// 1 3
+	// scalar: Modification of a read-only value attempted
+	// scalar: Modification of a read-only value attempted
+}
+
+func ExampleAV_Unlock() {
+	a := scalar.Array(1, 2).Lock().Unlock()
+	fmt.Println(a.Push(3).Length())
+	// Output:
+	// 3
+}
+
+func ExampleAV_Locked() {
+	a := scalar.Array(1, 2)
+	fmt.Println(a.Locked(), a.Lock().Locked())
+	// Output:
+	// false true
+}

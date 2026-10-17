@@ -144,6 +144,7 @@ func (a *AV) CountBy(f func(*SV) any) *Bag {
 //
 //	remote := postings.ExtractBy(func(p *scalar.SV) bool { return p.At("workArrangement").Eq("Remote") })
 func (a *AV) ExtractBy(f func(*SV) bool) *AV {
+	a.mustWrite()
 	out := &AV{}
 	if a == nil {
 		return out

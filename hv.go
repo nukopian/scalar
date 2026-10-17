@@ -1,6 +1,7 @@
 package scalar
 
 import (
+	"fmt"
 	"iter"
 	"slices"
 )
@@ -16,6 +17,8 @@ type HV struct {
 	// Each's position: the keys it's going through, and how far it's got.
 	eachKeys []string
 	eachPos  int
+
+	locked bool // by Lock: its keys fixed, and reading one it hasn't got panics
 }
 
 // Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
@@ -71,10 +74,19 @@ func (h *HV) Get(key string) *SV {
 	if s, ok := h.m[key]; ok {
 		return s
 	}
+	if h.locked {
+		panic(fmt.Sprintf("scalar: Attempt to access disallowed key '%s' in a restricted hash", key))
+	}
 	return &SV{viv: func(s *SV) { h.store(key, s) }}
 }
 
 func (h *HV) store(key string, s *SV) {
+	if h.locked {
+		if _, ok := h.m[key]; ok {
+			panic("scalar: " + readOnlyMsg)
+		}
+		panic(fmt.Sprintf("scalar: Attempt to access disallowed key '%s' in a restricted hash", key))
+	}
 	if h.m == nil {
 		h.m = map[string]*SV{}
 	}
@@ -139,6 +151,13 @@ func (h *HV) Defined(key string) bool {
 
 // Delete is Perl's delete: removes key and returns its value, or undef.
 func (h *HV) Delete(key string) *SV {
+	if h != nil && h.locked {
+		what := "disallowed"
+		if _, ok := h.m[key]; ok {
+			what = "readonly"
+		}
+		panic(fmt.Sprintf("scalar: Attempt to delete %s key '%s' from a restricted hash", what, key))
+	}
 	if h == nil {
 		return &SV{}
 	}
@@ -155,6 +174,11 @@ func (h *HV) Delete(key string) *SV {
 // to h sees it empty, and returns h, now empty. Each starts again from the
 // beginning. A nil h panics, as Perl dies on undef %$x for a non-hash.
 func (h *HV) Undef() *HV {
+	if h != nil && h.locked && len(h.m) > 0 {
+		// Perl names whichever key it meets first; the first in order is
+		// the same every time.
+		panic(fmt.Sprintf("scalar: Attempt to delete readonly key '%s' from a restricted hash", slices.Min(h.keys())))
+	}
 	if h == nil {
 		panic("scalar: Not a HASH reference")
 	}
@@ -291,7 +315,9 @@ func (h *HV) Each() (key string, value *SV, ok bool) {
 
 // resetEach starts Each again from the beginning.
 func (h *HV) resetEach() {
-	if h != nil {
+	// Only when Each has begun, so that reading a locked hash writes
+	// nothing, and goroutines can read it at once.
+	if h != nil && (h.eachKeys != nil || h.eachPos != 0) {
 		h.eachKeys, h.eachPos = nil, 0
 	}
 }

@@ -226,6 +226,7 @@ string and you get a string; ask for a number and you get a number.
 | JSON | `FromJSON`, and `encoding/json` for writing | |
 | YAML: config, Kubernetes, Helm, CloudFormation | `FromYAML`, `FromYAMLAll` for several documents, `ToYAML` | |
 | Copies | `Copy`, shallow, as assignment is; `Clone`, deep, for a structure of your own | `my $x = $y`, `dclone` |
+| Locking | `Lock`, all the way down: no new keys, no changes, no autovivifying, and reading a key it hasn't got panics; `Unlock`, `Locked` | `Hash::Util`'s `lock_hash_recurse`, `Internals::SvREADONLY` |
 | Looking at a structure | `Dump()`, as `Data::Dumper::Concise` prints it, and `FromDump` to read it back; `fmt.Println` of an array or hash, on one line | `Dumper` |
 | Back to plain Go | `To[T]` for any Go type you name, checked; `Decode(&v)` to fill one you have; `StrSlice`, `IntSlice` and `NumSlice` in Perl's contexts; `Any`, `Bytes` | |
 
@@ -2230,8 +2231,10 @@ edges, Go types in the core, and the edge belongs to one goroutine.
    values is safe to share read-only, and the compiler checks it.
 3. **If a scalar must cross, send a copy.** `Clone` makes a deep,
    independent one; the receiver owns it.
-4. **Never share one for reading.** Build data many goroutines read, such
-   as lookup tables, as Go maps and slices before the goroutines start.
+4. **Never share one for reading, unless it's locked.** Build data many
+   goroutines read, such as lookup tables, as Go maps and slices before the
+   goroutines start; or, if it must stay in scalar, `Lock` it first (see
+   [Locking](#locking)): nothing a locked structure does when read writes.
 5. **Check with the race detector.** `go test -race` and `go run -race`
    find what this list misses.
 
@@ -2249,6 +2252,45 @@ g.Go(func() error {
 ```
 
 `TestSharingAcrossGoroutines` checks these patterns under `-race`.
+
+## Locking
+
+`Lock` makes a structure read-only, all the way down, after Perl's
+`Hash::Util`:
+
+```go
+doc, _ := scalar.FromJSON(body)
+doc.Lock()
+doc.At("pay.min")              // reading what's there is as usual
+doc.At("titel")                // panics: Attempt to access disallowed key 'titel' in a restricted hash
+doc.At("pay.max").Set(30000)   // panics: as it would add a key
+doc.At("pay.min").Set(1)       // panics: Modification of a read-only value attempted
+```
+
+| Locked | Like Perl's | Reading | Writing |
+|---|---|---|---|
+| a hash | `lock_hash` | a key it has, as usual; one it hasn't got panics ("Attempt to access disallowed key 'x' in a restricted hash"), where `At` would have autovivified; `Exists`, `AtOK` and `Find` answer as usual | changing a value, adding a key or deleting one panics |
+| an array | `Internals::SvREADONLY` | as usual, past the end too (undef) | push, pop, splice, an element, sorting or reversing in place: all panic |
+| a scalar | `Readonly` (CPAN) | as usual; an undef doesn't autovivify | `Set`, `Inc`, `ConcatInPlace` and the rest panic |
+
+It reaches everything the value refers to, nested arrays and their
+elements included, which is a step beyond Perl, whose `lock_hash_recurse`
+locks only hashes and whose read-only arrays still let their elements
+change. A structure that refers back to itself locks too. `Unlock` undoes
+it, as far; `Locked` says whether a value is locked; `Clone` gives an
+unlocked copy. Locking twice, or unlocking what isn't locked, does nothing.
+
+**What it's for.** Catching a misspelled key at the first read, rather
+than reading undef and carrying on; keeping a lookup table or a config from
+gaining keys; and sharing data between goroutines for reading. Nothing a
+locked structure does when read writes anything (`Lock` works out each
+hash's key order as it locks), so goroutines can read one at once; `Each`
+is the exception, as it keeps a position. Lock before sharing, and
+`TestLockedConcurrentReads` checks it under `-race`.
+
+It isn't a substitute for Go types. A lock catches a mistake when the code
+runs; a struct catches it when the code compiles. Locking is for the data
+that has to stay in scalar.
 
 ## Caveats
 
@@ -3237,6 +3279,58 @@ fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Dele
 ```
 false
 true
+```
+
+#### `SV.Lock`
+
+Lock makes s, and everything it refers to, read-only, all the way down, and returns s; see the README's Locking section.
+
+Lock makes a structure read-only all the way down, as Perl's Hash::Util does a hash: its keys are fixed, so even reading one it hasn't got panics, where it would have autovivified, and a misspelled key is caught at once.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Care worker", "pay": {"min": 25000}}`))
+doc.Lock()
+fmt.Println(doc.At("pay.min"))
+fmt.Println(catch(func() { doc.At("pay.max").Set(30000) }))
+fmt.Println(catch(func() { doc.At("titel") })) // misspelled
+```
+
+```
+25000
+scalar: Attempt to access disallowed key 'max' in a restricted hash
+scalar: Attempt to access disallowed key 'titel' in a restricted hash
+```
+
+#### `SV.Unlock`
+
+Unlock undoes Lock, all the way down, and returns s.
+
+Unlock undoes Lock, all the way down.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"pay": {"min": 25000}}`))
+doc.Lock().Unlock()
+doc.At("pay.max").Set(30000)
+fmt.Println(doc.At("pay.max"))
+```
+
+```
+30000
+```
+
+#### `SV.Locked`
+
+Locked reports whether Lock has made s read-only.
+
+Locked reports whether Lock has made a value read-only; a Clone isn't.
+
+```go
+doc := scalar.Value(map[string]any{"a": 1}).Lock()
+fmt.Println(doc.Locked(), doc.Clone().Locked())
+```
+
+```
+true false
 ```
 
 ### Reference: Strings
@@ -4614,6 +4708,51 @@ fmt.Println(a.Length(), doc.At("tags").AV().Length())
 0 0
 ```
 
+#### `AV.Lock`
+
+Lock locks a and everything in it, as `SV.Lock` does, and returns a.
+
+A locked array can't grow, shrink or change, nor can its elements.
+
+```go
+a := scalar.Array(1, 2, 3).Lock()
+fmt.Println(a.Get(0), a.Length())
+fmt.Println(catch(func() { a.Push(4) }))
+fmt.Println(catch(func() { a.Get(0).Set(9) }))
+```
+
+```
+1 3
+scalar: Modification of a read-only value attempted
+scalar: Modification of a read-only value attempted
+```
+
+#### `AV.Unlock`
+
+Unlock undoes Lock, as `SV.Unlock` does, and returns a.
+
+```go
+a := scalar.Array(1, 2).Lock().Unlock()
+fmt.Println(a.Push(3).Length())
+```
+
+```
+3
+```
+
+#### `AV.Locked`
+
+Locked reports whether a is locked.
+
+```go
+a := scalar.Array(1, 2)
+fmt.Println(a.Locked(), a.Lock().Locked())
+```
+
+```
+false true
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -5097,6 +5236,52 @@ fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
 
 ```
 40k 50k 40000
+```
+
+#### `HV.Lock`
+
+Lock locks h and everything in it, as `SV.Lock` does, and returns h.
+
+A locked hash keeps the keys it has: reading, writing or deleting one it hasn't got panics, as in a Perl restricted hash; Exists still answers.
+
+```go
+h := scalar.Hash("min", 25000).Lock()
+fmt.Println(h.Get("min"), h.Exists("max"))
+fmt.Println(catch(func() { h.Get("max") }))
+fmt.Println(catch(func() { h.Delete("min") }))
+```
+
+```
+25000 false
+scalar: Attempt to access disallowed key 'max' in a restricted hash
+scalar: Attempt to delete readonly key 'min' from a restricted hash
+```
+
+#### `HV.Unlock`
+
+Unlock undoes Lock, as `SV.Unlock` does, and returns h.
+
+```go
+h := scalar.Hash("min", 25000).Lock().Unlock()
+h.Set("max", 30000)
+fmt.Println(h.Get("max"))
+```
+
+```
+30000
+```
+
+#### `HV.Locked`
+
+Locked reports whether h is locked.
+
+```go
+h := scalar.Hash("min", 25000)
+fmt.Println(h.Locked(), h.Lock().Locked())
+```
+
+```
+false true
 ```
 
 ### Reference: List utilities

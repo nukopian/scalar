@@ -306,3 +306,31 @@ func ExampleHV_Map() {
 	// Output:
 	// 40k 50k 40000
 }
+
+// A locked hash keeps the keys it has: reading, writing or deleting one it
+// hasn't got panics, as in a Perl restricted hash; Exists still answers.
+func ExampleHV_Lock() {
+	h := scalar.Hash("min", 25000).Lock()
+	fmt.Println(h.Get("min"), h.Exists("max"))
+	fmt.Println(catch(func() { h.Get("max") }))
+	fmt.Println(catch(func() { h.Delete("min") }))
+	// Output:
+	// 25000 false
+	// scalar: Attempt to access disallowed key 'max' in a restricted hash
+	// scalar: Attempt to delete readonly key 'min' from a restricted hash
+}
+
+func ExampleHV_Unlock() {
+	h := scalar.Hash("min", 25000).Lock().Unlock()
+	h.Set("max", 30000)
+	fmt.Println(h.Get("max"))
+	// Output:
+	// 30000
+}
+
+func ExampleHV_Locked() {
+	h := scalar.Hash("min", 25000)
+	fmt.Println(h.Locked(), h.Lock().Locked())
+	// Output:
+	// false true
+}
