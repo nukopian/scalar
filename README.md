@@ -141,6 +141,10 @@ package is:
 `Posting`, or an error saying which value didn't fit. See
 [Into Go values](#into-go-values-to-and-decode).
 
+It's also what makes concurrent code safe. A struct of plain values can be
+shared between goroutines for reading; a scalar can't, as some of its
+reads write. See [Concurrency](#concurrency).
+
 ## Quick start
 
 ```go
@@ -2202,6 +2206,50 @@ them afterwards has no effect on it.
 array is new, but its elements (and in `Pairs`, the values) are the
 original's own, as described under [Hashes](#hashes).
 
+## Concurrency
+
+**Scalars, arrays and hashes aren't safe for concurrent use, and that
+includes reading them.** Several things that look like reads write:
+
+| What you call | What it writes |
+|---|---|
+| `At("a.b")`, `Path(...)` on a missing route | the levels on the way, as Perl's autovivification does: reading `x.y` of `{"a": 1}` adds `x` |
+| `Keys`, `Values()`, `Pairs`, `Each` on a hash | its cached key order, and `Each`'s position |
+
+So two goroutines reading one structure can race, as two writing a Go map
+do. The package's own caches (compiled regexes, paths, struct fields) are
+safe to share; the values aren't.
+
+**The pattern** is the one in [What it costs](#what-it-costs): scalar at the
+edges, Go types in the core, and the edge belongs to one goroutine.
+
+1. **Confine each structure to one goroutine.** A worker that reads a
+   record keeps its scalars to itself, from parsing to writing.
+2. **Hand over Go values, not scalars.** Once the shape is known, `To` or
+   `Decode` it into a struct, and send that across: a struct of plain
+   values is safe to share read-only, and the compiler checks it.
+3. **If a scalar must cross, send a copy.** `Clone` makes a deep,
+   independent one; the receiver owns it.
+4. **Never share one for reading.** Build data many goroutines read, such
+   as lookup tables, as Go maps and slices before the goroutines start.
+5. **Check with the race detector.** `go test -race` and `go run -race`
+   find what this list misses.
+
+```go
+// One worker per record: the scalars stay inside it, a struct comes out.
+g.Go(func() error {
+	doc, err := scalar.FromJSON(raw)
+	if err != nil {
+		return err
+	}
+	p, err := scalar.To[Posting](doc) // the shape is known: into Go
+	results[i] = p                    // a plain struct, safe to share
+	return err
+})
+```
+
+`TestSharingAcrossGoroutines` checks these patterns under `-race`.
+
 ## Caveats
 
 - **It panics where Perl would die.** Most Go code returns errors instead of
@@ -2232,8 +2280,9 @@ original's own, as described under [Hashes](#hashes).
 
   If one bad record mustn't stop a batch, catch these with `recover` around
   the code that processes each record.
-- **Not for concurrent use:** none of these types are safe to share between
-  goroutines without your own locking.
+- **Not for concurrent use, not even reading:** none of these types are safe
+  to share between goroutines without your own locking, as some reads write.
+  See [Concurrency](#concurrency).
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.

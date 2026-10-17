@@ -5,7 +5,11 @@
 // string, numeric and boolean contexts the way Perl does, and dereferencing
 // an undef scalar as an array or hash autovivifies it.
 //
-// Nothing here is safe for concurrent use.
+// Nothing here is safe for concurrent use, not even reading: At on a
+// missing path creates the levels on the way, and a hash caches its key
+// order as you read it. Keep each structure to one goroutine, and share
+// data as Go values (To, Decode) or a Clone; see the README's Concurrency
+// section.
 package scalar
 
 import (
