@@ -161,7 +161,14 @@ func TestUnlock(t *testing.T) {
 // goroutines can read one at once: go test -race. (Each keeps a position,
 // so it isn't among them.)
 func TestLockedConcurrentReads(t *testing.T) {
-	doc := lockedDoc(t)
+	doc := lockedDoc(t).Unlock()
+	doc.At("list").AV().Set(5, "late") // holes at 2 to 4
+	doc.Lock()
+	other := doc.Clone()
+	type shape struct {
+		A    int
+		List []any
+	}
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
@@ -174,6 +181,23 @@ func TestLockedConcurrentReads(t *testing.T) {
 				_ = doc.Find("$..b")
 				_ = doc.HV().Exists("x")
 				_, _ = doc.AtOK("x.y")
+				_, _ = doc.PathOK("x", 1)
+
+				list := doc.At("list").AV()
+				_ = list.Get(3).Defined() || list.Get(40).Defined() // a hole, past the end
+				_ = list.Sort(StrCmp).Join(",") + list.Join(",")
+				for range list.All() {
+				}
+
+				_ = doc.Equal(other)
+				_ = doc.Diff(other)
+				_ = doc.Dump()
+				_, _ = doc.MarshalJSON()
+				_, _ = doc.ToYAML()
+				_, _ = To[shape](doc)
+				_ = doc.Clone()
+				_ = doc.Interpolate("{a}-{nested.c}")
+				_ = doc.At("nested.c").M(`(\d)`).Length()
 			}
 		})
 	}
