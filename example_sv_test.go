@@ -24,6 +24,19 @@ func ExampleValue() {
 	// false
 }
 
+// A struct becomes a hash, keyed as encoding/json would write it: by its
+// json tags, leaving out what's omitempty and empty. Decode is the way back.
+func ExampleValue_struct() {
+	type group struct {
+		Code  string `json:"code"`
+		Title string `json:"title,omitempty"`
+	}
+	g := scalar.Value(group{Code: "2134"})
+	fmt.Println(g.Ref(), g.At("code"), g.At("title").Defined())
+	// Output:
+	// HASH 2134 false
+}
+
 func ExampleSV_Set() {
 	s := scalar.Value("old")
 	s.Set(10)                     // $s = 10

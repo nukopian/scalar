@@ -9,6 +9,7 @@
 package scalar
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -58,9 +59,11 @@ func Value(x any) *SV {
 // Set assigns x to s and returns s. Go values are converted as follows:
 // integers become IVs, floats become NVs, slices become array references,
 // maps become hash references (with their keys in string context, as Perl
-// stores them), and *SV is copied by value (a copied reference still points
-// at the same AV/HV, as in Perl). Anything else is stringified with
-// fmt.Sprint.
+// stores them), structs become hash references too, keyed as encoding/json
+// would write them (Decode's way back), a type with its own MarshalJSON or
+// MarshalText is what that gives (time.Time is its RFC 3339 string), and
+// *SV is copied by value (a copied reference still points at the same
+// AV/HV, as in Perl). Anything else is stringified with fmt.Sprint.
 func (s *SV) Set(x any) *SV {
 	s.vivify()
 	s.v = normalize(x)
@@ -599,8 +602,37 @@ func normalize(x any) any {
 		return h
 	}
 
+	// A type that says how it's written as JSON, or as text, is that:
+	// time.Time is its RFC 3339 string.
+	switch m := x.(type) {
+	case json.Marshaler:
+		if data, err := m.MarshalJSON(); err == nil {
+			if v, err := FromJSON(data); err == nil {
+				return v.v
+			}
+		}
+	case encoding.TextMarshaler:
+		if text, err := m.MarshalText(); err == nil {
+			return string(text)
+		}
+	}
+
 	rv := reflect.ValueOf(x)
 	switch rv.Kind() {
+	case reflect.Struct:
+		return structHash(rv)
+	// Named types of the kinds above, such as type Kind string: by kind,
+	// as encoding/json writes them, not stringified.
+	case reflect.Bool:
+		return rv.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return uintToNum(rv.Uint())
+	case reflect.Float32, reflect.Float64:
+		return rv.Float()
+	case reflect.String:
+		return rv.String()
 	case reflect.Slice, reflect.Array:
 		if rv.Kind() == reflect.Slice && rv.IsNil() {
 			return nil
@@ -626,6 +658,53 @@ func normalize(x any) any {
 		return normalize(rv.Elem().Interface())
 	}
 	return fmt.Sprint(x)
+}
+
+// structHash turns a struct into a hash, as encoding/json would encode it:
+// a key for each exported field, named by its json tag or else the field;
+// the fields of embedded structs promoted; none for a field tagged "-", or
+// tagged omitempty and empty. It's the way Decode, the way back, reads a
+// struct.
+func structHash(rv reflect.Value) *HV {
+	fs := structFields(rv.Type())
+	h := newHV(len(fs.byName))
+	for name, f := range fs.byName {
+		v, ok := fieldIn(rv, f.index)
+		if !ok || f.omitEmpty && isEmpty(v) {
+			continue
+		}
+		h.m[name] = Value(v.Interface())
+	}
+	return h
+}
+
+// fieldIn is rv.FieldByIndex, but false where an embedded pointer on the
+// way is nil, rather than a panic.
+func fieldIn(rv reflect.Value, index []int) (reflect.Value, bool) {
+	for i, x := range index {
+		if i > 0 && rv.Kind() == reflect.Pointer {
+			if rv.IsNil() {
+				return reflect.Value{}, false
+			}
+			rv = rv.Elem()
+		}
+		rv = rv.Field(x)
+	}
+	return rv, true
+}
+
+// isEmpty is what omitempty leaves out, as encoding/json has it: false, 0,
+// a nil pointer or interface, and an empty array, slice, map or string.
+func isEmpty(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Interface, reflect.Pointer:
+		return v.IsZero()
+	}
+	return false
 }
 
 // mapKey turns a Go map key into a hash key. As in Perl, hash keys are

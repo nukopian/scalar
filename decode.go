@@ -431,7 +431,8 @@ func decodeInt(s *SV) (int64, bool) {
 // fieldInfo is a struct field Decode can fill: where it is, through any
 // embedded structs.
 type fieldInfo struct {
-	index []int
+	index     []int
+	omitEmpty bool // tagged omitempty: Value leaves it out when it's empty
 }
 
 // fieldSet is the fields of a struct type, by the name a key must have, and
@@ -454,9 +455,10 @@ func structFields(t reflect.Type) fieldSet {
 		return fs.(fieldSet)
 	}
 	type candidate struct {
-		index  []int
-		depth  int
-		tagged bool
+		index     []int
+		depth     int
+		tagged    bool
+		omitEmpty bool
 	}
 	byName := map[string][]candidate{}
 	var names []string // in the order first seen
@@ -474,7 +476,7 @@ func structFields(t reflect.Type) fieldSet {
 			if tag == "-" {
 				continue
 			}
-			name, _, _ := strings.Cut(tag, ",")
+			name, opts, _ := strings.Cut(tag, ",")
 			idx := append(append([]int(nil), index...), i)
 			ft := f.Type
 			if ft.Kind() == reflect.Pointer {
@@ -494,7 +496,8 @@ func structFields(t reflect.Type) fieldSet {
 			if _, seen := byName[name]; !seen {
 				names = append(names, name)
 			}
-			byName[name] = append(byName[name], candidate{idx, depth, tagged})
+			omit := slices.Contains(strings.Split(opts, ","), "omitempty")
+			byName[name] = append(byName[name], candidate{idx, depth, tagged, omit})
 		}
 	}
 	walk(t, nil, 0)
@@ -502,8 +505,9 @@ func structFields(t reflect.Type) fieldSet {
 	// The field each name goes to, if any, and those fields in the struct's
 	// order, for the case-insensitive matches.
 	type field struct {
-		name  string
-		index []int
+		name      string
+		index     []int
+		omitEmpty bool
 	}
 	var chosen []field
 	for _, name := range names {
@@ -525,15 +529,15 @@ func structFields(t reflect.Type) fieldSet {
 			best = tagged
 		}
 		if len(best) == 1 {
-			chosen = append(chosen, field{name, best[0].index})
+			chosen = append(chosen, field{name, best[0].index, best[0].omitEmpty})
 		}
 	}
 	slices.SortFunc(chosen, func(a, b field) int { return slices.Compare(a.index, b.index) })
 	fs := fieldSet{byName: map[string]fieldInfo{}, byFold: map[string]fieldInfo{}}
 	for _, c := range chosen {
-		fs.byName[c.name] = fieldInfo{c.index}
+		fs.byName[c.name] = fieldInfo{c.index, c.omitEmpty}
 		if k := foldKey(c.name); fs.byFold[k].index == nil {
-			fs.byFold[k] = fieldInfo{c.index} // the first in the struct's order
+			fs.byFold[k] = fieldInfo{c.index, c.omitEmpty} // the first in the struct's order
 		}
 	}
 	fieldCache.Store(t, fs)

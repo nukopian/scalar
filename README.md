@@ -2087,6 +2087,23 @@ that didn't fit, taking keys in sorted order, where `To` gives the zero
 value. `Decode` needs a non-nil
 pointer, and returns an error otherwise.
 
+### And the way in: `Value` of a struct
+
+`Value` and `Set` take a struct the other way: it becomes a hash, keyed as
+encoding/json would write it, by the same rules `Decode` reads it with
+(json tags, omitempty, promoted embedded fields), so a struct put in with
+`Value` comes back out with `Decode` unchanged. A type with its own
+`MarshalJSON` or `MarshalText` is what that gives: `time.Time` is its
+RFC 3339 string.
+
+```go
+result.At("occupation").Set(occupations.Summarise(cd)) // a soc.Summary, as a hash
+```
+
+Perl has no structs, so this goes beyond it, as `Decode` does, for Go's
+sake. Before, a struct was stringified with `fmt.Sprint`, quietly: found
+writing `cmd/grammarrules`, where it took a JSON round trip each time.
+
 ### Which way out?
 
 `To` and `Decode` check every value. The package's other ways out of
@@ -2290,6 +2307,23 @@ true
 true
 ARRAY
 false
+```
+
+#### `Value.struct`
+
+A struct becomes a hash, keyed as encoding/json would write it: by its json tags, leaving out what's omitempty and empty. Decode is the way back.
+
+```go
+type group struct {
+	Code  string `json:"code"`
+	Title string `json:"title,omitempty"`
+}
+g := scalar.Value(group{Code: "2134"})
+fmt.Println(g.Ref(), g.At("code"), g.At("title").Defined())
+```
+
+```
+HASH 2134 false
 ```
 
 #### `SV.Set`

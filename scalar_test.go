@@ -467,7 +467,7 @@ func TestConversions(t *testing.T) {
 		{"map[string]int", map[string]int{"a": 1}, HashRef, `{"a":1}`},
 		{"nil map", nilMap, Undef, "null"},
 		{"map with int keys", map[int]string{1: "x"}, HashRef, `{"1":"x"}`},
-		{"struct", struct{ A int }{1}, String, `"{1}"`},
+		{"struct", struct{ A int }{1}, HashRef, `{"A":1}`}, // as encoding/json writes it; see TestValueStruct
 		{"nested", map[string]any{"xs": []any{1, map[string]any{"y": true}}}, HashRef, `{"xs":[1,{"y":true}]}`},
 	}
 	for _, tt := range tests {
