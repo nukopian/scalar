@@ -55,13 +55,14 @@ README are there for readers who do.
 
 ## Why scalar exists
 
-I'm relatively new to Go, though not to programming: C, REXX, Perl,
-Python, JavaScript, XSLT and Scala came first. Go's concepts weren't the
-hard part. What struck me was how painful and repetitive even basic tasks
-can be: a struct to write before you can read a field, a check for every
-value that might be missing, a loop for what is a one-liner elsewhere. I
-understand why Go's idioms matter. But sometimes a job needs doing and
-doing quickly, and brains *do* prefer shortcuts.
+Though, I'm relatively new to Go, I've been programming for nearly over
+three decades: C, REXX, Perl, Python, JavaScript, XSLT and Scala came
+first. Go's concepts weren't the hard part. What struck me was how painful
+and tediously repetitive even basic tasks can be: a struct to write before
+you can read a field, a check for every value that might be missing, a
+loop for what is a one-liner elsewhere. I understand why Go's idioms
+matter. But sometimes a job needs doing and doing quickly, and
+brains *do* prefer shortcuts.
 
 The barrier between an idea and its implementation is often the language,
 its ecosystem and the time it takes to learn them. Many of the shortcuts I
