@@ -77,6 +77,9 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
 
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
+- Examples use earthquake data, as in the USGS feed: places, magnitudes,
+  depths, felt reports, station codes and networks. Keep to that theme, and
+  to fields the real feed has, unless an example needs something neutral.
 - `docs/EXAMPLES.md` is generated from those examples. Edit the
   examples, then run `go test -run TestReference -update`.
 - New features go into the README's feature table and into the
