@@ -65,6 +65,12 @@ else.
   difference.
 - The lock benchmarks need the ONS ASHE pay table. Set `ASHE_PAY_TSV` to
   its path, or they skip.
+- scalar supports Go 1.25 and later, as `go.mod` says, and CI tests both
+  1.25 and the newest Go. Don't use newer standard-library features unless
+  raising the minimum is a deliberate decision. Dependencies set the floor
+  too, and so does security: `golang.org/x/text` v0.41.0 is the oldest
+  without known vulnerabilities (GO-2026-5970 reaches the case functions),
+  and it needs Go 1.25. CI runs govulncheck.
 - Run `gofmt -l .`, `go vet ./...` and `go test ./...` before every commit.
   CI (`.github/workflows/test.yml`) runs the same on every push, with the
   race detector and the Perl modules installed, and fails if a Perl test

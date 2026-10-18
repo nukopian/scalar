@@ -103,7 +103,7 @@ docs are there for readers who do.
 go get github.com/nukopian/scalar
 ```
 
-It needs Go 1.26.9 or later, and brings in three modules: `regexp2` for
+It needs Go 1.25 or later, and brings in three modules: `regexp2` for
 Perl-compatible regular expressions, `yaml/v3`, and `x/text`.
 
 ## Rationale

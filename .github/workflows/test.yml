@@ -11,12 +11,20 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        # The oldest Go that go.mod allows, and the newest.
+        go: ['1.25', 'stable']
+    name: test (Go ${{ matrix.go }})
+    env:
+      GOTOOLCHAIN: local # test the Go asked for, not a newer one it fetches
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go }}
+      - run: go version
 
       # The differential tests run the same cases through Perl (5.36 or
       # later) and compare. These two modules aren't in Perl's core; without
@@ -36,6 +44,12 @@ jobs:
       - run: go vet ./...
 
       - run: go test -race ./...
+
+      # Known vulnerabilities in what scalar calls, in its dependencies or
+      # the standard library. govulncheck itself needs a recent Go.
+      - name: govulncheck
+        if: matrix.go == 'stable'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
       # Fail if a Perl differential test skipped, so a missing module can't
       # quietly turn the comparison off.
