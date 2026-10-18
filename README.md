@@ -245,5 +245,6 @@ the rules it's built by (they're in [CLAUDE.md](CLAUDE.md)), and reviewing
 the work. It has been a partnership, and I've learned a good deal of Go
 along the way.
 
-`scalar` started inside a larger project and was extracted with its
-history, so some commit messages mention packages that stayed behind.
+The `scalar` package started inside a larger proof-of-concept and was
+extracted with its history, so some commit messages mention packages
+that stayed behind.
