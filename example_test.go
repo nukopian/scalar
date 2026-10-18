@@ -68,141 +68,140 @@ func Example_overview() {
 	// [{Mag:5.1 Place:12 km NNE of Ridgecrest, CA} {Mag:2.3 Place:5 km W of Cobb, CA} {Mag:4.7 Place:} {Mag:4.9 Place:Mid-Atlantic Ridge} {Mag:0 Place:Alaska Peninsula}]
 }
 
-const toolUseResponse = `{
-  "content": [
-    {"type": "text", "text": "Here is the metadata."},
-    {"type": "tool_use", "name": "job_metadata", "input": {
-      "title": "Senior Go Developer",
-      "salaryMin": 60000,
-      "salaryMax": null,
-      "requiredSkills": [" Go ", "PostgreSQL", "go", "Docker "]
-    }}
-  ],
-  "usage": {"input_tokens": 1200}
+const quakeFeed = `{
+  "type": "FeatureCollection",
+  "metadata": {"title": "USGS All Earthquakes, Past Day", "count": 2},
+  "features": [
+    {"type": "Feature", "id": "nc75012345",
+     "properties": {"mag": 2.3, "place": "5 km W of Cobb, CA", "felt": null, "alert": null}},
+    {"type": "Feature", "id": "ci40123456",
+     "properties": {"mag": 5.1, "place": "12 km NNE of Ridgecrest, CA", "alert": null}}
+  ]
 }`
 
-// Reading a model's tool_use response: find the block, then read fields
-// with defaults, telling missing fields from null ones.
-func Example_readToolUse() {
-	resp, err := scalar.FromJSON([]byte(toolUseResponse))
+// Reading one event from a feed: find it, then read fields with defaults,
+// telling missing fields from null ones.
+func Example_readEvent() {
+	feed, err := scalar.FromJSON([]byte(quakeFeed))
 	if err != nil {
 		panic(err)
 	}
 
-	input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
-		return b.Path("type").Eq("tool_use")
-	}).Path("input")
+	event := feed.Find("$.features[*]").FirstMatch(func(f *scalar.SV) bool {
+		return f.Path("id").Eq("ci40123456")
+	}).Path("properties")
 
-	fmt.Println(input.Path("title"))
-	fmt.Println(resp.At("usage.output_tokens").Or(0)) // $resp->{usage}{output_tokens} // 0
+	fmt.Println(event.Path("place"))
+	fmt.Println(event.At("cdi").Or("no reports")) // $event->{cdi} // "no reports"
 
-	if v, ok := input.PathOK("salaryMax"); ok && !v.Defined() {
-		fmt.Println("salaryMax: null")
+	if v, ok := event.PathOK("alert"); ok && !v.Defined() {
+		fmt.Println("alert: null")
 	}
-	if _, ok := input.PathOK("location"); !ok {
-		fmt.Println("location: missing")
+	if _, ok := event.PathOK("felt"); !ok {
+		fmt.Println("felt: missing")
 	}
-	input.HV().Get("location").OrSet("Unknown") // $input->{location} //= "Unknown"
-	fmt.Println(input.Path("location"))
+	event.HV().Get("felt").OrSet(0) // $event->{felt} //= 0
+	fmt.Println(event.Path("felt"))
 
 	// Output:
-	// Senior Go Developer
+	// 12 km NNE of Ridgecrest, CA
+	// no reports
+	// alert: null
+	// felt: missing
 	// 0
-	// salaryMax: null
-	// location: missing
-	// Unknown
 }
 
-// Cleaning a list of skills: trim them in place, then drop duplicates
-// regardless of case, keeping the first spelling of each.
-func Example_cleanSkills() {
-	resp, _ := scalar.FromJSON([]byte(toolUseResponse))
-	skills := resp.Find("$..requiredSkills").Get(0).AV()
+// Cleaning a list of station codes typed into a config by hand: trim them
+// in place, then drop duplicates regardless of case, keeping the first
+// spelling of each.
+func Example_cleanStations() {
+	config, _ := scalar.FromJSON([]byte(`{"stations": [" PAS ", "GSC", "pas", "ISA "]}`))
+	stations := config.Find("$..stations").Get(0).AV()
 
-	for _, s := range skills.All() {
-		s.Set(s.Trim()) // changes the skills inside resp
+	for _, s := range stations.All() {
+		s.Set(s.Trim()) // changes the stations inside config
 	}
 
-	// grep { !$seen{fc $_}++ } @skills
+	// grep { !$seen{fc $_}++ } @stations
 	seen := scalar.Hash()
-	unique := skills.Grep(func(s *scalar.SV) bool {
+	unique := stations.Grep(func(s *scalar.SV) bool {
 		return seen.Get(s.Fc().Str()).Inc().Int() == 1
 	})
 	fmt.Println(unique.Join(", "))
 
 	// Output:
-	// Go, PostgreSQL, Docker
+	// PAS, GSC, ISA
 }
 
-// salaryFigure is compiled once, when the program starts, as with qr//.
-var salaryFigure = scalar.MustCompile(`£([\d,]+)`)
+// figure is compiled once, when the program starts, as with qr//.
+var figure = scalar.MustCompile(`(\d[\d,]*)`)
 
-// Pulling salary figures out of text.
-func Example_salaryFromText() {
-	text := scalar.Value("Salary: £45,000 - £55,000 per annum")
+// Pulling figures out of text.
+func Example_figuresFromText() {
+	text := scalar.Value("Felt by 12,431 people in 1,204 ZIP codes")
 
 	figures := scalar.Array()
-	for m := range text.Matches(salaryFigure) {
-		figures.Push(m.Get(1).S(`,`, "", "gr")) // "45,000" → "45000"
+	for m := range text.Matches(figure) {
+		figures.Push(m.Get(1).S(`,`, "", "gr")) // "12,431" → "12431"
 	}
 	fmt.Println(figures.MinNum(), figures.MaxNum())
 
 	// Output:
-	// 45000 55000
+	// 1204 12431
 }
 
-// Counting skills across postings, ignoring case, and listing the most
-// common first.
-func Example_countSkills() {
-	postings := [][]string{
-		{"Go", "Docker"},
-		{"go", "Kubernetes"},
-		{"GO", "Docker", "Perl"},
+// Counting quakes by region over several days, ignoring case, and listing
+// the most common first.
+func Example_countRegions() {
+	days := [][]string{
+		{"California", "Alaska"},
+		{"alaska", "Nevada"},
+		{"ALASKA", "California", "Hawaii"},
 	}
 
 	var counts scalar.Bag // the zero value is an empty bag
-	for _, skills := range postings {
-		for _, skill := range scalar.Array(skills).All() {
-			counts.Insert(skill.Fc()) // $counts{fc $skill}++
+	for _, regions := range days {
+		for _, region := range scalar.Array(regions).All() {
+			counts.Insert(region.Fc()) // $counts{fc $region}++
 		}
 	}
 
-	for _, skill := range counts.MostCommon(3).All() { // ties keep the order they were first seen in
-		fmt.Println(skill, counts.Count(skill))
+	for _, region := range counts.MostCommon(3).All() { // ties keep the order they were first seen in
+		fmt.Println(region, counts.Count(region))
 	}
 
 	// Output:
-	// go 3
-	// docker 2
-	// kubernetes 1
+	// alaska 3
+	// california 2
+	// nevada 1
 }
 
 // Building records from defaults and writing them out as JSON.
 func Example_buildRecords() {
-	defaults := scalar.Hash("location", "Unknown", "remote", false)
+	defaults := scalar.Hash("status", "automatic", "tsunami", false)
 
 	rows := scalar.Array()
-	for _, title := range []string{"Go Developer", "Perl Developer"} {
-		row := scalar.Hash(defaults, "title", title) // %row = (%defaults, title => $title)
-		rows.Push(scalar.Value(row))                 // push @rows, \%row
+	for _, id := range []string{"ci40123456", "nc75012345"} {
+		row := scalar.Hash(defaults, "id", id) // %row = (%defaults, id => $id)
+		rows.Push(scalar.Value(row))           // push @rows, \%row
 	}
-	rows.Get(1).Path("remote").Set(true) // changes only the second row
+	rows.Get(1).Path("status").Set("reviewed") // changes only the second row
 
 	out, _ := json.Marshal(rows)
 	fmt.Println(string(out))
 
 	// Output:
-	// [{"location":"Unknown","remote":false,"title":"Go Developer"},{"location":"Unknown","remote":true,"title":"Perl Developer"}]
+	// [{"id":"ci40123456","status":"automatic","tsunami":false},{"id":"nc75012345","status":"reviewed","tsunami":false}]
 }
 
-// Storing an embedding vector as bytes, 4 for each float32, and reading it
+// Storing waveform samples as bytes, 4 for each float32, and reading them
 // back.
-func Example_packEmbedding() {
-	vector := []float64{0.5, -0.25, 0.125} // from the embedding model
+func Example_packSamples() {
+	samples := []float64{0.5, -0.25, 0.125} // ground velocity, from a seismometer
 
-	blob := scalar.Pack("f<*", vector) // pack("f<*", @vector): little-endian float32s
-	fmt.Println(blob.Length())         // 4 bytes each
-	fmt.Printf("%x\n", blob)           // in hex, for a log
+	blob := scalar.Pack("f<*", samples) // pack("f<*", @samples): little-endian float32s
+	fmt.Println(blob.Length())          // 4 bytes each
+	fmt.Printf("%x\n", blob)            // in hex, for a log
 
 	back := scalar.Unpack("f<*", blob.Bytes()).NumSlice() // a []float64 again
 	fmt.Println(back)
