@@ -253,9 +253,7 @@ func TestFromDumpRoundTrip(t *testing.T) {
 // random structures, and gets what Perl gets by evaluating the dump, types
 // included. It needs perl, and is skipped without it.
 func TestFromDumpMatchesPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	rng := rand.New(rand.NewPCG(5, 8))
 	var cases []string
 	for range 150 {
@@ -379,9 +377,7 @@ func TestFromDumpRawBytes(t *testing.T) {
 // Data::Dumper writes them: escaped with Useqq, or raw without it. It needs
 // perl, and is skipped without it.
 func TestFromDumpBytesMatchPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	rng := rand.New(rand.NewPCG(21, 4))
 	type item struct {
 		Hex  string `json:"hex,omitempty"`  // a byte string, in hex

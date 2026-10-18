@@ -78,9 +78,7 @@ func TestDump(t *testing.T) {
 // hundreds of random structures, with shared parts and loops. It needs perl
 // on the PATH, and is skipped without it.
 func TestDumpMatchesPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	rng := rand.New(rand.NewPCG(3, 5))
 	chars := []string{"a", "Z", "0", "1", "9", " ", "-", "\"", "\\", "$", "@", "'", "\t", "\n", "\x00",
 		"\x01", "\x1b", "\x7f", "\u00E9", "\u263A", "\u0100", "{", "}"}

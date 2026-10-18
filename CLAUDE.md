@@ -54,8 +54,9 @@ else.
 ## Tests
 
 - Differential tests run the same cases through Perl and compare the
-  results (`*_test.go` that call `perl`). They skip without Perl, and two
-  skip without List::UtilsBy or YAML::PP.
+  results. Each starts with `needPerl(t)`, which skips it with `-short`,
+  without Perl, or with a Perl older than 5.36, as macOS and Windows ship;
+  two also skip without List::UtilsBy or YAML::PP.
 - Fuzz targets: `FuzzReadJSON`, `FuzzNumericPrefix` and `FuzzFind`. Run
   the relevant one after changing the code it covers, for example
   `go test -run '^$' -fuzz FuzzFind -fuzztime 60s`.
@@ -73,9 +74,11 @@ else.
   without known vulnerabilities (GO-2026-5970 reaches the case functions),
   and it needs Go 1.25. CI runs govulncheck.
 - Run `gofmt -l .`, `go vet ./...` and `go test ./...` before every commit.
-  CI (`.github/workflows/test.yml`) runs the same on every push, with the
-  race detector and the Perl modules installed, and fails if a Perl test
-  skips.
+  CI (`.github/workflows/test.yml`) runs the same on every push: on Linux
+  with the race detector, the Perl modules, govulncheck and staticcheck,
+  failing if a Perl test skips; on macOS and Windows with `-short`; and 30
+  seconds of each fuzz target. `.gitattributes` keeps files LF, so they
+  compare byte for byte on Windows too.
 
 ## Documentation keeps up with the code
 

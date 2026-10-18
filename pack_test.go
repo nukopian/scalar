@@ -85,9 +85,7 @@ func TestPackErrors(t *testing.T) {
 // templates and values. It needs perl on the PATH, and is skipped without
 // it.
 func TestPackMatchesPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	rng := rand.New(rand.NewPCG(13, 10))
 
 	type packCase struct {

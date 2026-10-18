@@ -292,22 +292,25 @@ func TestMappingMatchesPerl(t *testing.T) {
 		"plain Go": mappingPlain(typed, raw),
 	}
 
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
+	// Perl joins in where it can run; scalar and plain Go are compared
+	// regardless.
+	if why := scalar.PerlUnusable(); why != "" {
+		t.Log("Perl not compared:", why)
+	} else {
+		cmd := exec.Command("perl", "-e", mappingPerl)
+		cmd.Stdin = strings.NewReader(mappingFeed)
+		stdout, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("perl: %v", err)
+		}
+		perl := map[string]string{}
+		sc := bufio.NewScanner(strings.NewReader(string(stdout)))
+		for sc.Scan() {
+			task, answer, _ := strings.Cut(sc.Text(), "\t")
+			perl[task] = answer
+		}
+		versions["Perl"] = perl
 	}
-	cmd := exec.Command("perl", "-e", mappingPerl)
-	cmd.Stdin = strings.NewReader(mappingFeed)
-	stdout, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("perl: %v", err)
-	}
-	perl := map[string]string{}
-	sc := bufio.NewScanner(strings.NewReader(string(stdout)))
-	for sc.Scan() {
-		task, answer, _ := strings.Cut(sc.Text(), "\t")
-		perl[task] = answer
-	}
-	versions["Perl"] = perl
 
 	for task, want := range mappingWant {
 		for name, answers := range versions {

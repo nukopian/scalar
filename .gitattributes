@@ -1,0 +1,7 @@
+# LF everywhere, so files compare byte for byte on every OS (TestReference
+# compares docs/EXAMPLES.md with what the examples generate).
+* text=auto eol=lf
+
+# Vendored licence texts stay byte for byte as upstream wrote them.
+testdata/cts/LICENSE -text
+testdata/cts/NOTICE -text

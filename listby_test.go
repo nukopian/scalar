@@ -13,9 +13,7 @@ import (
 // of random lists, with numeric and string keys. It needs perl and
 // List::UtilsBy, and is skipped without them.
 func TestListByMatchesPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	if exec.Command("perl", "-MList::UtilsBy", "-e1").Run() != nil {
 		t.Skip("List::UtilsBy isn't installed (cpanm List::UtilsBy, or set PERL5LIB)")
 	}

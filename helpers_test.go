@@ -2,6 +2,7 @@ package scalar
 
 import (
 	"encoding/json"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -45,4 +46,28 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// perlUnusable says why the Perl differential tests can't run here, or ""
+// if they can: they want perl 5.36 or later (macOS and Windows ship older
+// ones), and go test -short skips them.
+func perlUnusable() string {
+	switch {
+	case testing.Short():
+		return "skipped with -short"
+	case exec.Command("perl", "-e", "use v5.36").Run() != nil:
+		if _, err := exec.LookPath("perl"); err != nil {
+			return "perl isn't installed"
+		}
+		return "perl is older than 5.36"
+	}
+	return ""
+}
+
+// needPerl skips a Perl differential test that can't run here.
+func needPerl(t *testing.T) {
+	t.Helper()
+	if why := perlUnusable(); why != "" {
+		t.Skip(why)
+	}
 }

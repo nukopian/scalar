@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GOTOOLCHAIN: local # test the Go asked for, not a newer one it fetches
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -16,8 +19,6 @@ jobs:
         # The oldest Go that go.mod allows, and the newest.
         go: ['1.25', 'stable']
     name: test (Go ${{ matrix.go }})
-    env:
-      GOTOOLCHAIN: local # test the Go asked for, not a newer one it fetches
     steps:
       - uses: actions/checkout@v7
 
@@ -46,13 +47,44 @@ jobs:
       - run: go test -race ./...
 
       # Known vulnerabilities in what scalar calls, in its dependencies or
-      # the standard library. govulncheck itself needs a recent Go.
+      # the standard library; then staticcheck. Both need a recent Go.
       - name: govulncheck
         if: matrix.go == 'stable'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: staticcheck
+        if: matrix.go == 'stable'
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 
-      # Fail if a Perl differential test skipped, so a missing module can't
-      # quietly turn the comparison off.
+      # Fail if a Perl differential test skipped, or Perl wasn't compared,
+      # so a missing module can't quietly turn the comparison off.
       - name: no Perl tests skipped
         run: |
-          if go test -v -run 'Perl' . | grep -- '--- SKIP'; then exit 1; fi
+          if go test -v -run 'Perl' . | grep -E -- '--- SKIP|Perl not compared'; then exit 1; fi
+
+  # The other systems, without Perl: macOS and Windows ship one older than
+  # the differential tests need, and -short skips them.
+  portability:
+    strategy:
+      matrix:
+        os: [macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    name: test (${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test -short ./...
+
+  # A short run of each fuzz target, from the seed corpus on.
+  fuzz:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go test -run '^$' -fuzz '^FuzzReadJSON$' -fuzztime 30s .
+      - run: go test -run '^$' -fuzz '^FuzzNumericPrefix$' -fuzztime 30s .
+      - run: go test -run '^$' -fuzz '^FuzzFind$' -fuzztime 30s .

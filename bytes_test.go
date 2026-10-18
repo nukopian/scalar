@@ -81,9 +81,7 @@ func TestBytesKind(t *testing.T) {
 // hundreds of random byte strings. It needs perl on the PATH, and is
 // skipped without it.
 func TestBytesMatchPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	rng := rand.New(rand.NewPCG(7, 11))
 	patterns := []string{`\x89PNG`, `(\x00.)`, `\w+`, `(?i)\xc9`, `\s+`, `[\x80-\xff]+`, `^(.)(.)`, `(.)\1`, `\d+`}
 	texts := []string{"", "x", "é", "☺"}

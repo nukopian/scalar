@@ -222,9 +222,7 @@ func TestYAMLRoundTrip(t *testing.T) {
 // writes, for hundreds of random structures. It needs perl and YAML::PP, and
 // is skipped without them.
 func TestYAMLMatchesPerl(t *testing.T) {
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("perl isn't installed")
-	}
+	needPerl(t)
 	if exec.Command("perl", "-MYAML::PP", "-e1").Run() != nil {
 		t.Skip("YAML::PP isn't installed (cpanm YAML::PP, or set PERL5LIB)")
 	}
