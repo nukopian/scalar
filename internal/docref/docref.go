@@ -1,5 +1,5 @@
-// Package docref keeps a package's examples and its README's Reference
-// section in step. Each package's tests call it:
+// Package docref keeps a package's examples and the Reference section of
+// its README, or of another Markdown file with CheckDoc, in step. Each package's tests call it:
 //
 //	func TestEveryFeatureHasExample(t *testing.T) { docref.CheckExamples(t, groups) }
 //	func TestReference(t *testing.T)              { docref.CheckReadme(t, groups) }
@@ -31,7 +31,7 @@ import (
 	"unicode"
 )
 
-var update = flag.Bool("update", false, "rewrite the Reference section of README.md from the examples")
+var update = flag.Bool("update", false, "rewrite the Reference section of the docs from the examples")
 
 // Group is a file of examples and the heading they appear under in the
 // Reference. A package with a single group can leave Title empty, for a
@@ -64,28 +64,35 @@ func CheckExamples(t *testing.T, groups []Group) {
 	}
 }
 
-// CheckReadme fails t if README.md's Reference section isn't what groups'
-// examples generate, or rewrites it if the test was run with -update.
+// CheckReadme is CheckDoc for the package's README.md.
 func CheckReadme(t *testing.T, groups []Group) {
 	t.Helper()
+	CheckDoc(t, "README.md", groups)
+}
+
+// CheckDoc fails t if the Reference section of the Markdown file at path,
+// relative to the package directory, isn't what groups' examples generate,
+// or rewrites it if the test was run with -update.
+func CheckDoc(t *testing.T, path string, groups []Group) {
+	t.Helper()
 	want := reference(t, groups)
-	readme, err := os.ReadFile("README.md")
+	text, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	start, end := bytes.Index(readme, []byte(startMarker)), bytes.Index(readme, []byte(endMarker))
+	start, end := bytes.Index(text, []byte(startMarker)), bytes.Index(text, []byte(endMarker))
 	if start < 0 || end < start {
-		t.Fatalf("README.md needs %s and %s around the Reference section", startMarker, endMarker)
+		t.Fatalf("%s needs %s and %s around the Reference section", path, startMarker, endMarker)
 	}
-	if string(readme[start+len(startMarker):end]) == want {
+	if string(text[start+len(startMarker):end]) == want {
 		return
 	}
 	if !*update {
-		t.Fatalf("README.md's Reference section is out of date with the examples; run: go test %s -run TestReference -update",
-			packageArg(t))
+		t.Fatalf("%s's Reference section is out of date with the examples; run: go test %s -run TestReference -update",
+			path, packageArg(t))
 	}
-	updated := slices.Concat(readme[:start+len(startMarker)], []byte(want), readme[end:])
-	if err := os.WriteFile("README.md", updated, 0o644); err != nil {
+	updated := slices.Concat(text[:start+len(startMarker)], []byte(want), text[end:])
+	if err := os.WriteFile(path, updated, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -157,7 +164,7 @@ func reference(t *testing.T, groups []Group) string {
 	titled := len(groups) > 1
 	if titled {
 		// The headings start "Reference:", so their anchors don't clash with
-		// sections of the same names elsewhere in the README.
+		// sections of the same names elsewhere in the document.
 		b.WriteString("\n")
 		for _, g := range groups {
 			fmt.Fprintf(&b, "- [%s](#reference-%s)\n", g.Title, strings.ReplaceAll(strings.ToLower(g.Title), " ", "-"))

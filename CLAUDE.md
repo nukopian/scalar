@@ -71,19 +71,27 @@ else.
 
 A feature isn't done until its documentation is.
 
+The documents: `README.md` (what scalar is, a synopsis, the rationale),
+`docs/HOWTO.md` (tasks), `docs/REFERENCE.md` (each feature in depth) and
+`docs/EXAMPLES.md` (one generated example per function).
+
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
-- The README's Reference section is generated from those examples. Edit
-  the examples, then run `go test -run TestReference -update`.
-- The README's overview tables list every method, and the prose sections
-  cover new features.
-- Compile README snippets to check them, using a temporary test file
+- `docs/EXAMPLES.md` is generated from those examples. Edit the
+  examples, then run `go test -run TestReference -update`.
+- New features go into the README's feature table and into the
+  reference, and into the how-to guide when they change how a task is
+  best done.
+- Compile Markdown snippets to check them, using a temporary test file
   that you delete afterwards.
-- Rebuild `README.pdf` with `scripts/readme-pdf.sh README.md`, which needs
-  pandoc and Prince, in the same change as the README.
+- Every link between the documents must resolve, including the
+  `#anchor`s.
+- Each document has a PDF beside it. Rebuild a document's PDF with
+  `scripts/readme-pdf.sh <file>.md` (pandoc and Prince) in the same change
+  as the document.
 
-Why: the README is how people learn the package, its author included, and
-gaps found by reading it have led to real features.
+Why: the documents are how people learn the package, its author included,
+and gaps found by reading them have led to real features.
 
 ## How changes are made
 

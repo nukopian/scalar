@@ -1,0 +1,4594 @@
+# scalar: examples
+
+Every function and method in [scalar](../README.md), each with a working
+example and the output it prints. For how the features fit together, see
+the [reference](REFERENCE.md); for tasks, see the [how-to guide](HOWTO.md).
+
+<!-- reference:start -->
+
+Generated from the examples in `example_*_test.go`, which `go test` runs, so every
+example here works and prints what it says. Edit the examples, not this section, then run
+`go test . -run TestReference -update`.
+
+- [Scalars](#reference-scalars)
+- [Strings](#reference-strings)
+- [Operators](#reference-operators)
+- [Arrays](#reference-arrays)
+- [Hashes](#reference-hashes)
+- [List utilities](#reference-list-utilities)
+- [Sets and bags](#reference-sets-and-bags)
+- [Regular expressions](#reference-regular-expressions)
+- [Pack and unpack](#reference-pack-and-unpack)
+- [JSON and JSONPath](#reference-json-and-jsonpath)
+- [YAML](#reference-yaml)
+- [Into Go values](#reference-into-go-values)
+
+### Reference: Scalars
+
+#### `Value`
+
+Value returns a scalar holding x.
+
+```go
+fmt.Println(scalar.Value(42).Kind() == scalar.Int)
+fmt.Println(scalar.Value(3.5).Kind() == scalar.Float)
+fmt.Println(scalar.Value("text").Kind() == scalar.String)
+fmt.Println(scalar.Value([]string{"a", "b"}).Ref()) // a slice becomes an array reference
+fmt.Println(scalar.Value(nil).Defined())            // nil is undef
+```
+
+```
+true
+true
+true
+ARRAY
+false
+```
+
+#### `Value.struct`
+
+A struct becomes a hash, keyed as encoding/json would write it: by its json tags, leaving out what's omitempty and empty. Decode is the way back.
+
+```go
+type group struct {
+	Code  string `json:"code"`
+	Title string `json:"title,omitempty"`
+}
+g := scalar.Value(group{Code: "2134"})
+fmt.Println(g.Ref(), g.At("code"), g.At("title").Defined())
+```
+
+```
+HASH 2134 false
+```
+
+#### `SV.Set`
+
+Set assigns x to s and returns s.
+
+```go
+s := scalar.Value("old")
+s.Set(10)                     // $s = 10
+fmt.Println(s.Add(1))         // it's a number now
+s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
+fmt.Println(s.Ref())
+```
+
+```
+11
+HASH
+```
+
+#### `SV.Copy`
+
+Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
+
+```go
+h := scalar.Hash("count", 1)
+alias := h.Get("count")      // the stored value itself
+own := h.Get("count").Copy() // my $own = $h{count}
+alias.Set(2)
+own.Set(99)
+fmt.Println(h.Get("count"))
+```
+
+```
+2
+```
+
+#### `SV.Clone`
+
+Clone returns a deep copy of s, as Storable's dclone does: arrays and hashes it refers to are copied too, all the way down, so changing the clone never changes the original.
+
+```go
+h := scalar.Hash("defaults", scalar.Value(map[string]any{"tags": []any{"go"}}))
+shallow := h.Get("defaults").Copy() // my $row = $h{defaults}: the same hash
+deep := h.Get("defaults").Clone()   // my $row = dclone($h{defaults}): its own
+deep.At("tags").AV().Push("perl")
+fmt.Println(h.Get("defaults").At("tags").AV().Join(","), deep.At("tags").AV().Join(","))
+shallow.At("tags").AV().Push("sql") // changes the original
+fmt.Println(h.Get("defaults").At("tags").AV().Join(","))
+```
+
+```
+go go,perl
+go,sql
+```
+
+#### `SV.Equal`
+
+Equal reports whether s and other hold the same data, all the way down, as Test::More's is_deeply decides it.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
+	"skills": []string{"Go", "SQL"},
+	"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
+}))
+fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Value(nil).Equal("")) // undef equals only undef
+```
+
+```
+true
+true false
+```
+
+#### `SV.Diff`
+
+Diff says where s and other first differ, as is_deeply reports it, or "" if they're equal (see Equal).
+
+```go
+rules, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+model, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "Docker"]}`))
+fmt.Println(rules.Diff(model)) // where they first differ, as a path for At
+fmt.Printf("%q\n", rules.Diff(rules.Clone()))
+```
+
+```
+skills[1]: got "SQL", want "Docker"
+""
+```
+
+#### `SV.Apply`
+
+Apply calls f on every plain value in s, all the way down, and stores what f returns in its place, as Data::Rmap's rmap { $_ = ...
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
+doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc
+	if v.Kind() == scalar.String {
+		return v.Trim()
+	}
+	return v // anything else as it is
+})
+out, _ := doc.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+{"salary":50000,"skills":["Go","SQL"],"title":"Go Developer"}
+```
+
+#### `SV.Kind`
+
+Kind reports what s currently holds.
+
+```go
+for _, x := range []any{nil, true, 1, 1.5, "s", []byte{0x89}, []any{}, map[string]any{}} {
+	switch scalar.Value(x).Kind() {
+	case scalar.Undef:
+		fmt.Println("undef")
+	case scalar.Bool:
+		fmt.Println("bool")
+	case scalar.Int:
+		fmt.Println("int")
+	case scalar.Float:
+		fmt.Println("float")
+	case scalar.String:
+		fmt.Println("string")
+	case scalar.Bytes:
+		fmt.Println("bytes")
+	case scalar.ArrayRef:
+		fmt.Println("array")
+	case scalar.HashRef:
+		fmt.Println("hash")
+	}
+}
+```
+
+```
+undef
+bool
+int
+float
+string
+bytes
+array
+hash
+```
+
+#### `SV.Defined`
+
+Defined is Perl's defined().
+
+```go
+fmt.Println(scalar.Value(nil).Defined())
+fmt.Println(scalar.Value("").Defined()) // empty, but defined
+fmt.Println(scalar.Hash().Get("missing").Defined())
+```
+
+```
+false
+true
+false
+```
+
+#### `SV.Any`
+
+Any returns s as a plain Go value, in the shapes encoding/json uses: undef is nil; booleans, integers, floats and strings are bool, int64, float64 and string; array references become []any and hash references map[string]any, converted all the way down.
+
+```go
+s := scalar.Value(map[string]any{"tags": []any{"go", 1}})
+plain := s.Any().(map[string]any) // plain Go, sharing nothing with s
+fmt.Println(plain["tags"])
+```
+
+```
+[go 1]
+```
+
+#### `SV.Or`
+
+Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s is defined, otherwise def's.
+
+```go
+fmt.Println(scalar.Value(nil).Or("default")) // $x // "default"
+fmt.Println(scalar.Value(0).Or("default"))   // 0 is defined, so it's kept
+```
+
+```
+default
+0
+```
+
+#### `SV.OrSet`
+
+OrSet is Perl's $s //= $def: if s is undef, it sets s to def.
+
+```go
+h := scalar.Hash()
+h.Get("retries").OrSet(3) // $h{retries} //= 3
+h.Get("retries").OrSet(5) // already set, so unchanged
+fmt.Println(h.Get("retries"))
+```
+
+```
+3
+```
+
+#### `SV.Then`
+
+Then calls f with s if s is defined, and returns what f returns as a new scalar; if s is undef, f isn't called, and Then returns undef.
+
+```go
+digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
+figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
+annual := func(v *scalar.SV) any { return v.Mul(12) }
+for _, text := range []string{"£4,000 a month", "Competitive"} {
+	fmt.Println(scalar.Value(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+}
+```
+
+```
+48000
+unknown
+```
+
+#### `SV.When`
+
+When returns a copy of s if s is defined and pred(s) is true, and undef otherwise, without calling pred on undef.
+
+```go
+positive := func(v *scalar.SV) bool { return v.Num() > 0 }
+doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": 0}`))
+fmt.Println(doc.At("min").When(positive).Or("none"))
+fmt.Println(doc.At("max").When(positive).Or("none"))   // fails the test: undef
+fmt.Println(doc.At("bonus").When(positive).Or("none")) // missing: positive isn't called
+```
+
+```
+45000
+none
+none
+```
+
+#### `SV.Ref`
+
+Ref is Perl's ref(): "ARRAY", "HASH", or "" for non-references.
+
+```go
+fmt.Println(scalar.Value(scalar.Array(1)).Ref())
+fmt.Println(scalar.Value(scalar.Hash()).Ref())
+fmt.Printf("%q\n", scalar.Value("text").Ref())
+```
+
+```
+ARRAY
+HASH
+""
+```
+
+#### `SV.Str`
+
+Str returns s in string context.
+
+```go
+fmt.Println(scalar.Value(42).Str())
+fmt.Println(scalar.Value(0.1 + 0.2).Str()) // Perl's 15 significant digits
+fmt.Println(scalar.Value(true).Str())
+fmt.Printf("%q\n", scalar.Value(nil).Str())
+```
+
+```
+42
+0.3
+1
+""
+```
+
+#### `SV.String`
+
+String implements `fmt.Stringer`.
+
+```go
+fmt.Println(scalar.Value(1e21)) // fmt uses String, as Perl's print would
+```
+
+```
+1e+21
+```
+
+#### `SV.Dump`
+
+Dump returns s as Data::Dumper::Concise prints it: Data::Dumper with Terse, Indent = 1, Useqq, Quotekeys = 0, Sortkeys and Trailingcomma, so nested arrays and hashes are laid out one element to a line, hash keys are sorted and quoted only when they need to be, and strings are double-quoted, with escapes for anything that isn't printable ASCII.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"], "salary": {"min": 45000, "max": null}}`))
+fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints it
+```
+
+```
+{
+  salary => {
+    max => undef,
+    min => 45000,
+  },
+  skills => [
+    "Go",
+    "SQL",
+  ],
+  title => "Go Developer",
+}
+```
+
+#### `FromDump`
+
+FromDump reads a structure written by Dump, or by Perl's Data::Dumper, and returns it, as FromJSON reads JSON.
+
+```go
+tags := scalar.Value(scalar.Array("go"))
+doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
+back, err := scalar.FromDump(scalar.Value(doc).Dump())                           // a round trip
+fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
+
+perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
+fmt.Println(err, perl.At("name"), perl.At("langs[1]"))
+```
+
+```
+<nil> true true
+<nil> Ada Go
+```
+
+#### `MustFromDump`
+
+MustFromDump is FromDump, panicking if the dump is malformed.
+
+```go
+want := scalar.MustFromDump(`{
+	title  => "Go Developer",
+	skills => ["Go", "SQL"],   # test data, as Perl would write it
+}`)
+got, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+fmt.Printf("%q\n", got.Diff(want))
+```
+
+```
+""
+```
+
+#### `MustFromDump.testData`
+
+```go
+// The expected value in a test: shorter than JSON, with comments where
+// they help.
+want := scalar.MustFromDump(`{
+	title     => "Senior Go Developer",
+	seniority => "Senior",
+	salary    => { min => 60000, max => undef },   # max: not stated
+	skills    => ["Go", "PostgreSQL", "Docker"],
+	remote    => !!1,
+}`)
+got, _ := scalar.FromJSON([]byte(`{"title": "Senior Go Developer", "seniority": "Senior",
+	"salary": {"min": 60000, "max": null}, "skills": ["Go", "PostgreSQL", "Docker"], "remote": true}`))
+fmt.Printf("%q\n", got.Diff(want))
+got.At("skills[2]").Set("Kubernetes")
+fmt.Println(got.Diff(want)) // where they differ, as a path for At
+```
+
+```
+""
+skills[2]: got "Kubernetes", want "Docker"
+```
+
+#### `MustFromDump.toStruct`
+
+```go
+// Test data straight into the struct a function under test takes.
+type Salary struct{ Min, Max int }
+type Posting struct {
+	Title  string
+	Salary Salary
+	Skills []string
+}
+p, err := scalar.To[Posting](scalar.MustFromDump(`{
+	Title  => 'Data Engineer',
+	Salary => { Min => 45_000, Max => 55_000 },   # underscores, as in Perl
+	Skills => ['Python', 'SQL'],
+}`))
+fmt.Printf("%+v %v\n", p, err)
+```
+
+```
+{Title:Data Engineer Salary:{Min:45000 Max:55000} Skills:[Python SQL]} <nil>
+```
+
+#### `FromDump.keysAndStrings`
+
+```go
+doc := scalar.MustFromDump(`{
+	bare_word   => 1,
+	'single'    => 'it\'s \n literal',   # only \\ and \' are escapes here
+	"double"    => "tab\there\x{263a}",   # Perl's escapes
+	42          => "a number as a key",
+	-1          => "so is a negative one",
+	"log.level" => "debug",
+	email       => "jo@example.com",       # $ and @ aren't interpolated
+}`)
+fmt.Println(doc.HV().Keys().Sort(nil).Join(" "))
+fmt.Printf("%q\n", doc.At("single").Str())
+fmt.Printf("%q\n", doc.At("double").Str())
+fmt.Println(doc.At("{42}"), "|", doc.At("{-1}"), "|", doc.At("{log.level}"), "|", doc.At("email"))
+```
+
+```
+-1 42 bare_word double email log.level single
+"it's \\n literal"
+"tab\there☺"
+a number as a key | so is a negative one | debug | jo@example.com
+```
+
+#### `FromDump.bytes`
+
+```go
+doc := scalar.MustFromDump(`["\211PNG\r\n", "caf\x{e9}", "caf\351"]`)
+for _, s := range doc.AV().All() {
+	fmt.Println(s.Kind() == scalar.Bytes, s.Length()) // octal above 127: bytes; \x{...}: text
+}
+fmt.Println(doc.At("[1]").Eq(doc.At("[2]"))) // the same characters, so eq
+```
+
+```
+true 6
+false 4
+true 4
+true
+```
+
+#### `FromDump.shared`
+
+```go
+// $VAR1 paths are the arrays and hashes already read: shared parts, and loops.
+doc := scalar.MustFromDump(`{
+	defaults => { cpu => "500m" },
+	web      => { limits => $VAR1->{defaults} },
+	worker   => { limits => $VAR1->{defaults} },
+	parent   => $VAR1,
+}`)
+doc.At("defaults.cpu").Set("1")
+fmt.Println(doc.At("web.limits.cpu"), doc.At("worker.limits.cpu")) // one hash, seen from two places
+fmt.Println(doc.At("parent.parent.parent.web.limits.cpu"))         // a loop back to the top
+```
+
+```
+1 1
+1
+```
+
+#### `FromDump.fromPerl`
+
+```go
+// Data::Dumper's default layout, pasted from a Perl debugging session,
+// with a blessed object: read as the plain hash it is.
+dump := `bless( {
+                 'name' => 'Ada',
+                 'langs' => [
+                              'Perl',
+                              'Go'
+                            ],
+                 'since' => 1843
+               }, 'Person' )`
+p, err := scalar.FromDump(dump)
+fmt.Println(err, p.At("name"), p.At("langs").AV().Join("/"), p.At("since").Add(183))
+```
+
+```
+<nil> Ada Perl/Go 2026
+```
+
+#### `FromDump.types`
+
+```go
+// A dump doesn't record types: each value comes back as its text says,
+// as Perl reads a dump back.
+doc := scalar.MustFromDump(`[42, "42", "2.5", 2.5, "12345678901", !!1, undef]`)
+names := map[scalar.Kind]string{scalar.Int: "int", scalar.String: "string", scalar.Float: "float",
+	scalar.Bool: "bool", scalar.Undef: "undef"}
+fmt.Println(doc.AV().Map(func(v *scalar.SV) any { return names[v.Kind()] }).Join(" "))
+fmt.Println(scalar.Value("42").Dump(), scalar.Value(2.5).Dump()) // so Dump's "42" reads back as 42, and 2.5 as "2.5"
+```
+
+```
+int string string float string bool undef
+42 "2.5"
+```
+
+#### `FromDump.errors`
+
+```go
+_, err := scalar.FromDump(`{
+	title  => "Go Developer",
+	skills => ["Go" "SQL"],
+}`)
+fmt.Println(err) // a line and column to look at
+_, err = scalar.FromDump(`{ handler => sub { "DUMMY" } }`)
+fmt.Println(err) // data only: no Perl is ever run
+```
+
+```
+scalar: bad dump at line 3, column 19: expected a comma or "]", found '"'
+scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, not Perl code
+```
+
+#### `SV.Bytes`
+
+Bytes returns s as a Go []byte: a byte string's bytes, or anything else's bytes in string context (see Str), so text gives its UTF-8 encoding.
+
+```go
+png := scalar.Value([]byte("\x89PNG\r\n\x1a\n..."))   // a []byte makes a byte string
+fmt.Println(png.Kind() == scalar.Bytes, png.Length()) // Length counts bytes
+fmt.Println(png.M(`^\x89PNG`) != nil)                 // patterns match bytes
+fmt.Printf("%x\n", png.Substr(0, 4))                  // %x gives the bytes in hex
+blob := png.Bytes()                                   // back to a Go []byte (a copy)
+fmt.Println(len(blob))
+fmt.Println(scalar.Value("café").Bytes()) // text gives its UTF-8 bytes
+```
+
+```
+true 11
+true
+89504e47
+11
+[99 97 102 195 169]
+```
+
+#### `SV.Format`
+
+Format implements `fmt.Formatter`, so that Go's format verbs treat s as Perl's sprintf does, in the context each verb implies: %d, %b, %o, %x, %X and %c in integer context (see Int), %e, %E, %f, %F, %g and %G in numeric context (see Num), %t in boolean context, and %s, %q, %v and anything else in string context (see Str).
+
+```go
+fmt.Printf("%d|%05.2f|%x|%5s|%t\n",
+	scalar.Value("42 apples"), scalar.Value("3.14159"), scalar.Value(255),
+	scalar.Value("ab"), scalar.Value("0"))
+```
+
+```
+42|03.14|ff|   ab|false
+```
+
+#### `SV.Num`
+
+Num returns s in numeric context.
+
+```go
+fmt.Println(scalar.Value("3.5kg").Num()) // the numeric prefix, as Perl does
+fmt.Println(scalar.Value("abc").Num())
+```
+
+```
+3.5
+0
+```
+
+#### `SV.NumOK`
+
+NumOK is Num, plus false wherever Perl would warn: undef, empty or non-numeric strings, and strings with trailing garbage.
+
+```go
+for _, x := range []any{"42", " 42 ", "42abc", "", nil} {
+	n, ok := scalar.Value(x).NumOK()
+	fmt.Println(n, ok) // ok is false wherever Perl would warn
+}
+```
+
+```
+42 true
+42 true
+42 false
+0 false
+0 false
+```
+
+#### `SV.Int`
+
+Int returns s in integer context, truncating toward zero.
+
+```go
+fmt.Println(scalar.Value(-3.9).Int()) // truncates toward zero
+fmt.Println(scalar.Value("12 items").Int())
+```
+
+```
+-3
+12
+```
+
+#### `SV.IntOK`
+
+IntOK is Int, plus false wherever NumOK would be false, and for NaN or floats outside the int64 range (which are clamped).
+
+```go
+i, ok := scalar.Value("9223372036854775807").IntOK() // exact, however large
+fmt.Println(i, ok)
+i, ok = scalar.Value(1e30).IntOK() // out of range: clamped
+fmt.Println(i, ok)
+```
+
+```
+9223372036854775807 true
+9223372036854775807 false
+```
+
+#### `SV.Bool`
+
+Bool returns s in boolean context: undef, "", "0", 0 and 0.0 are false; everything else, including "0.0" and "00", is true.
+
+```go
+for _, x := range []any{nil, "", "0", 0, 0.0, "0.0", "00", " ", "a"} {
+	fmt.Print(scalar.Value(x).Bool(), " ")
+}
+fmt.Println()
+```
+
+```
+false false false false false true true true true
+```
+
+#### `SV.AV`
+
+AV dereferences s as an array.
+
+```go
+var s scalar.SV   // undef
+s.AV().Push(1, 2) // push @$s, 1, 2: autovivifies an array
+fmt.Println(s.AV().Join(","))
+fmt.Println(scalar.Value("text").AV() == nil) // not an array
+```
+
+```
+1,2
+true
+```
+
+#### `SV.HV`
+
+HV dereferences s as a hash, autovivifying undef like AV does.
+
+```go
+var s scalar.SV
+s.HV().Set("a", 1) // $s->{a} = 1
+fmt.Println(s.Ref(), s.HV().Get("a"))
+```
+
+```
+HASH 1
+```
+
+#### `SV.Path`
+
+Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is $s->{content}[0]{text}.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"items": [{"name": "first"}]}`))
+fmt.Println(doc.Path("items", 0, "name"))  // $doc->{items}[0]{name}
+fmt.Println(doc.Path("items", -1, "name")) // negative indices count from the end
+doc.Path("meta", "count").Set(1)           // writing autovivifies
+fmt.Println(doc.Path("meta", "count"))
+```
+
+```
+first
+first
+1
+```
+
+#### `SV.PathOK`
+
+PathOK is Path with Go's comma-ok: ok reports whether every step exists, so a value that's present but null (undef) gives ok true, while a missing key or index, or a step through something that isn't an array or hash, gives ok false and an undef scalar.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": null}`))
+_, ok := doc.PathOK("salary") // present, but null
+fmt.Println(ok)
+_, ok = doc.PathOK("bonus") // missing: and nothing is created
+fmt.Println(ok, doc.HV().Exists("bonus"))
+```
+
+```
+true
+false false
+```
+
+#### `SV.At`
+
+At is Path with the route as one string, in dot, bracket or Perl's brace form:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"content": [{"rule_set": "A"}, {"rule_set": "B"}],
+	"meta": {"log.level": "debug", "0": "zero"}
+}`))
+fmt.Println(doc.At("content[0].rule_set"))         // $doc->{content}[0]{rule_set}
+fmt.Println(doc.At("content.1.rule_set"))          // a number after a dot: an index into an array
+fmt.Println(doc.At("content[-1].rule_set"))        // from the end
+fmt.Println(doc.At(`meta["log.level"]`))           // a key with a dot in it, quoted
+fmt.Println(doc.At("meta.0"), doc.At(`meta["0"]`)) // into a hash, the number is a key
+fmt.Println(doc.At("{content}[1]{rule_set}"))      // Perl's braces: always a hash key
+fmt.Println(doc.At("meta{log.level}"))             // inside braces, dots are part of the key
+
+var s scalar.SV
+s.At("rules[0].name").Set("first") // writing autovivifies: [0] makes an array
+out, _ := s.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+A
+B
+B
+debug
+zero zero
+B
+debug
+{"rules":[{"name":"first"}]}
+```
+
+#### `SV.AtOK`
+
+AtOK is PathOK with the route as one string, written as for At: ok reports whether every step exists, so a value that's present but null gives ok true.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "max": null}}`))
+_, ok := doc.AtOK("salary.max") // present, but null
+fmt.Println(ok)
+_, ok = doc.AtOK("salary.bonus") // missing: and nothing is created
+fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
+```
+
+```
+true
+false false
+```
+
+#### `SV.DeleteAt`
+
+DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route written as for At: it removes the last step's key or element, and returns its value, or undef if there was nothing there.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "bonus": "TBC"}, "skills": ["Go", "SQL"]}`))
+fmt.Println(doc.DeleteAt("salary.bonus")) // delete $doc->{salary}{bonus}: its value
+fmt.Println(doc.DeleteAt("skills[-1]"))   // the last element: the array shrinks
+fmt.Println(doc.DeleteAt("benefits.car")) // nothing there: undef, and nothing created
+fmt.Println(doc.Dump())
+```
+
+```
+TBC
+SQL
+
+{
+  salary => {
+    min => 45000,
+  },
+  skills => [
+    "Go",
+  ],
+}
+```
+
+#### `MustPath`
+
+MustPath is CompilePath, panicking if the path is malformed.
+
+```go
+rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
+doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
+fmt.Println(doc.Path(rule, "name"))   // a compiled path, then more keys
+fmt.Println(doc.Path(rule, "ids", 1)) // ...{ids}[1]
+_, ok := doc.PathOK(rule, "missing")
+fmt.Println(ok)
+```
+
+```
+A
+8
+false
+```
+
+#### `CompilePath`
+
+CompilePath compiles an At path, or returns an error if it's malformed, for paths that come from outside the program.
+
+```go
+p, err := scalar.CompilePath("content..rule_set") // a path from outside the program: check it
+fmt.Println(p == nil, err)
+```
+
+```
+true scalar: bad path "content..rule_set" at offset 8: expected a name
+```
+
+#### `PathExpr.String`
+
+String returns the path as written.
+
+```go
+fmt.Println(scalar.MustPath(`meta["log.level"]`))
+```
+
+```
+meta["log.level"]
+```
+
+#### `StrCmp`
+
+StrCmp is Perl's cmp, for use with `AV.Sort`.
+
+```go
+fmt.Println(scalar.Array("b", "10", "a", "9").Sort(scalar.StrCmp).Join(" ")) // sort { $a cmp $b }
+```
+
+```
+10 9 a b
+```
+
+#### `NumCmp`
+
+NumCmp is Perl's <=>, for use with `AV.Sort`.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort { $a <=> $b }
+```
+
+```
+2.5 9 10
+```
+
+#### `SV.DeletePath`
+
+DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete $s->{$section}{$key} does in Perl.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"pay":{"min":45000,"max":55000},"v1.2":{"note":"x"}}`))
+fmt.Println(doc.DeletePath("pay", "max"))   // delete $doc->{pay}{max}
+fmt.Println(doc.DeletePath("v1.2", "note")) // keys are taken whole, dots and all
+fmt.Println(doc.At("pay").HV().KeysSlice(), doc.DeletePath("pay", "bonus").Defined())
+```
+
+```
+55000
+x
+[min] false
+```
+
+#### `SV.Undef`
+
+Undef is Perl's undef $s: s becomes undef, and Undef returns it, now undef.
+
+```go
+h := scalar.Hash("bonus", 5000)
+fmt.Println(h.Get("bonus").Undef().Defined()) // undef $h{bonus}: returns it, now undef
+fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Delete removes it
+```
+
+```
+false
+true
+```
+
+#### `SV.Lock`
+
+Lock makes s, and everything it refers to, read-only, all the way down, and returns s; see the README's Locking section.
+
+Lock makes a structure read-only all the way down, as Perl's Hash::Util does a hash: its keys are fixed, so even reading one it hasn't got panics, where it would have autovivified, and a misspelled key is caught at once.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Care worker", "pay": {"min": 25000}}`))
+doc.Lock()
+fmt.Println(doc.At("pay.min"))
+fmt.Println(catch(func() { doc.At("pay.max").Set(30000) }))
+fmt.Println(catch(func() { doc.At("titel") })) // misspelled
+```
+
+```
+25000
+scalar: Attempt to access disallowed key 'max' in a restricted hash
+scalar: Attempt to access disallowed key 'titel' in a restricted hash
+```
+
+#### `SV.Unlock`
+
+Unlock undoes Lock, all the way down, and returns s.
+
+Unlock undoes Lock, all the way down.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"pay": {"min": 25000}}`))
+doc.Lock().Unlock()
+doc.At("pay.max").Set(30000)
+fmt.Println(doc.At("pay.max"))
+```
+
+```
+30000
+```
+
+#### `SV.Locked`
+
+Locked reports whether Lock has made s read-only.
+
+Locked reports whether Lock has made a value read-only; a Clone isn't.
+
+```go
+doc := scalar.Value(map[string]any{"a": 1}).Lock()
+fmt.Println(doc.Locked(), doc.Clone().Locked())
+```
+
+```
+true false
+```
+
+### Reference: Strings
+
+#### `SV.Length`
+
+Length is Perl's length($s): the number of characters (not bytes) in s in string context, so Value(12345).Length() is 5 and "café" is 4.
+
+```go
+fmt.Println(scalar.Value("café").Length()) // characters, not bytes
+fmt.Println(scalar.Value(12345).Length())  // in string context
+```
+
+```
+4
+5
+```
+
+#### `SV.Substr`
+
+Substr is Perl's substr($s, offset) or substr($s, offset, length): a new scalar holding part of s in string context, counted in characters.
+
+```go
+s := scalar.Value("Senior Go Developer")
+fmt.Println(s.Substr(7))            // substr($s, 7)
+fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
+fmt.Println(s.Substr(-9))           // from the end
+fmt.Println(s.Substr(0, -10))       // all but the last 10
+fmt.Println(s.Substr(99).Defined()) // entirely outside: undef
+```
+
+```
+Go Developer
+Go
+Developer
+Senior Go
+false
+```
+
+#### `SV.SubstrReplace`
+
+SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
+
+```go
+s := scalar.Value("Junior Go Developer")
+old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
+fmt.Println(s, "/", old)
+```
+
+```
+Senior Go Developer / Junior
+```
+
+#### `SV.Index`
+
+Index is Perl's index($s, substr[, position]): the character position of the first occurrence of substr at or after position (default 0), or -1.
+
+```go
+s := scalar.Value("café au lait")
+fmt.Println(s.Index("au"))   // a character position, ready for Substr
+fmt.Println(s.Index("a", 2)) // starting from position 2
+fmt.Println(s.Index("tea"))
+```
+
+```
+5
+5
+-1
+```
+
+#### `SV.RIndex`
+
+RIndex is Perl's rindex($s, substr[, position]): the character position of the last occurrence of substr starting at or before position (default the end of the string), or -1.
+
+```go
+s := scalar.Value("a/b/c")
+fmt.Println(s.RIndex("/"))    // the last one
+fmt.Println(s.RIndex("/", 2)) // the last one at or before position 2
+```
+
+```
+3
+1
+```
+
+#### `SV.Lc`
+
+Lc is Perl's lc: s in lower case, using Unicode's full case mappings.
+
+```go
+fmt.Println(scalar.Value("ÉCOLE Go").Lc())
+```
+
+```
+école go
+```
+
+#### `SV.Uc`
+
+Uc is Perl's uc: s in upper case, using Unicode's full case mappings, so "straße" becomes "STRASSE".
+
+```go
+fmt.Println(scalar.Value("straße").Uc()) // full Unicode mappings
+```
+
+```
+STRASSE
+```
+
+#### `SV.Fc`
+
+Fc is Perl's fc: s case-folded, for comparing strings regardless of case.
+
+```go
+a, b := scalar.Value("Straße"), scalar.Value("STRASSE")
+fmt.Println(a.Lc().Eq(b.Lc())) // lc isn't enough for this
+fmt.Println(a.Fc().Eq(b.Fc())) // fc is: compare case-insensitively with it
+```
+
+```
+false
+true
+```
+
+#### `SV.UcFirst`
+
+UcFirst is Perl's ucfirst: s with its first character in title case.
+
+```go
+fmt.Println(scalar.Value("élan vital").UcFirst())
+```
+
+```
+Élan vital
+```
+
+#### `SV.LcFirst`
+
+LcFirst is Perl's lcfirst: s with its first character in lower case.
+
+```go
+fmt.Println(scalar.Value("HELLO").LcFirst())
+```
+
+```
+hELLO
+```
+
+#### `SV.Trim`
+
+Trim is Perl's trim (builtin::trim, Perl 5.36): s without leading or trailing whitespace, including Unicode spaces such as no-break space.
+
+```go
+fmt.Printf("%q\n", scalar.Value("\u00a0 padded \t").Trim()) // Unicode spaces too
+```
+
+```
+"padded"
+```
+
+#### `QuoteMeta`
+
+QuoteMeta is Perl's quotemeta: x in string context with every character that could mean something in a pattern backslash-escaped, so that it matches literally.
+
+```go
+fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
+posting := scalar.Value("Skills: C++ and .NET")
+fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
+```
+
+```
+C\+\+\ \(\.NET\)
+true
+```
+
+#### `SV.Interpolate`
+
+Interpolate fills in a template from s, as Perl interpolates variables in a double-quoted string, with the keys of the hash s holds as the variables:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "location": "Leeds",
+	"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+fmt.Println(doc.Interpolate("$title in $location: @skills"))   // doc's keys are the variables
+fmt.Println(doc.Interpolate("Up to $salary{max}"))             // subscripts, as in Perl
+fmt.Println(doc.Interpolate("Up to ${salary.max}"))            // any At path in ${...}
+fmt.Println(doc.Interpolate(`[$bonus] \$5 jobs\@example.com`)) // missing is ""; \$ and \@ are literal
+```
+
+```
+Go Developer in Leeds: Go SQL
+Up to 55000
+Up to 55000
+[] $5 jobs@example.com
+```
+
+#### `HV.Interpolate`
+
+Interpolate fills in a template from h; see `SV.Interpolate`.
+
+```go
+row := scalar.Hash("name", "Ada", "langs", scalar.Value([]string{"Go", "Perl"}))
+fmt.Println(row.Interpolate("$name writes @langs"))
+```
+
+```
+Ada writes Go Perl
+```
+
+#### `MustTemplate`
+
+MustTemplate is CompileTemplate, panicking if the template is malformed.
+
+```go
+var summary = scalar.MustTemplate("$title. Skills: @skills.") // parsed once
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+fmt.Println(doc.Interpolate(summary))
+```
+
+```
+Go Developer. Skills: Go SQL.
+```
+
+#### `CompileTemplate`
+
+CompileTemplate compiles a template for Interpolate, or returns an error if it's malformed, for templates that come from outside the program.
+
+```go
+t, err := scalar.CompileTemplate("Up to ${salary.max") // a template from outside the program: check it
+fmt.Println(t == nil, err)
+```
+
+```
+true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
+```
+
+#### `Template.ListSeparator`
+
+ListSeparator returns a copy of t that joins the elements of an array with sep, as local $" = sep does in Perl.
+
+```go
+t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
+fmt.Println(scalar.Hash("skills", scalar.Value([]string{"Go", "SQL"})).Interpolate(t))
+```
+
+```
+Skills: Go, SQL
+```
+
+#### `Template.String`
+
+String returns the template as written.
+
+```go
+fmt.Println(scalar.MustTemplate("$title in $location"))
+```
+
+```
+$title in $location
+```
+
+### Reference: Operators
+
+#### `SV.Add`
+
+Add is Perl's +.
+
+```go
+fmt.Println(scalar.Value("40").Add(2))          // "40" + 2
+fmt.Println(scalar.Value(1.5).Add("1.5"))       // floats when needed
+fmt.Println(scalar.Value(math.MaxInt64).Add(1)) // an integer that would overflow becomes a float
+```
+
+```
+42
+3
+9.22337203685478e+18
+```
+
+#### `SV.Sub`
+
+Sub is Perl's -.
+
+```go
+fmt.Println(scalar.Value(10).Sub("2.5"))
+```
+
+```
+7.5
+```
+
+#### `SV.Mul`
+
+Mul is Perl's *.
+
+```go
+fmt.Println(scalar.Value("6").Mul(7))
+```
+
+```
+42
+```
+
+#### `SV.Div`
+
+Div is Perl's /.
+
+```go
+fmt.Println(scalar.Value(7).Div(2)) // not integer division
+fmt.Println(scalar.Value(8).Div(2))
+```
+
+```
+3.5
+4
+```
+
+#### `SV.Mod`
+
+Mod is Perl's %: both operands are truncated to integers, and a nonzero result takes the sign of the right operand (-7 % 3 is 2).
+
+```go
+fmt.Println(scalar.Value(7).Mod(3))
+fmt.Println(scalar.Value(-7).Mod(3)) // takes the sign of the right operand
+```
+
+```
+1
+2
+```
+
+#### `SV.Pow`
+
+Pow is Perl's **.
+
+```go
+fmt.Println(scalar.Value(2).Pow(10))
+fmt.Println(scalar.Value(2).Pow(-1))
+```
+
+```
+1024
+0.5
+```
+
+#### `SV.Neg`
+
+Neg is Perl's unary minus, string madness included: -"foo" is "-foo", -"-foo" is "+foo", and -"+foo" is "-foo".
+
+```go
+fmt.Println(scalar.Value(5).Neg())
+fmt.Println(scalar.Value("foo").Neg()) // string madness, as in Perl
+fmt.Println(scalar.Value("-foo").Neg())
+```
+
+```
+-5
+-foo
++foo
+```
+
+#### `SV.Concat`
+
+Concat is Perl's .
+
+```go
+fmt.Println(scalar.Value("Go").Concat(1.5)) // "Go" . 1.5
+```
+
+```
+Go1.5
+```
+
+#### `SV.Repeat`
+
+Repeat is Perl's x operator on a scalar.
+
+```go
+fmt.Println(scalar.Value("ab").Repeat(3)) // "ab" x 3
+fmt.Printf("%q\n", scalar.Value("ab").Repeat(0))
+```
+
+```
+ababab
+""
+```
+
+#### `SV.Inc`
+
+Inc is Perl's ++: it modifies s in place and returns it.
+
+```go
+n := scalar.Value(9)
+n.Inc()
+id := scalar.Value("az9")
+id.Inc() // Perl's magic string increment
+fmt.Println(n, id)
+```
+
+```
+10 ba0
+```
+
+#### `SV.Dec`
+
+Dec is Perl's --: it modifies s in place and returns it.
+
+```go
+s := scalar.Value("aa")
+s.Dec() // never magic: "aa" is 0 as a number
+fmt.Println(s)
+```
+
+```
+-1
+```
+
+#### `SV.AddInPlace`
+
+AddInPlace is Perl's +=.
+
+```go
+totals := scalar.Hash()
+for _, n := range []int{5, 10} {
+	totals.Get("sum").AddInPlace(n) // $totals{sum} += $n
+}
+fmt.Println(totals.Get("sum"))
+```
+
+```
+15
+```
+
+#### `SV.SubInPlace`
+
+SubInPlace is Perl's -=.
+
+```go
+s := scalar.Value(10)
+s.SubInPlace(3) // $s -= 3
+fmt.Println(s)
+```
+
+```
+7
+```
+
+#### `SV.MulInPlace`
+
+MulInPlace is Perl's *=.
+
+```go
+s := scalar.Value(4)
+s.MulInPlace(2.5) // $s *= 2.5
+fmt.Println(s)
+```
+
+```
+10
+```
+
+#### `SV.DivInPlace`
+
+DivInPlace is Perl's /=.
+
+```go
+s := scalar.Value(9)
+s.DivInPlace(2) // $s /= 2
+fmt.Println(s)
+```
+
+```
+4.5
+```
+
+#### `SV.ModInPlace`
+
+ModInPlace is Perl's %=.
+
+```go
+s := scalar.Value(17)
+s.ModInPlace(5) // $s %= 5
+fmt.Println(s)
+```
+
+```
+2
+```
+
+#### `SV.PowInPlace`
+
+PowInPlace is Perl's **=.
+
+```go
+s := scalar.Value(3)
+s.PowInPlace(2) // $s **= 2
+fmt.Println(s)
+```
+
+```
+9
+```
+
+#### `SV.ConcatInPlace`
+
+ConcatInPlace is Perl's .=.
+
+```go
+s := scalar.Value("Go")
+s.ConcatInPlace(" developer") // $s .= " developer"
+fmt.Println(s)
+```
+
+```
+Go developer
+```
+
+#### `SV.RepeatInPlace`
+
+RepeatInPlace is Perl's x=.
+
+```go
+s := scalar.Value("-")
+s.RepeatInPlace(5) // $s x= 5
+fmt.Println(s)
+```
+
+```
+-----
+```
+
+#### `SV.Eq`
+
+Eq is Perl's eq.
+
+```go
+fmt.Println(scalar.Value(1.0).Eq("1")) // eq compares strings: 1.0 is "1"
+fmt.Println(scalar.Value("1.0").Eq(1))
+```
+
+```
+true
+false
+```
+
+#### `SV.Ne`
+
+Ne is Perl's ne.
+
+```go
+fmt.Println(scalar.Value("go").Ne("Go"))
+```
+
+```
+true
+```
+
+#### `SV.Lt`
+
+Lt is Perl's lt.
+
+```go
+fmt.Println(scalar.Value("10").Lt("9")) // as strings, "10" sorts first
+```
+
+```
+true
+```
+
+#### `SV.Le`
+
+Le is Perl's le.
+
+```go
+fmt.Println(scalar.Value("a").Le("a"))
+```
+
+```
+true
+```
+
+#### `SV.Gt`
+
+Gt is Perl's gt.
+
+```go
+fmt.Println(scalar.Value("b").Gt("abc"))
+```
+
+```
+true
+```
+
+#### `SV.Ge`
+
+Ge is Perl's ge.
+
+```go
+fmt.Println(scalar.Value("abc").Ge("abd"))
+```
+
+```
+false
+```
+
+#### `SV.NumEq`
+
+NumEq is Perl's ==.
+
+```go
+fmt.Println(scalar.Value("1.0").NumEq(1)) // == compares numbers
+fmt.Println(scalar.Value("NaN").NumEq("NaN"))
+```
+
+```
+true
+false
+```
+
+#### `SV.NumNe`
+
+NumNe is Perl's !=.
+
+```go
+fmt.Println(scalar.Value("10").NumNe(10.0))
+```
+
+```
+false
+```
+
+#### `SV.NumLt`
+
+NumLt is Perl's <.
+
+```go
+fmt.Println(scalar.Value("10").NumLt("9")) // as numbers, 9 is smaller
+```
+
+```
+false
+```
+
+#### `SV.NumLe`
+
+NumLe is Perl's <=.
+
+```go
+fmt.Println(scalar.Value(2).NumLe("2.0"))
+```
+
+```
+true
+```
+
+#### `SV.NumGt`
+
+NumGt is Perl's >.
+
+```go
+fmt.Println(scalar.Value("9007199254740993").NumGt("9007199254740992")) // integers compare exactly
+```
+
+```
+true
+```
+
+#### `SV.NumGe`
+
+NumGe is Perl's >=.
+
+```go
+fmt.Println(scalar.Value(-1).NumGe(0))
+```
+
+```
+false
+```
+
+### Reference: Arrays
+
+#### `Array`
+
+Array returns an array of vals, as Perl's (...) list does: arrays and hashes among vals are flattened into it (see Push), and other values are converted as by `SV.Set`.
+
+```go
+a := scalar.Array("a", []string{"b", "c"}, scalar.Array("d")) // lists flatten, as in Perl
+fmt.Println(a.Length(), a.Join(","))
+nested := scalar.Array(1, scalar.Value(scalar.Array(2, 3))) // a reference stays one element
+fmt.Println(nested.Length(), nested.Get(1).AV().Join(","))
+```
+
+```
+4 a,b,c,d
+2 2,3
+```
+
+#### `AV.String`
+
+String returns a on one line, as Dump does but with Indent = 0, so `fmt.Println`(a) shows its elements, nested arrays and hashes included: [1,"a",[2]].
+
+```go
+a := scalar.Array("Go", 1, scalar.Value(scalar.Array(2, 3)))
+fmt.Println(a) // fmt uses String: the elements, on one line
+```
+
+```
+["Go",1,[2,3]]
+```
+
+#### `AV.Dump`
+
+Dump returns a as Data::Dumper prints \@a; see `SV.Dump`.
+
+```go
+fmt.Println(scalar.Array("Go", nil, true).Dump())
+```
+
+```
+[
+  "Go",
+  undef,
+  !!1,
+]
+```
+
+#### `AV.Length`
+
+Length is Perl's scalar(@a).
+
+```go
+fmt.Println(scalar.Array(1, 2, 3).Length()) // scalar(@a)
+```
+
+```
+3
+```
+
+#### `AV.Scalar`
+
+Scalar is Perl's scalar(@a), the number of elements.
+
+```go
+fmt.Println(scalar.Array("x", "y").Scalar()) // scalar(@a), the same as Length
+```
+
+```
+2
+```
+
+#### `AV.LastIndex`
+
+LastIndex is Perl's $#a: Length() - 1, so -1 for an empty array.
+
+```go
+fmt.Println(scalar.Array(1, 2, 3).LastIndex()) // $#a
+fmt.Println(scalar.Array().LastIndex())
+```
+
+```
+2
+-1
+```
+
+#### `AV.SetLastIndex`
+
+SetLastIndex is Perl's $#a = n.
+
+```go
+a := scalar.Array(1, 2, 3, 4)
+a.SetLastIndex(1) // $#a = 1: truncate
+fmt.Println(a.Join(","))
+a.SetLastIndex(3) // extend with holes
+fmt.Println(a.Length(), a.Exists(3))
+```
+
+```
+1,2
+4 false
+```
+
+#### `AV.Get`
+
+Get returns element i; negative indices count from the end, as in Perl.
+
+```go
+a := scalar.Array("first", "second", "last")
+fmt.Println(a.Get(0), a.Get(-1))             // $a[0], $a[-1]
+fmt.Println(a.Get(10).Defined(), a.Length()) // reading doesn't create
+a.Get(4).Set("new")                          // writing does, as $a[4] = "new"
+fmt.Println(a.Length())
+```
+
+```
+first last
+false 3
+5
+```
+
+#### `AV.Set`
+
+Set assigns v to element i, extending the array if needed.
+
+```go
+a := scalar.Array()
+a.Set(2, "c") // $a[2] = "c": extends the array, leaving holes
+fmt.Println(a.Length(), a.Exists(0), a.Get(2))
+```
+
+```
+3 false c
+```
+
+#### `AV.Exists`
+
+Exists is Perl's exists $a[i]: whether element i has been set.
+
+```go
+a := scalar.Array("a", nil)
+fmt.Println(a.Exists(1)) // set, though undef
+fmt.Println(a.Exists(5))
+```
+
+```
+true
+false
+```
+
+#### `AV.Defined`
+
+Defined is Perl's defined $a[i]: whether element i exists and isn't undef.
+
+```go
+a := scalar.Array("a", nil)
+fmt.Println(a.Defined(0), a.Defined(1), a.Defined(-2))
+```
+
+```
+true false true
+```
+
+#### `AV.Delete`
+
+Delete is Perl's delete $a[i]: it returns the element (undef if it didn't exist) and leaves a hole.
+
+```go
+a := scalar.Array("a", "b", "c")
+fmt.Println(a.Delete(1)) // delete $a[1]: leaves a hole
+fmt.Println(a.Length(), a.Exists(1))
+a.Delete(-1) // deleting the last element shrinks the array
+fmt.Println(a.Length())
+```
+
+```
+b
+3 false
+1
+```
+
+#### `AV.Push`
+
+Push is Perl's push: it appends vals and returns a.
+
+```go
+a := scalar.Array("a")
+a.Push("b", []string{"c", "d"})          // push @a, "b", @list
+a.Push(scalar.Value(scalar.Array(1, 2))) // push @a, [1, 2]: a reference, one element
+fmt.Println(a.Length(), a.Get(-1).Ref())
+```
+
+```
+5 ARRAY
+```
+
+#### `AV.Unshift`
+
+Unshift is Perl's unshift: it prepends vals, keeping their order, and returns a.
+
+```go
+a := scalar.Array("c")
+a.Unshift("a", "b") // unshift @a, "a", "b": order kept
+fmt.Println(a.Join(","))
+```
+
+```
+a,b,c
+```
+
+#### `AV.Pop`
+
+Pop removes and returns the last element, or undef if a is empty.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Pop(), a.Join(","))
+fmt.Println(scalar.Array().Pop().Defined()) // nothing to pop: undef
+```
+
+```
+3 1,2
+false
+```
+
+#### `AV.Shift`
+
+Shift removes and returns the first element, or undef if a is empty.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Shift(), a.Join(","))
+```
+
+```
+1 2,3
+```
+
+#### `AV.PopN`
+
+PopN removes the last n elements and returns them, in array order, as splice(@a, -n) does: Array(1, 2, 3, 4).PopN(2) gives 3, 4 and leaves 1, 2.
+
+```go
+a := scalar.Array("a", "b", "c", "d")
+last := a.PopN(2) // splice(@a, -2): in array order
+fmt.Println(last.Join(","), "|", a.Join(","))
+fmt.Println(a.PopN(10).Join(","), "|", a.Length()) // more than there is: all of it
+```
+
+```
+c,d | a,b
+a,b | 0
+```
+
+#### `AV.ShiftN`
+
+ShiftN removes the first n elements and returns them, in array order, as splice(@a, 0, n) does: Array(1, 2, 3, 4).ShiftN(2) gives 1, 2 and leaves 3, 4.
+
+```go
+queue := scalar.Array("job1", "job2", "job3", "job4", "job5")
+for queue.Length() > 0 {
+	batch := queue.ShiftN(2) // splice(@queue, 0, 2): the next batch
+	fmt.Println(batch.Join(","))
+}
+```
+
+```
+job1,job2
+job3,job4
+job5
+```
+
+#### `AV.Splice`
+
+Splice is Perl's splice @a, offset, length, list: it removes length elements starting at offset, inserts list in their place, and returns the removed elements.
+
+```go
+a := scalar.Array("a", "b", "c", "d", "e")
+removed := a.Splice(1, 2, "X") // splice @a, 1, 2, "X"
+fmt.Println(removed.Join(","), "|", a.Join(","))
+a.Splice(-1, 1) // remove the last element
+fmt.Println(a.Join(","))
+```
+
+```
+b,c | a,X,d,e
+a,X,d
+```
+
+#### `AV.Values`
+
+Values is Perl's values @a: the elements.
+
+```go
+a := scalar.Array("a", "b", "c", "d")
+fmt.Println(a.Values().Join(","))         // values @a
+fmt.Println(a.Values(0, -1, 1).Join(",")) // @a[0, -1, 1]
+picks := scalar.Array(2, 3)
+fmt.Println(a.Values(picks).Join(","))    // @a[@picks]
+for _, s := range a.Values(0, -1).All() { // $_ = uc for @a[0, -1]: the elements themselves
+	s.Set(s.Uc())
+}
+fmt.Println(a.Join(","))
+```
+
+```
+a,b,c,d
+a,d,b
+c,d
+A,b,c,D
+```
+
+#### `AV.Pairs`
+
+Pairs is Perl's index/value slice %a[i, j, ...]: a new array of index/value pairs for those indices, in that order, given as for Values.
+
+```go
+a := scalar.Array("a", "b")
+fmt.Println(a.Pairs(0, -1).Join(",")) // %a[0, -1]: indices as written
+fmt.Println(a.Pairs().Join(","))      // every index and element
+```
+
+```
+0,a,-1,b
+0,a,1,b
+```
+
+#### `AV.Items`
+
+Items returns the elements.
+
+```go
+for _, s := range scalar.Array("a", "b").Items() { // a Go []*scalar.SV
+	fmt.Print(s, " ")
+}
+fmt.Println()
+```
+
+```
+a b
+```
+
+#### `AV.StrSlice`
+
+StrSlice returns the elements as a Go []string, each in string context (see `SV.Str`), so undef and holes become "".
+
+```go
+fmt.Printf("%q\n", scalar.Array("a", 1, nil).StrSlice())
+```
+
+```
+["a" "1" ""]
+```
+
+#### `AV.IntSlice`
+
+IntSlice returns the elements as a Go []int64, each in integer context (see `SV.Int`), so values that aren't numbers become 0.
+
+```go
+fmt.Println(scalar.Array("3", 4.9, "x").IntSlice())
+```
+
+```
+[3 4 0]
+```
+
+#### `AV.NumSlice`
+
+NumSlice returns the elements as a Go []float64, each in numeric context (see `SV.Num`).
+
+```go
+fmt.Println(scalar.Array("1.5", 2).NumSlice())
+```
+
+```
+[1.5 2]
+```
+
+#### `AV.Each`
+
+Each is Perl's each @a (Perl 5.12 and later): the next index and element, with ok true, or ok false once every element has been returned, after which it starts again from the beginning.
+
+```go
+a := scalar.Array("x", "y")
+for i, v, ok := a.Each(); ok; i, v, ok = a.Each() { // while (my ($i, $v) = each @a)
+	fmt.Println(i, v)
+}
+```
+
+```
+0 x
+1 y
+```
+
+#### `AV.All`
+
+All iterates over index/element pairs.
+
+```go
+for i, s := range scalar.Array("a", "b").All() { // while (my ($i, $s) = each @a)
+	fmt.Println(i, s)
+}
+```
+
+```
+0 a
+1 b
+```
+
+#### `AV.Join`
+
+Join is Perl's join.
+
+```go
+fmt.Println(scalar.Array("Go", "Perl", 5).Join(", "))
+```
+
+```
+Go, Perl, 5
+```
+
+#### `AV.Map`
+
+Map is Perl's map: a new array of f applied to each element.
+
+```go
+a := scalar.Array("go", "perl")
+fmt.Println(a.Map(func(s *scalar.SV) any { return s.Uc() }).Join(","))
+pairs := a.Map(func(s *scalar.SV) any { return scalar.Array(s, s.Length()) }) // several values each
+fmt.Println(pairs.Join(","))
+```
+
+```
+GO,PERL
+go,2,perl,4
+```
+
+#### `AV.Grep`
+
+Grep is Perl's grep: a new array of copies of the elements f accepts.
+
+```go
+n := scalar.Array(1, 2, 3, 4).Grep(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })
+fmt.Println(n.Join(","))
+```
+
+```
+2,4
+```
+
+#### `AV.Sort`
+
+Sort is Perl's sort: a sorted copy of a.
+
+```go
+a := scalar.Array("10", "9", "2")
+fmt.Println(a.Sort(nil).Join(","))           // sort @a: as strings
+fmt.Println(a.Sort(scalar.NumCmp).Join(",")) // sort { $a <=> $b } @a
+byLength := func(x, y *scalar.SV) int { return x.Length() - y.Length() }
+fmt.Println(scalar.Array("ccc", "a", "bb").Sort(byLength).Join(","))
+fmt.Println(a.Join(",")) // unchanged
+```
+
+```
+10,2,9
+2,9,10
+a,bb,ccc
+10,9,2
+```
+
+#### `AV.SortInPlace`
+
+SortInPlace is Perl's @a = sort @a: it sorts a itself, as Sort would, and returns a.
+
+```go
+a := scalar.Array(3, 1, 2)
+a.SortInPlace(scalar.NumCmp) // @a = sort { $a <=> $b } @a
+fmt.Println(a.Join(","))
+```
+
+```
+1,2,3
+```
+
+#### `AV.Reverse`
+
+Reverse is Perl's reverse: a reversed copy of a.
+
+```go
+a := scalar.Array(1, 2, 3)
+fmt.Println(a.Reverse().Join(","), a.Join(","))
+```
+
+```
+3,2,1 1,2,3
+```
+
+#### `AV.ReverseInPlace`
+
+ReverseInPlace is Perl's @a = reverse @a: it reverses a itself and returns a.
+
+```go
+a := scalar.Array(1, 2, 3)
+a.ReverseInPlace()
+fmt.Println(a.Join(","))
+```
+
+```
+3,2,1
+```
+
+#### `AV.SplitAt`
+
+SplitAt splits a into its first n elements and the rest, as Perl's my ($x1, ..., $xn, @tail) = @a does.
+
+```go
+head, tail := scalar.Array("Ada", "Lovelace", "maths", "poetry").SplitAt(2) // my ($first, $last, @interests) = @a
+fmt.Println(head.Join(" "), "|", tail.Join(","))
+```
+
+```
+Ada Lovelace | maths,poetry
+```
+
+#### `AV.SplitAtSlice`
+
+SplitAtSlice is SplitAt with the head as a Go slice of exactly n elements, so it can be unpacked: h, tail := `a.SplitAtSlice`(3); x, y, z := h[0], h[1], h[2].
+
+```go
+h, rest := scalar.Array("2026", "10", "13", "extra").SplitAtSlice(3)
+year, month, day := h[0], h[1], h[2] // my ($year, $month, $day, @rest) = @a
+fmt.Println(year, month, day, rest.Length())
+```
+
+```
+2026 10 13 1
+```
+
+#### `AV.Clone`
+
+Clone returns a deep copy of a, as dclone(\@a) does; see `SV.Clone`.
+
+```go
+rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
+mine := rows.Clone()                                                        // dclone(\@rows): the rows too, not just the list
+mine.Get(0).At("title").Set("Perl Developer")
+fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
+```
+
+```
+Go Developer / Perl Developer
+```
+
+#### `AV.Equal`
+
+Equal reports whether a and other hold the same data; see `SV.Equal`.
+
+```go
+a := scalar.Array("Go", 1)
+fmt.Println(a.Equal([]any{"Go", "1"}), a.Equal([]any{"Go"}))
+```
+
+```
+true false
+```
+
+#### `AV.Diff`
+
+Diff says where a and other first differ; see `SV.Diff`.
+
+```go
+fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
+```
+
+```
+[1]: got "SQL", want does not exist
+```
+
+#### `AV.Apply`
+
+Apply calls f on every plain value in a, all the way down, as rmap { ...
+
+```go
+prices := scalar.Array(10, scalar.Value([]any{20, 30}))
+prices.Apply(func(v *scalar.SV) any { return v.Mul(1.2) }) // every price, nested ones too
+fmt.Println(prices.Get(0), prices.Get(1).AV().Join(" "))
+```
+
+```
+12 24 36
+```
+
+#### `AV.At`
+
+At is `SV.At`, starting at a.
+
+```go
+rows, _ := scalar.FromJSON([]byte(`[{"name":"Ada"},{"name":"Grace"}]`))
+a := rows.AV()
+fmt.Println(a.At("[1].name")) // $a[1]{name}
+a.At("[2].name").Set("Alan")  // $a[2]{name} = "Alan": creates the row
+fmt.Println(a.Length(), a.At("[-1].name"))
+```
+
+```
+Grace
+3 Alan
+```
+
+#### `AV.AtOK`
+
+AtOK is `SV.AtOK`, starting at a.
+
+```go
+a := scalar.Array(1, nil)
+_, ok := a.AtOK("[1]") // exists, though undef
+_, past := a.AtOK("[2]")
+fmt.Println(ok, past)
+```
+
+```
+true false
+```
+
+#### `AV.DeleteAt`
+
+DeleteAt is `SV.DeleteAt`, starting at a.
+
+```go
+a := scalar.Array("a", "b", "c")
+fmt.Println(a.DeleteAt("[-1]"), a.Length()) // delete $a[-1]: the last goes, so it's shorter
+fmt.Println(a.DeleteAt("[0]"), a.Length())  // delete $a[0]: a hole, so it isn't
+```
+
+```
+c 2
+a 2
+```
+
+#### `AV.Path`
+
+Path is `SV.Path`, starting at a.
+
+```go
+a := scalar.Array()
+a.Path(0, "tags", 1).Set("go") // $a[0]{tags}[1] = "go"
+fmt.Println(a.Path(0, "tags", 1), a.At("[0].tags").AV().Length())
+```
+
+```
+go 2
+```
+
+#### `AV.PathOK`
+
+PathOK is `SV.PathOK`, starting at a.
+
+```go
+a := scalar.Array(scalar.Value(scalar.Hash("id", 7)))
+v, ok := a.PathOK(0, "id")
+_, missing := a.PathOK(0, "name")
+fmt.Println(v, ok, missing)
+```
+
+```
+7 true false
+```
+
+#### `AV.DeletePath`
+
+DeletePath is `SV.DeletePath`, starting at a.
+
+```go
+rows, _ := scalar.FromJSON([]byte(`[{"id":1,"tmp":"x"},{"id":2,"tmp":"y"}]`))
+a := rows.AV()
+for i := range a.Length() {
+	a.DeletePath(i, "tmp") // delete $a[$i]{tmp}
+}
+fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
+```
+
+```
+[id] [id]
+```
+
+#### `AV.Undef`
+
+Undef is Perl's undef @a: it empties a in place, so everything referring to a sees it empty, and returns a, now empty.
+
+```go
+a := scalar.Array("x", "y")
+doc := scalar.Hash("tags", scalar.Value(a)) // another reference to a
+a.Undef()                                   // undef @a
+fmt.Println(a.Length(), doc.At("tags").AV().Length())
+```
+
+```
+0 0
+```
+
+#### `AV.Lock`
+
+Lock locks a and everything in it, as `SV.Lock` does, and returns a.
+
+A locked array can't grow, shrink or change, nor can its elements.
+
+```go
+a := scalar.Array(1, 2, 3).Lock()
+fmt.Println(a.Get(0), a.Length())
+fmt.Println(catch(func() { a.Push(4) }))
+fmt.Println(catch(func() { a.Get(0).Set(9) }))
+```
+
+```
+1 3
+scalar: Modification of a read-only value attempted
+scalar: Modification of a read-only value attempted
+```
+
+#### `AV.Unlock`
+
+Unlock undoes Lock, as `SV.Unlock` does, and returns a.
+
+```go
+a := scalar.Array(1, 2).Lock().Unlock()
+fmt.Println(a.Push(3).Length())
+```
+
+```
+3
+```
+
+#### `AV.Locked`
+
+Locked reports whether a is locked.
+
+```go
+a := scalar.Array(1, 2)
+fmt.Println(a.Locked(), a.Lock().Locked())
+```
+
+```
+false true
+```
+
+### Reference: Hashes
+
+#### `Hash`
+
+Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
+
+```go
+h := scalar.Hash("name", "Ada", "age", 36) // %h = (name => "Ada", age => 36)
+fmt.Println(h.Get("name"), h.Get("age"))
+merged := scalar.Hash(h, "age", 37) // %merged = (%h, age => 37): later keys win
+fmt.Println(merged.Get("age"))
+fmt.Println(scalar.Hash(map[string]int{"a": 1}).Get("a")) // from a Go map
+```
+
+```
+Ada 36
+37
+1
+```
+
+#### `HV.String`
+
+String returns h on one line, as Dump does but with Indent = 0, so `fmt.Println`(h) shows its keys and values: {a => 1,b => [2]}.
+
+```go
+h := scalar.Hash("title", "Go Developer", "log level", "debug")
+fmt.Println(h) // keys sorted, and quoted only when they need to be
+```
+
+```
+{"log level" => "debug",title => "Go Developer"}
+```
+
+#### `HV.Dump`
+
+Dump returns h as Data::Dumper prints \%h; see `SV.Dump`.
+
+```go
+tags := scalar.Value(scalar.Array("go"))
+h := scalar.Hash("tags", tags, "again", tags) // the same array twice
+fmt.Println(h.Dump())
+```
+
+```
+{
+  again => [
+    "go",
+  ],
+  tags => $VAR1->{again},
+}
+```
+
+#### `HV.Length`
+
+Length is Perl's scalar(keys %h).
+
+```go
+fmt.Println(scalar.Hash("a", 1, "b", 2).Length()) // scalar(keys %h)
+```
+
+```
+2
+```
+
+#### `HV.Scalar`
+
+Scalar is Perl's scalar(%h), which since Perl 5.26 is the number of keys.
+
+```go
+fmt.Println(scalar.Hash("a", 1).Scalar()) // scalar(%h), the same as Length
+```
+
+```
+1
+```
+
+#### `HV.Get`
+
+Get returns the value for key.
+
+```go
+h := scalar.Hash("a", 1)
+fmt.Println(h.Get("a"))
+fmt.Println(h.Get("b").Defined(), h.Exists("b")) // reading doesn't create
+h.Get("c").HV().Set("d", 1)                      // $h{c}{d} = 1 autovivifies
+fmt.Println(h.Get("c").Ref())
+```
+
+```
+1
+false false
+HASH
+```
+
+#### `HV.Set`
+
+Set assigns v to key and returns the stored SV.
+
+```go
+h := scalar.Hash()
+h.Set("tags", []string{"go", "perl"}) // $h{tags} = ["go", "perl"]
+fmt.Println(h.Get("tags").AV().Join(","))
+```
+
+```
+go,perl
+```
+
+#### `HV.Push`
+
+Push adds key/value pairs to h and returns h.
+
+```go
+h := scalar.Hash("title", "Developer")
+h.Push("location", "Leeds", "salary", 45000) // $h{location} = "Leeds"; $h{salary} = 45000
+defaults := scalar.Hash("remote", false, "salary", 0)
+h.Push(defaults, "salary", 50000) // merge, later keys winning
+fmt.Println(h.Keys().Sort(nil).Join(","))
+fmt.Println(h.Get("salary"))
+```
+
+```
+location,remote,salary,title
+50000
+```
+
+#### `HV.Exists`
+
+Exists is Perl's exists.
+
+```go
+h := scalar.Hash("salary", nil)
+fmt.Println(h.Exists("salary"), h.Exists("bonus")) // there, though undef
+```
+
+```
+true false
+```
+
+#### `HV.Defined`
+
+Defined is Perl's defined $h{key}: whether key exists and its value isn't undef.
+
+```go
+h := scalar.Hash("salary", nil, "title", "Developer")
+fmt.Println(h.Defined("salary"), h.Defined("title"))
+```
+
+```
+false true
+```
+
+#### `HV.Delete`
+
+Delete is Perl's delete: removes key and returns its value, or undef.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+fmt.Println(h.Delete("a"), h.Exists("a")) // returns the value it removed
+fmt.Println(h.Delete("missing").Defined())
+```
+
+```
+1 false
+false
+```
+
+#### `HV.Clone`
+
+Clone returns a deep copy of h, as dclone(\%h) does; see `SV.Clone`.
+
+```go
+defaults := scalar.Hash("remote", false, "tags", scalar.Value([]string{"go"}))
+row := defaults.Clone() // dclone(\%defaults): nested arrays too
+row.Get("tags").AV().Push("perl")
+merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
+merged.Get("tags").AV().Push("sql")
+fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(","))
+```
+
+```
+go,sql / go,perl
+```
+
+#### `HV.Equal`
+
+Equal reports whether h and other hold the same data; see `SV.Equal`.
+
+```go
+h := scalar.Hash("remote", true, "days", 2)
+fmt.Println(h.Equal(map[string]any{"remote": 1, "days": "2"})) // true is 1, as in Perl
+```
+
+```
+true
+```
+
+#### `HV.Diff`
+
+Diff says where h and other first differ; see `SV.Diff`.
+
+```go
+h := scalar.Hash("bonus", nil)
+fmt.Println(h.Diff(map[string]any{})) // a key whose value is undef isn't a missing key
+```
+
+```
+bonus: got undef, want does not exist
+```
+
+#### `HV.Apply`
+
+Apply calls f on every plain value in h, all the way down, as rmap { ...
+
+```go
+row := scalar.Hash("title", "go developer", "remote", true)
+row.Apply(func(v *scalar.SV) any {
+	if v.Kind() == scalar.String {
+		return v.UcFirst()
+	}
+	return v
+})
+fmt.Println(row.Get("title"), row.Get("remote"))
+```
+
+```
+Go developer 1
+```
+
+#### `HV.Pairs`
+
+Pairs is Perl's %h in list context: a new array of key/value pairs, k1, v1, k2, v2 and so on, in the same order as Keys.
+
+```go
+h2 := scalar.Hash("k1", 1, "k2", 2, "k3", 3)
+h1 := scalar.Hash(h2.Pairs("k1", "k3")) // %h1 = %h2{qw(k1 k3)}
+fmt.Println(h1.Keys().Sort(nil).Join(","), h1.Get("k3"))
+fmt.Println(h2.Pairs("k2", "missing").Join(","))      // a missing key comes with undef
+fmt.Println(scalar.Hash("only", 1).Pairs().Join(",")) // every pair: %h in list context
+```
+
+```
+k1,k3 3
+k2,2,missing,
+only,1
+```
+
+#### `HV.PairsMap`
+
+PairsMap returns h as a Go map from its keys to its own values, as Pairs() would list them, for code that doesn't use this package.
+
+```go
+h := scalar.Hash("a", 1)
+m := h.PairsMap() // a Go map[string]*scalar.SV of the hash's own values
+m["a"].Set(2)
+fmt.Println(len(m), h.Get("a"))
+```
+
+```
+1 2
+```
+
+#### `HV.Keys`
+
+Keys is Perl's keys %h: a new array of the keys.
+
+```go
+h := scalar.Hash("b", 2, "a", 1)
+fmt.Println(h.Keys().Sort(nil).Join(",")) // sort keys %h
+```
+
+```
+a,b
+```
+
+#### `HV.Values`
+
+Values is Perl's values %h: the values, in the same order as Keys.
+
+```go
+h := scalar.Hash("a", 1, "b", 2, "c", 3)
+fmt.Println(h.Values("c", "a").Join(","))                     // @h{qw(c a)}
+fmt.Println(h.Values("missing").Get(0).Defined(), h.Length()) // undef, and not created
+for _, v := range h.Values().All() {                          // $_ *= 10 for values %h
+	v.MulInPlace(10)
+}
+fmt.Println(h.Values("a", "b", "c").Join(","))
+```
+
+```
+3,1
+false 3
+10,20,30
+```
+
+#### `HV.KeysSlice`
+
+KeysSlice is Keys as a Go []string.
+
+```go
+keys := scalar.Hash("a", 1).KeysSlice() // a Go []string
+fmt.Printf("%q\n", keys)
+```
+
+```
+["a"]
+```
+
+#### `HV.ValuesSlice`
+
+ValuesSlice is Values() as a Go []*SV.
+
+```go
+values := scalar.Hash("a", "x").ValuesSlice() // a Go []*scalar.SV
+fmt.Println(len(values), values[0])
+```
+
+```
+1 x
+```
+
+#### `HV.Each`
+
+Each is Perl's each %h: the next key/value pair, with ok true, or ok false once every pair has been returned, after which it starts again from the beginning.
+
+```go
+h := scalar.Hash("a", 1, "b", 2, "c", 3)
+sum := 0
+for _, v, ok := h.Each(); ok; _, v, ok = h.Each() { // while (my ($k, $v) = each %h)
+	sum += int(v.Int())
+}
+fmt.Println(sum)
+
+// As in Perl, the hash remembers where Each got to, until Keys and the
+// like reset it.
+first, _, _ := h.Each()
+h.Keys() // keys %h resets the iterator
+again, _, _ := h.Each()
+fmt.Println(first == again)
+```
+
+```
+6
+true
+```
+
+#### `HV.All`
+
+All iterates over key/value pairs in the same order as Keys.
+
+```go
+h := scalar.Hash("a", 1, "b", 2)
+sum := 0
+for _, v := range h.All() { // while (my ($k, $v) = each %h)
+	sum += int(v.Int())
+}
+fmt.Println(sum)
+```
+
+```
+3
+```
+
+#### `HV.At`
+
+At is `SV.At`, starting at h.
+
+```go
+tallies := scalar.Hash()
+tallies.At("benefits.right").Inc() // $tallies{benefits}{right}++
+tallies.At("benefits.right").Inc()
+tallies.At("benefits.missing").Inc()
+fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallies.At("summary.right").Int())
+```
+
+```
+2 1 0
+```
+
+#### `HV.AtOK`
+
+AtOK is `SV.AtOK`, starting at h.
+
+```go
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", nil)))
+_, ok := h.AtOK("pay.min") // exists, though undef
+_, missing := h.AtOK("pay.max")
+fmt.Println(ok, missing)
+```
+
+```
+true false
+```
+
+#### `HV.DeleteAt`
+
+DeleteAt is `SV.DeleteAt`, starting at h.
+
+```go
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+fmt.Println(h.DeleteAt("pay.max")) // delete $h{pay}{max}
+fmt.Println(h.At("pay").HV().KeysSlice())
+```
+
+```
+55000
+[min]
+```
+
+#### `HV.Path`
+
+Path is `SV.Path`, starting at h.
+
+```go
+h := scalar.Hash()
+h.Path("a.b", "c").Set(1) // $h{"a.b"}{c} = 1: Path keys are taken whole, dots and all
+fmt.Println(h.Path("a.b", "c"), h.At(`["a.b"].c`))
+```
+
+```
+1 1
+```
+
+#### `HV.PathOK`
+
+PathOK is `SV.PathOK`, starting at h.
+
+```go
+h := scalar.Hash("tags", scalar.Value(scalar.Array("go")))
+v, ok := h.PathOK("tags", 0)
+_, past := h.PathOK("tags", 5)
+fmt.Println(v, ok, past)
+```
+
+```
+go true false
+```
+
+#### `HV.DeletePath`
+
+DeletePath is `SV.DeletePath`, starting at h.
+
+```go
+section, key := "pay", "max" // from data
+h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
+```
+
+```
+55000
+```
+
+#### `HV.Undef`
+
+Undef is Perl's undef %h: it empties h in place, so everything referring to h sees it empty, and returns h, now empty.
+
+```go
+seen := scalar.Hash("go", 1, "perl", 1)
+seen.Undef() // undef %seen: emptied, ready for the next batch
+seen.Set("raku", 1)
+fmt.Println(seen.KeysSlice())
+```
+
+```
+[raku]
+```
+
+#### `HV.Map`
+
+Map builds a new hash from h, as %new = map { f($_, $h{$_}) } keys %h does: f gets each key and value, and returns the new key and value.
+
+Map builds a new hash, renaming keys or changing values or both. The old hash is unchanged.
+
+```go
+pay := scalar.Hash("min", 40000, "max", 50000)
+k := pay.Map(func(key string, v *scalar.SV) (string, any) {
+	return "pay_" + key, v.Div(1000).Str() + "k"
+})
+fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
+```
+
+```
+40k 50k 40000
+```
+
+#### `HV.Lock`
+
+Lock locks h and everything in it, as `SV.Lock` does, and returns h.
+
+A locked hash keeps the keys it has: reading, writing or deleting one it hasn't got panics, as in a Perl restricted hash; Exists still answers.
+
+```go
+h := scalar.Hash("min", 25000).Lock()
+fmt.Println(h.Get("min"), h.Exists("max"))
+fmt.Println(catch(func() { h.Get("max") }))
+fmt.Println(catch(func() { h.Delete("min") }))
+```
+
+```
+25000 false
+scalar: Attempt to access disallowed key 'max' in a restricted hash
+scalar: Attempt to delete readonly key 'min' from a restricted hash
+```
+
+#### `HV.Unlock`
+
+Unlock undoes Lock, as `SV.Unlock` does, and returns h.
+
+```go
+h := scalar.Hash("min", 25000).Lock().Unlock()
+h.Set("max", 30000)
+fmt.Println(h.Get("max"))
+```
+
+```
+30000
+```
+
+#### `HV.Locked`
+
+Locked reports whether h is locked.
+
+```go
+h := scalar.Hash("min", 25000)
+fmt.Println(h.Locked(), h.Lock().Locked())
+```
+
+```
+false true
+```
+
+### Reference: List utilities
+
+#### `AV.AnyMatch`
+
+AnyMatch is List::Util's any: whether f is true for at least one element.
+
+```go
+lines := scalar.Array("Office in Leeds", "Remote working available")
+fmt.Println(lines.AnyMatch(isRemote)) // any { /remote/i } @lines
+fmt.Println(scalar.Array().AnyMatch(isRemote))
+```
+
+```
+true
+false
+```
+
+#### `AV.AllMatch`
+
+AllMatch is List::Util's all: whether f is true for every element.
+
+```go
+n := scalar.Array(2, 4, 6)
+fmt.Println(n.AllMatch(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })) // all { $_ % 2 == 0 }
+fmt.Println(scalar.Array().AllMatch(isRemote))                                  // true for nothing
+```
+
+```
+true
+true
+```
+
+#### `AV.NoneMatch`
+
+NoneMatch is List::Util's none: whether f is false for every element.
+
+```go
+fmt.Println(scalar.Array("Leeds", "York").NoneMatch(isRemote))
+```
+
+```
+true
+```
+
+#### `AV.FirstMatch`
+
+FirstMatch is List::Util's first: the first element for which f is true, or undef if there's none.
+
+```go
+lines := scalar.Array("Leeds office", "Salary: £45k", "Salary: £50k")
+salary := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
+fmt.Println(salary) // first { index($_, "£") >= 0 } @lines
+fmt.Println(lines.FirstMatch(isRemote).Defined())
+```
+
+```
+Salary: £45k
+false
+```
+
+#### `AV.MaxNum`
+
+MaxNum is List::Util's max: the element with the largest numeric value, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").MaxNum()) // max: as numbers
+```
+
+```
+10
+```
+
+#### `AV.MinNum`
+
+MinNum is List::Util's min: the element with the smallest numeric value, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", 9, "2.5").MinNum())
+```
+
+```
+2.5
+```
+
+#### `AV.MaxStr`
+
+MaxStr is List::Util's maxstr: the element that sorts last as a string, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("10", "9", "100").MaxStr()) // maxstr: as strings
+```
+
+```
+9
+```
+
+#### `AV.MinStr`
+
+MinStr is List::Util's minstr: the element that sorts first as a string, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array("b", "a", "c").MinStr())
+```
+
+```
+a
+```
+
+#### `AV.UniqueStr`
+
+UniqueStr is List::Util's uniqstr: a new array of copies of the elements, keeping only the first of each distinct string, in order.
+
+```go
+fmt.Println(scalar.Array("Go", "go", "Go", "Perl").UniqueStr().Join(",")) // first of each, in order
+skills := scalar.Array("Go", "go", "Perl")
+fmt.Println(skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
+```
+
+```
+Go,go,Perl
+go,perl
+```
+
+#### `AV.UniqueNum`
+
+UniqueNum is List::Util's uniqnum: a new array of copies of the elements, keeping only the first of each distinct number, in order.
+
+```go
+fmt.Println(scalar.Array(1, "1.0", "01", 2).UniqueNum().Join(",")) // the same number, however written
+```
+
+```
+1,2
+```
+
+#### `AV.Sum`
+
+Sum is List::Util's sum: the numeric sum of the elements, or undef for an empty array.
+
+```go
+fmt.Println(scalar.Array(1, "2", 3.5).Sum()) // sum @a
+fmt.Println(scalar.Array().Sum().Defined())  // undef for nothing
+```
+
+```
+6.5
+false
+```
+
+#### `AV.Sum0`
+
+Sum0 is List::Util's sum0: Sum, but 0 for an empty array.
+
+```go
+fmt.Println(scalar.Array().Sum0()) // sum0: 0 for nothing
+```
+
+```
+0
+```
+
+#### `AV.Product`
+
+Product is List::Util's product: the numeric product of the elements, or 1 for an empty array, as in List::Util.
+
+```go
+fmt.Println(scalar.Array(2, 3, 4).Product())
+fmt.Println(scalar.Array().Product()) // 1 for nothing
+```
+
+```
+24
+1
+```
+
+#### `AV.Reduce`
+
+Reduce is List::Util's reduce { ...
+
+```go
+words := scalar.Array("go", "perl", "c")
+longest := words.Reduce(func(a, b *scalar.SV) any { // reduce { length $b > length $a ? $b : $a } @words
+	if b.Length() > a.Length() {
+		return b
+	}
+	return a
+})
+joined := words.Reduce(func(a, b *scalar.SV) any { return a.Str() + "+" + b.Str() })
+fmt.Println(longest, joined)
+```
+
+```
+perl go+perl+c
+```
+
+#### `AV.SortByStr`
+
+SortByStr is List::UtilsBy's sort_by: a sorted copy of a, ordered by the string keys f gives, as sort { $a cmp $b } would order them.
+
+```go
+titles := scalar.Array("data engineer", "Go Developer", "Analyst")
+byTitle := titles.SortByStr(func(t *scalar.SV) any { return t.Fc() }) // sort_by { fc } @titles
+fmt.Println(byTitle.Join(", "))
+```
+
+```
+Analyst, data engineer, Go Developer
+```
+
+#### `AV.SortByNum`
+
+SortByNum is List::UtilsBy's nsort_by: as SortByStr, but comparing the keys as numbers.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+bySalary := jobs.AV().SortByNum(func(j *scalar.SV) any { return j.At("salary") }) // nsort_by { $_->{salary} }
+fmt.Println(bySalary.Get(0).At("title"), bySalary.Get(1).At("title"))
+```
+
+```
+SQL Go
+```
+
+#### `AV.RevSortByStr`
+
+RevSortByStr is List::UtilsBy's rev_sort_by: SortByStr, in descending order.
+
+```go
+words := scalar.Array("bb", "a", "dd", "e")
+fmt.Println(words.RevSortByStr(func(w *scalar.SV) any { return w.Length() }).Join(" ")) // equal keys keep their order
+```
+
+```
+bb dd a e
+```
+
+#### `AV.RevSortByNum`
+
+RevSortByNum is List::UtilsBy's rev_nsort_by: SortByNum, in descending order, with elements of equal keys keeping their order.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "SQL", "salary": 30000}, {"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}]`))
+best := jobs.AV().RevSortByNum(func(j *scalar.SV) any { return j.At("salary") }) // the best paid first
+fmt.Println(best.Get(0).At("title"), best.Get(1).At("title"), best.Get(2).At("title"))
+```
+
+```
+Go Perl SQL
+```
+
+#### `AV.MaxBy`
+
+MaxBy is List::UtilsBy's max_by: the element with the largest numeric key, the first of them if several share it, or undef for an empty array.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
+best := jobs.AV().MaxBy(func(j *scalar.SV) any { return j.At("salary") }) // max_by { $_->{salary} }
+fmt.Println(best.At("title"))                                             // the first of the best paid
+```
+
+```
+Go
+```
+
+#### `AV.MinBy`
+
+MinBy is List::UtilsBy's min_by: the element with the smallest numeric key; see MaxBy.
+
+```go
+words := scalar.Array("ccc", "a", "bb", "e")
+fmt.Println(words.MinBy(func(w *scalar.SV) any { return w.Length() })) // min_by { length } @words
+```
+
+```
+a
+```
+
+#### `AV.UniqueBy`
+
+UniqueBy is List::UtilsBy's uniq_by: a new array of copies of the elements, keeping only the first with each key, in order.
+
+```go
+jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "level": "Senior"}, {"title": "SQL", "level": "Junior"}, {"title": "Perl", "level": "Senior"}]`))
+oneEach := jobs.AV().UniqueBy(func(j *scalar.SV) any { return j.At("level") }) // the first job at each level
+fmt.Println(oneEach.Length(), oneEach.Get(0).At("title"), oneEach.Get(1).At("title"))
+```
+
+```
+2 Go SQL
+```
+
+#### `AV.PartitionBy`
+
+PartitionBy is List::UtilsBy's partition_by: a hash from each key f gives to an array of copies of the elements with that key, in order.
+
+```go
+words := scalar.Array("bb", "a", "ccc", "dd", "e")
+byLength := words.PartitionBy(func(w *scalar.SV) any { return w.Length() }) // partition_by { length } @words
+fmt.Println(byLength)
+```
+
+```
+{1 => ["a","e"],2 => ["bb","dd"],3 => ["ccc"]}
+```
+
+#### `AV.CountBy`
+
+CountBy is List::UtilsBy's count_by: how many elements have each key f gives, as a Bag, so MostCommon lists the commonest first.
+
+```go
+places := scalar.Array("Leeds", "London", "leeds", "LEEDS")
+where := places.CountBy(func(p *scalar.SV) any { return p.Fc() }) // a Bag: count_by's counts, with MostCommon
+fmt.Println(where.MostCommon(1).Get(0), where.Count("leeds"), where.Counts())
+```
+
+```
+leeds 3 {leeds => 3,london => 1}
+```
+
+#### `AV.ExtractBy`
+
+ExtractBy is List::UtilsBy's extract_by: it removes the elements for which f returns true from a, and returns them, in order, as a new array.
+
+```go
+words := scalar.Array("bb", "a", "ccc", "e")
+long := words.ExtractBy(func(w *scalar.SV) bool { return w.Length() > 1 }) // moved out of words
+fmt.Println(long.Join(" "), "|", words.Join(" "))
+```
+
+```
+bb ccc | a e
+```
+
+### Reference: Sets and bags
+
+#### `NewSet`
+
+NewSet is Set::Scalar->new(...): a set of vals, flattened as a list is (see `AV.Push`), so NewSet(array) and NewSet(goSlice) take their elements.
+
+```go
+s := scalar.NewSet("Go", "Perl", "Go") // Set::Scalar->new(...): each member once
+fmt.Println(s, s.Length())
+same := scalar.NewSet(1, "1", 1.0) // compared as strings: all "1"
+fmt.Println(same.Length())
+fromList := scalar.NewSet(scalar.Array("a", "b"), []string{"c"}) // lists flatten
+fmt.Println(fromList)
+```
+
+```
+(Go Perl) 2
+1
+(a b c)
+```
+
+#### `Set.Insert`
+
+Insert is Set::Scalar's insert: it adds vals, flattened as by NewSet, and returns s.
+
+```go
+var s scalar.Set // the zero value is an empty set
+s.Insert("Go").Insert("Perl", "Go")
+fmt.Println(&s)
+```
+
+```
+(Go Perl)
+```
+
+#### `Set.Delete`
+
+Delete is Set::Scalar's delete: it removes vals, flattened as by NewSet, and returns s.
+
+```go
+s := scalar.NewSet("a", "b", "c")
+s.Delete("b", "not a member") // non-members are ignored
+fmt.Println(s)
+```
+
+```
+(a c)
+```
+
+#### `Set.Has`
+
+Has is Set::Scalar's has: whether v (compared as a string) is a member.
+
+```go
+s := scalar.NewSet("Go", 42)
+fmt.Println(s.Has("Go"), s.Has("go"), s.Has("42")) // "42" is the same member as 42
+```
+
+```
+true false true
+```
+
+#### `Set.Length`
+
+Length is Set::Scalar's size: the number of members.
+
+```go
+fmt.Println(scalar.NewSet("a", "b", "a").Length())
+```
+
+```
+2
+```
+
+#### `Set.Members`
+
+Members is Set::Scalar's members: a new array of copies of the members, in the order they were first inserted.
+
+```go
+s := scalar.NewSet("c", "a", "b")
+fmt.Println(s.Members().Join(","))           // in insertion order
+fmt.Println(s.Members().Sort(nil).Join(",")) // sorted, with the array tools
+```
+
+```
+c,a,b
+a,b,c
+```
+
+#### `Set.All`
+
+All iterates over copies of the members, in the order they were first inserted.
+
+```go
+for m := range scalar.NewSet("x", "y").All() {
+	fmt.Println(m)
+}
+```
+
+```
+x
+y
+```
+
+#### `Set.Copy`
+
+Copy returns a new set with the same members.
+
+```go
+a := scalar.NewSet("a")
+b := a.Copy()
+b.Insert("b")
+fmt.Println(a, b)
+```
+
+```
+(a) (a b)
+```
+
+#### `Set.Union`
+
+Union is Set::Scalar's union: a new set of every member of s or any of others, in order of first appearance.
+
+```go
+a, b := scalar.NewSet("a", "b"), scalar.NewSet("b", "c")
+fmt.Println(a.Union(b))                     // $a->union($b)
+fmt.Println(a.Union(b, scalar.NewSet("d"))) // several at once
+```
+
+```
+(a b c)
+(a b c d)
+```
+
+#### `Set.Intersection`
+
+Intersection is Set::Scalar's intersection: a new set of the members of s that are also in every one of others.
+
+```go
+mine := scalar.NewSet("Go", "Perl", "SQL")
+wanted := scalar.NewSet("Go", "SQL", "Rust")
+fmt.Println(mine.Intersection(wanted)) // the skills I have that are wanted
+```
+
+```
+(Go SQL)
+```
+
+#### `Set.Difference`
+
+Difference is Set::Scalar's difference: a new set of the members of s that are in none of others.
+
+```go
+wanted := scalar.NewSet("Go", "SQL", "Rust")
+mine := scalar.NewSet("Go", "Perl", "SQL")
+fmt.Println(wanted.Difference(mine)) // what's wanted that I lack
+```
+
+```
+(Rust)
+```
+
+#### `Set.SymmetricDifference`
+
+SymmetricDifference is Set::Scalar's symmetric_difference: a new set of the members in exactly one of s and t.
+
+```go
+a, b := scalar.NewSet("a", "b", "c"), scalar.NewSet("b", "c", "d")
+fmt.Println(a.SymmetricDifference(b)) // in one or the other, not both
+```
+
+```
+(a d)
+```
+
+#### `Set.IsSubset`
+
+IsSubset is Set::Scalar's is_subset: whether every member of s is in t.
+
+```go
+a := scalar.NewSet("Go")
+fmt.Println(a.IsSubset(scalar.NewSet("Go", "Perl")), a.IsSubset(a), scalar.NewSet().IsSubset(a))
+```
+
+```
+true true true
+```
+
+#### `Set.IsProperSubset`
+
+IsProperSubset is Set::Scalar's is_proper_subset: a subset of t that isn't equal to it.
+
+```go
+a := scalar.NewSet("Go")
+fmt.Println(a.IsProperSubset(scalar.NewSet("Go", "Perl")), a.IsProperSubset(a))
+```
+
+```
+true false
+```
+
+#### `Set.IsSuperset`
+
+IsSuperset is Set::Scalar's is_superset: whether s has every member of t.
+
+```go
+fmt.Println(scalar.NewSet("Go", "Perl").IsSuperset(scalar.NewSet("Perl")))
+```
+
+```
+true
+```
+
+#### `Set.IsEqual`
+
+IsEqual is Set::Scalar's is_equal: whether s and t have the same members, in any order.
+
+```go
+fmt.Println(scalar.NewSet("a", "b").IsEqual(scalar.NewSet("b", "a"))) // order doesn't matter
+```
+
+```
+true
+```
+
+#### `Set.IsDisjoint`
+
+IsDisjoint is Set::Scalar's is_disjoint: whether s and t have no members in common.
+
+```go
+fmt.Println(scalar.NewSet("a").IsDisjoint(scalar.NewSet("b")))
+fmt.Println(scalar.NewSet().IsDisjoint(scalar.NewSet())) // true, unlike Set::Scalar
+```
+
+```
+true
+true
+```
+
+#### `Set.String`
+
+String is the set as Set::Scalar prints it: its members sorted, between brackets, as in "(a b c)".
+
+```go
+fmt.Println(scalar.NewSet("c", "a", "b").String()) // sorted, as Set::Scalar prints a set
+```
+
+```
+(a b c)
+```
+
+#### `Set.MarshalJSON`
+
+MarshalJSON encodes the set as an array of its members, in the order they were first inserted.
+
+```go
+out, _ := json.Marshal(scalar.NewSet("c", "a", "b")) // an array, in insertion order
+fmt.Println(string(out))
+```
+
+```
+["c","a","b"]
+```
+
+#### `NewBag`
+
+NewBag returns a bag of vals, flattened as a list is (see `AV.Push`), each counting once, so NewBag("Go", "Go", "Perl") has two Go and one Perl.
+
+```go
+skills := scalar.NewBag("Go", "Perl", "Go") // each value counts once
+fmt.Println(skills)
+apples := scalar.NewBag().InsertN("apples", 3) // Set::Bag->new(apples => 3)
+fmt.Println(apples)
+```
+
+```
+(Go => 2, Perl => 1)
+(apples => 3)
+```
+
+#### `Bag.Insert`
+
+Insert adds one of each of vals, flattened as by NewBag, and returns b.
+
+```go
+var counts scalar.Bag // the zero value is an empty bag
+for _, posting := range [][]string{{"Go", "SQL"}, {"Go", "Perl"}, {"Go"}} {
+	counts.Insert(posting) // count the skills across postings
+}
+fmt.Println(&counts)
+```
+
+```
+(Go => 3, Perl => 1, SQL => 1)
+```
+
+#### `Bag.InsertN`
+
+InsertN is Set::Bag's insert(v => n): it adds n of v and returns b.
+
+```go
+b := scalar.NewBag()
+b.InsertN("apples", 3).InsertN("apples", 2) // $b->insert(apples => 3) and so on
+fmt.Println(b)
+```
+
+```
+(apples => 5)
+```
+
+#### `Bag.Delete`
+
+Delete removes one of each of vals, flattened as by NewBag, and returns b.
+
+```go
+b := scalar.NewBag("a", "a", "b")
+b.Delete("a", "b") // one of each
+fmt.Println(b)
+```
+
+```
+(a => 1)
+```
+
+#### `Bag.DeleteN`
+
+DeleteN is Set::Bag's delete(v => n): it removes n of v, or all of it if there are fewer, and returns b.
+
+```go
+b := scalar.NewBag().InsertN("apples", 3)
+b.DeleteN("apples", 2)
+fmt.Println(b)
+b.DeleteN("apples", 10) // more than there is: all of it, never below zero
+fmt.Println(b)
+```
+
+```
+(apples => 1)
+()
+```
+
+#### `Bag.Count`
+
+Count is Set::Bag's grab(v): how many of v there are, 0 if none.
+
+```go
+b := scalar.NewBag("Go", "Go", "Perl")
+fmt.Println(b.Count("Go"), b.Count("Rust")) // $b->grab("Go")
+```
+
+```
+2 0
+```
+
+#### `Bag.Length`
+
+Length is the number of distinct members.
+
+```go
+fmt.Println(scalar.NewBag("a", "a", "b").Length()) // distinct members
+```
+
+```
+2
+```
+
+#### `Bag.Total`
+
+Total is the number of members counting repeats: the sum of the counts.
+
+```go
+fmt.Println(scalar.NewBag("a", "a", "b").Total()) // counting repeats
+```
+
+```
+3
+```
+
+#### `Bag.Members`
+
+Members is Set::Bag's elements: a new array of copies of the distinct members, in the order they were first inserted.
+
+```go
+fmt.Println(scalar.NewBag("b", "a", "b").Members().Join(",")) // distinct, in insertion order
+```
+
+```
+b,a
+```
+
+#### `Bag.Counts`
+
+Counts returns the bag as a new hash from each member (as a string) to its count, for the rest of the package's tools.
+
+```go
+counts := scalar.NewBag("Go", "Go", "Perl").Counts() // a hash, for the hash tools
+fmt.Println(counts.Get("Go"), counts.Get("Perl"))
+```
+
+```
+2 1
+```
+
+#### `Bag.MostCommon`
+
+MostCommon returns copies of the members with the highest counts, most common first, and the first inserted first among equal counts: the top n, or every member if n is left out or there are fewer.
+
+```go
+skills := scalar.NewBag("SQL", "Go", "Perl", "Go", "SQL", "Go")
+fmt.Println(skills.MostCommon(2).Join(",")) // the top 2
+fmt.Println(skills.MostCommon().Join(","))  // all, most common first
+```
+
+```
+Go,SQL
+Go,SQL,Perl
+```
+
+#### `Bag.All`
+
+All iterates over copies of the distinct members with their counts, in the order they were first inserted.
+
+```go
+for m, n := range scalar.NewBag("x", "y", "x").All() {
+	fmt.Println(m, n)
+}
+```
+
+```
+x 2
+y 1
+```
+
+#### `Bag.Copy`
+
+Copy returns a new bag with the same members and counts.
+
+```go
+a := scalar.NewBag("a")
+b := a.Copy()
+b.Insert("a")
+fmt.Println(a, b)
+```
+
+```
+(a => 1) (a => 2)
+```
+
+#### `Bag.Sum`
+
+Sum is Set::Bag's sum: a new bag in which each member's count is its counts in b and others added together.
+
+```go
+monday := scalar.NewBag().InsertN("Go", 3).InsertN("SQL", 1)
+tuesday := scalar.NewBag().InsertN("Go", 1).InsertN("Perl", 2)
+fmt.Println(monday.Sum(tuesday)) // counts added: $monday->sum($tuesday)
+```
+
+```
+(Go => 4, Perl => 2, SQL => 1)
+```
+
+#### `Bag.Union`
+
+Union is Set::Bag's union: a new bag in which each member's count is the largest of its counts in b and others.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("b", 2)
+fmt.Println(x.Union(y)) // the larger count of each
+```
+
+```
+(a => 3, b => 2)
+```
+
+#### `Bag.Intersection`
+
+Intersection is Set::Bag's intersection: a new bag of the members in b and every one of others, each with the smallest of its counts.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("c", 2)
+fmt.Println(x.Intersection(y)) // the smaller count of each, in both
+```
+
+```
+(a => 1)
+```
+
+#### `Bag.Difference`
+
+Difference is Set::Bag's difference: a new bag in which each member's count is its count in b less its counts in others, leaving out any that reach zero, as Set::Bag does with over_delete.
+
+```go
+x := scalar.NewBag().InsertN("a", 3).InsertN("b", 1)
+y := scalar.NewBag().InsertN("a", 1).InsertN("b", 2)
+fmt.Println(x.Difference(y)) // counts taken away, never below zero
+```
+
+```
+(a => 2)
+```
+
+#### `Bag.String`
+
+String is the bag as Set::Bag prints it: members sorted, each with its count, as in "(apples => 3, pears => 1)".
+
+```go
+fmt.Println(scalar.NewBag("pears", "apples", "apples").String()) // sorted, as Set::Bag prints a bag
+```
+
+```
+(apples => 2, pears => 1)
+```
+
+#### `Bag.MarshalJSON`
+
+MarshalJSON encodes the bag as an object from each member to its count, in the order the members were first inserted.
+
+```go
+out, _ := json.Marshal(scalar.NewBag("pears", "apples", "apples")) // in insertion order
+fmt.Println(string(out))
+```
+
+```
+{"pears":1,"apples":2}
+```
+
+### Reference: Regular expressions
+
+#### `SV.M`
+
+M is $s =~ /re/ with captures.
+
+```go
+s := scalar.Value("Salary: £45,000 - £55,000")
+if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
+	fmt.Println("matched")
+}
+m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
+fmt.Println(m.Get(0)) // $&
+fmt.Println(m.Get(1), m.Get(2))
+all := s.M(`£([\d,]+)`, "g")                // @all = all the matches: one array of captures each
+fmt.Println(all.Length(), all.At("[1][1]")) // $all[1][1]: the second match's $1
+fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
+```
+
+```
+matched
+£45,000 - £55,000
+45,000 55,000
+2 55,000
+false
+```
+
+#### `SV.Named`
+
+Named is $s =~ /re/ followed by reading %+.
+
+```go
+d := scalar.Value("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
+```
+
+```
+2026 11 30
+```
+
+#### `SV.S`
+
+S is Perl's s///.
+
+```go
+s := scalar.Value("a  b   c")
+n := s.S(`\s+`, " ", "g") // $s =~ s/\s+/ /g
+fmt.Println(s, n)
+name := scalar.Value("Lovelace, Ada")
+name.S(`(\w+), (\w+)`, "$2 $1") // $1 and $2 in the replacement
+fmt.Println(name)
+clean := scalar.Value("x1y2").S(`\d`, "", "gr") // s///r: a new string; the original is unchanged
+fmt.Println(clean)
+doubled := scalar.Value("3 apples, 4 pears")
+doubled.S(`(\d+)`, func(m *scalar.AV) any { return m.Get(1).Mul(2) }, "g") // s///e
+fmt.Println(doubled)
+```
+
+```
+a b c 2
+Ada Lovelace
+xy
+6 apples, 8 pears
+```
+
+#### `SV.Split`
+
+Split is Perl's split /re/, $s.
+
+```go
+fmt.Println(scalar.Value("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
+fmt.Println(scalar.Value("a1b2c").Split(`(\d)`).Join("|"))       // captures included
+fmt.Println(scalar.Value("a,b,c,d").Split(`,`, 2).Join("|"))     // a limit
+fmt.Println(scalar.Value("  some  words ").Split(" ").Join("|")) // awk mode
+```
+
+```
+4
+a|1|b|2|c
+a|b,c,d
+some|words
+```
+
+#### `SV.Tr`
+
+Tr is Perl's tr/// (y///).
+
+```go
+s := scalar.Value("hello")
+s.Tr("a-z", "A-Z") // $s =~ tr/a-z/A-Z/
+fmt.Println(s)
+fmt.Println(scalar.Value("hello world").Tr("a-z", ""))  // counts: tr/a-z// returns how many
+fmt.Println(scalar.Value("aabbcc").Tr("a-z", "", "sr")) // squeeze, returning a new string
+```
+
+```
+HELLO
+10
+abc
+```
+
+#### `Compile`
+
+Compile compiles pattern with flags, any of "i", "m", "s" and "x", or returns an error if the pattern is invalid.
+
+```go
+re, err := scalar.Compile(`£([\d,]+`) // a pattern from outside the program: check it
+fmt.Println(re == nil, err != nil)
+```
+
+```
+true true
+```
+
+#### `MustCompile`
+
+MustCompile is Compile, panicking if the pattern is invalid.
+
+```go
+salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
+s := scalar.Value("£45,000 to £55,000")
+fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
+fmt.Println(s.S(salary, "£X", "gr"))
+insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
+fmt.Println(scalar.Value("REMOTE").M(insensitive) != nil)
+```
+
+```
+2
+£X to £X
+true
+```
+
+#### `Regexp.String`
+
+String returns the pattern as written.
+
+```go
+fmt.Println(scalar.MustCompile(`\d+`, "i"))
+```
+
+```
+\d+
+```
+
+#### `SV.Matches`
+
+Matches is Perl's while ($s =~ /re/g) { ...
+
+```go
+s := scalar.Value("Salary: £45,000 - £55,000")
+for m := range s.Matches(`£([\d,]+)`) { // while ($s =~ /£([\d,]+)/g)
+	fmt.Println(m.Get(1)) // $1
+}
+for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
+	if m.Get(1).Str() == "b" {
+		fmt.Println("found b:", m.Get(2))
+		break // stops the search
+	}
+}
+```
+
+```
+45,000
+55,000
+found b: 2
+```
+
+### Reference: Pack and unpack
+
+#### `Pack`
+
+Pack is Perl's pack for templates of H, h, B, b, f, d and F: it packs vals (flattened as a list is, see `AV.Push`) into bytes, returned as a byte string (see `SV.Bytes`).
+
+```go
+fmt.Println(scalar.Pack("H*", "4a6f"))     // hex digits to bytes: "Jo"
+fmt.Println(scalar.Pack("B8", "01001010")) // bits to a byte: "J"
+
+f := scalar.Pack("f>", 1.5) // a big-endian float32: 4 bytes
+fmt.Println(len(f.Str()), hex.EncodeToString([]byte(f.Str())))
+d := scalar.Pack("d<*", 1, 2.5) // two little-endian float64s
+fmt.Println(len(d.Str()))
+```
+
+```
+Jo
+J
+4 3fc00000
+16
+```
+
+#### `Unpack`
+
+Unpack is Perl's unpack for templates of H, h, B, b, f, d and F: it reads data, a string of bytes (a scalar, a Go string or a []byte), and returns what the template describes, as an array.
+
+```go
+fmt.Println(scalar.Unpack("H*", "Jo").Get(0))                       // bytes to hex
+fmt.Println(scalar.Unpack("B8", "J").Get(0))                        // a byte to bits
+fmt.Println(scalar.Unpack("H*", scalar.Pack("d>", 3.14159)).Get(0)) // a float64's bytes, in hex
+fmt.Println(scalar.Unpack("B32", scalar.Pack("f>", -2)).Get(0))     // a float32's bits: sign, exponent, fraction
+fmt.Println(scalar.Unpack("f<*", scalar.Pack("f<*", 1.5, 0.1)).Join(", "))
+```
+
+```
+4a6f
+01001010
+400921f9f01b866e
+11000000000000000000000000000000
+1.5, 0.100000001490116
+```
+
+### Reference: JSON and JSONPath
+
+#### `FromJSON`
+
+FromJSON decodes data into a scalar.
+
+```go
+doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "pay": 45000.5, "skills": ["Go"], "bonus": null}`))
+if err != nil {
+	fmt.Println(err)
+	return
+}
+fmt.Println(doc.Path("id")) // whole numbers stay exact
+fmt.Println(doc.Path("pay"), doc.Path("skills").Ref())
+fmt.Println(doc.HV().Exists("bonus"), doc.Path("bonus").Defined()) // null is undef
+```
+
+```
+9007199254740993
+45000.5 ARRAY
+true false
+```
+
+#### `SV.MarshalJSON`
+
+MarshalJSON implements `json.Marshaler`.
+
+```go
+h := scalar.Hash("b", 1, "a", scalar.Value(scalar.Array("x", nil)))
+out, _ := json.Marshal(scalar.Value(h)) // keys sorted, undef as null
+fmt.Println(string(out))
+h.Set("self", scalar.Value(h)) // a loop can't be JSON: an error, not a crash
+_, err := json.Marshal(scalar.Value(h))
+fmt.Println(err != nil)
+```
+
+```
+{"a":["x",null],"b":1}
+true
+```
+
+#### `AV.MarshalJSON`
+
+MarshalJSON implements `json.Marshaler`, as `SV.MarshalJSON` does.
+
+```go
+out, _ := json.Marshal(scalar.Array(1, "two", 3.5))
+fmt.Println(string(out))
+```
+
+```
+[1,"two",3.5]
+```
+
+#### `HV.MarshalJSON`
+
+MarshalJSON implements `json.Marshaler`, as `SV.MarshalJSON` does.
+
+```go
+out, _ := json.Marshal(scalar.Hash("z", 1, "a", 2))
+fmt.Println(string(out))
+```
+
+```
+{"a":2,"z":1}
+```
+
+#### `SV.UnmarshalJSON`
+
+UnmarshalJSON implements `json.Unmarshaler`.
+
+```go
+var record struct {
+	ID   int        `json:"id"`
+	Data *scalar.SV `json:"data"` // any shape at all
+}
+_ = json.Unmarshal([]byte(`{"id": 1, "data": {"tags": ["a", "b"]}}`), &record)
+fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
+```
+
+```
+1 a,b
+```
+
+#### `SV.Find`
+
+Find runs a JSONPath query (RFC 9535) on s and returns every match, or nil if nothing matched.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"store": {"book": [
+		{"title": "Go", "price": 30},
+		{"title": "Perl", "price": 45}
+	]}
+}`))
+fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
+fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
+fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
+fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
+```
+
+```
+Go,Perl
+30,45
+Perl
+true
+```
+
+#### `SV.Find_filter`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"jobs": [
+	{"title": "Nurse", "salary": {"min": 32000}, "skills": ["care"]},
+	{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "skills": ["Go", "SQL"]},
+	{"title": "Café manager", "skills": []}
+]}`))
+fmt.Println(doc.Find("$.jobs[?@.salary.min >= 40000].title").Join(","))  // a comparison
+fmt.Println(doc.Find("$.jobs[?!@.salary].title").Join(","))              // no salary at all
+fmt.Println(doc.Find("$.jobs[?count(@.skills[*]) > 1].title").Join(",")) // a function
+fmt.Println(doc.Find("$.jobs[?match(@.title, 'N.*')].title").Join(","))  // I-Regexp, whole string
+fmt.Println(doc.Find("$..[?@ == 'SQL']").Join(","))                      // at any depth
+```
+
+```
+Developer
+Café manager
+Developer
+Nurse
+SQL
+```
+
+#### `QuoteJSONPath`
+
+QuoteJSONPath returns s as a JSONPath string literal, quoted and escaped as RFC 9535 requires, to put a value or a name from Go into a query safely, as `regexp.QuoteMeta` does for a pattern:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"sections": [
+	{"kind": "summary", "lines": ["We're hiring."]},
+	{"kind": "it's benefits", "lines": ["Pension", "Gym"]}
+]}`))
+kind := "it's benefits" // from Go, with a quote in it
+fmt.Println(scalar.QuoteJSONPath(kind))
+fmt.Println(doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]").Join(", "))
+```
+
+```
+'it\'s benefits'
+Pension, Gym
+```
+
+### Reference: YAML
+
+#### `FromYAML`
+
+FromYAML reads a YAML document and returns it, as FromJSON reads JSON: mappings become hashes, sequences arrays, and plain values scalars.
+
+```go
+values, err := scalar.FromYAML([]byte(`
+defaults: &defaults
+  replicas: 2
+  image: {repository: web, tag: "1.0"}
+production:
+  <<: *defaults        # a merge key: production gets the defaults
+  replicas: 5
+country: no            # YAML 1.2: the string "no", not false
+`))
+if err != nil {
+	panic(err)
+}
+fmt.Println(values.At("production.replicas"), values.At("production.image.tag"))
+fmt.Println(values.At("production.image").HV() == values.At("defaults.image").HV()) // one hash, shared
+fmt.Println(values.At("country"))
+```
+
+```
+5 1.0
+true
+no
+```
+
+#### `FromYAMLAll`
+
+FromYAMLAll reads a stream of YAML documents, separated by ---, as in a Kubernetes manifest or Helm's output, and returns them as an array, in order.
+
+```go
+manifest := []byte(`
+apiVersion: v1
+kind: Service
+metadata: {name: web}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web}
+spec: {replicas: 3}
+---
+`)
+docs, err := scalar.FromYAMLAll(manifest) // several documents, as kubectl takes them
+if err != nil {
+	panic(err)
+}
+for _, d := range docs.All() {
+	fmt.Println(d.At("kind"), d.At("metadata.name"), d.At("spec.replicas").Or("-"))
+}
+```
+
+```
+Service web -
+Deployment web 3
+```
+
+#### `SV.ToYAML`
+
+ToYAML writes s as a YAML document, with two-space indentation, as Kubernetes and Helm use:
+
+```go
+cfg := scalar.Hash("name", "web", "replicas", 3, "country", "no", "version", "1.0",
+	"ports", scalar.Value([]int{80, 443}))
+out, _ := scalar.Value(cfg).ToYAML() // keys sorted; strings that any reader could misread are quoted
+fmt.Print(string(out))
+```
+
+```
+country: "no"
+name: web
+ports:
+  - 80
+  - 443
+replicas: 3
+version: "1.0"
+```
+
+#### `AV.ToYAML`
+
+ToYAML writes a as a YAML sequence; see `SV.ToYAML`.
+
+```go
+out, _ := scalar.Array("go", 1.0, nil, true).ToYAML()
+fmt.Print(string(out))
+```
+
+```
+- go
+- 1.0
+- null
+- true
+```
+
+#### `HV.ToYAML`
+
+ToYAML writes h as a YAML mapping; see `SV.ToYAML`.
+
+```go
+shared := scalar.Value(scalar.Hash("cpu", "500m"))
+h := scalar.Hash("requests", shared, "limits", shared) // the same hash twice
+out, _ := h.ToYAML()
+fmt.Print(string(out)) // an anchor, then an alias
+```
+
+```
+limits: &1
+  cpu: 500m
+requests: *1
+```
+
+#### `SV.UnmarshalYAML`
+
+UnmarshalYAML lets a scalar be a field of a struct read with the YAML package's Unmarshal, for a part of a document whose shape varies; it reads as FromYAML does.
+
+```go
+var cfg struct {
+	Name  string     `yaml:"name"`
+	Extra *scalar.SV `yaml:"extra"` // a part whose shape varies
+}
+err := yaml.Unmarshal([]byte("name: web\nextra: {ports: [80, 443]}\n"), &cfg)
+fmt.Println(err, cfg.Name, cfg.Extra.At("ports[1]"))
+```
+
+```
+<nil> web 443
+```
+
+#### `SV.MarshalYAML`
+
+MarshalYAML lets a scalar be a field of a struct written with the YAML package's Marshal; it writes as ToYAML does.
+
+```go
+out, _ := yaml.Marshal(struct {
+	Name  string     `yaml:"name"`
+	Extra *scalar.SV `yaml:"extra"`
+}{"web", scalar.Value(map[string]any{"ports": []int{80}})})
+fmt.Print(string(out))
+```
+
+```
+name: web
+extra:
+    ports:
+        - 80
+```
+
+#### `AV.MarshalYAML`
+
+MarshalYAML lets an array be written with the YAML package's Marshal.
+
+```go
+out, _ := yaml.Marshal(map[string]any{"ports": scalar.Array(80, 443)})
+fmt.Print(string(out))
+```
+
+```
+ports:
+    - 80
+    - 443
+```
+
+#### `HV.MarshalYAML`
+
+MarshalYAML lets a hash be written with the YAML package's Marshal.
+
+```go
+out, _ := yaml.Marshal(map[string]any{"labels": scalar.Hash("app", "web")})
+fmt.Print(string(out))
+```
+
+```
+labels:
+    app: web
+```
+
+### Reference: Into Go values
+
+#### `To`
+
+To converts v into a Go value of type T, the type in brackets: the way out of scalar into ordinary Go, once you know the shape you want.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"title": "Go Developer",
+	"skills": ["Go", "SQL"],
+	"salary": {"min": "45000", "max": 55000}
+}`))
+type Posting struct {
+	Title  string   `json:"title"`
+	Skills []string `json:"skills"`
+	Salary struct {
+		Min int `json:"min"` // "45000" fills it, as Perl would numify it
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+p, err := scalar.To[Posting](doc) // the type you want, in brackets
+if err != nil {
+	panic(err)
+}
+fmt.Println(p.Title, p.Skills, p.Salary.Min, p.Salary.Max)
+```
+
+```
+Go Developer [Go SQL] 45000 55000
+```
+
+#### `To.slice`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "years": [3, "5"]}`))
+skills, _ := scalar.To[[]string](doc.At("skills")) // from a scalar holding an array
+years, _ := scalar.To[[]int](doc.At("years").AV()) // or from the array itself
+fmt.Printf("%q %v\n", skills, years)
+```
+
+```
+["Go" "SQL"] [3 5]
+```
+
+#### `To.number`
+
+```go
+salary, err := scalar.To[int](scalar.Value(" 55000 ")) // a numeric string, as Perl reads it
+fmt.Println(salary, err)
+rate, err := scalar.To[float64](scalar.Value("37.5"))
+fmt.Println(rate, err)
+```
+
+```
+55000 <nil>
+37.5 <nil>
+```
+
+#### `To.map`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"go": 3, "perl": "2"}`))
+counts, _ := scalar.To[map[string]int](doc) // a hash fills a map
+fmt.Println(counts["go"], counts["perl"])
+```
+
+```
+3 2
+```
+
+#### `To.set`
+
+```go
+langs := scalar.NewSet("Go", "Perl", 5)
+members, _ := scalar.To[[]string](langs) // a set gives its members, in insertion order
+fmt.Printf("%q\n", members)
+```
+
+```
+["Go" "Perl" "5"]
+```
+
+#### `To.bag`
+
+```go
+skills := scalar.NewBag("Go", "Go", "Perl")
+counts, _ := scalar.To[map[string]int](skills)    // a bag gives its counts
+names, _ := scalar.To[[]string](skills.Members()) // and Members its distinct members
+fmt.Println(counts["Go"], counts["Perl"], names)
+```
+
+```
+2 1 [Go Perl]
+```
+
+#### `To.any`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"tags": ["go", 1]}`))
+plain, _ := scalar.To[any](doc) // the plain Go form, as Any gives it
+fmt.Printf("%v\n", plain)
+```
+
+```
+map[tags:[go 1]]
+```
+
+#### `To.missing`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"bonus": null}`))
+bonus, err := scalar.To[*int](doc.At("bonus")) // null, or missing: the zero value, here nil
+fmt.Println(bonus, err)
+perks, err := scalar.To[[]string](doc.At("perks"))
+fmt.Println(perks == nil, err)
+```
+
+```
+<nil> <nil>
+true <nil>
+```
+
+#### `To.optional`
+
+An optional value is a pointer: nil if the value is undef, missing or null, and otherwise a pointer to it, converted and checked. There's no StrPtr or NumPtr method, as To\[\*T] does it for any type, and refuses a value that doesn't fit, where Num would quietly make "abc" 0.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": null, "period": "Year", "bonus": "competitive"}`))
+
+min, _ := scalar.To[*float64](doc.At("min"))
+max, _ := scalar.To[*float64](doc.At("max"))      // null: nil
+none, _ := scalar.To[*string](doc.At("currency")) // missing: nil
+fmt.Println(*min, max, none)
+
+_, err := scalar.To[*float64](doc.At("bonus")) // "competitive" isn't a number
+fmt.Println(err)
+
+// The same, for a struct's optional fields, as the model's metadata has.
+type Pay struct {
+	Min, Max *float64
+	Period   *string
+}
+p, _ := scalar.To[Pay](doc)
+fmt.Println(*p.Min, p.Max, *p.Period)
+```
+
+```
+45000 <nil> <nil>
+scalar: Decode: want float64, got "competitive"
+45000 <nil> Year
+```
+
+#### `To.error`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
+type Posting struct {
+	Salary struct {
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+p, err := scalar.To[Posting](doc)
+fmt.Println(err)
+fmt.Println(p.Salary.Max) // on an error, the zero value
+var de *scalar.DecodeError
+if errors.As(err, &de) {
+	fmt.Println(doc.At(de.Path)) // the path leads At to the value
+}
+```
+
+```
+scalar: Decode: salary.max: want int, got "competitive"
+0
+competitive
+```
+
+#### `To.strict`
+
+```go
+years := scalar.Array("3", "five", 7)
+fmt.Println(years.IntSlice())     // Perl's numeric context: never fails, "five" is 0
+_, err := scalar.To[[]int](years) // To checks
+fmt.Println(err)
+```
+
+```
+[3 0 7]
+scalar: Decode: [1]: want int, got "five"
+```
+
+#### `To.loose`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "extra": {"benefits": ["Pension"]}}`))
+type Posting struct {
+	Title string     `json:"title"`
+	Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar: a deep copy
+}
+p, _ := scalar.To[Posting](doc)
+fmt.Println(p.Title, p.Extra.At("benefits[0]"))
+```
+
+```
+Go Developer Pension
+```
+
+#### `SV.Decode`
+
+Decode stores s in the Go value v points to, as `json.Unmarshal` would store the same data, but converting each value as Perl would, so a number that came as a string, "45000", fills an int field.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"title": "Go Developer",
+	"skills": ["Go", "SQL"],
+	"salary": {"min": "45000", "max": 55000},
+	"extra": {"benefits": ["Pension"]}
+}`))
+var posting struct {
+	Title  string   `json:"title"`
+	Skills []string `json:"skills"`
+	Salary struct {
+		Min int `json:"min"` // "45000" fills it, as Perl would numify it
+		Max int `json:"max"`
+	} `json:"salary"`
+	Extra *scalar.SV `json:"extra"` // a part that stays loose
+}
+if err := doc.Decode(&posting); err != nil {
+	panic(err)
+}
+fmt.Println(posting.Title, posting.Skills, posting.Salary.Min, posting.Salary.Max)
+fmt.Println(posting.Extra.At("benefits[0]"))
+```
+
+```
+Go Developer [Go SQL] 45000 55000
+Pension
+```
+
+#### `DecodeError.Error`
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
+var posting struct {
+	Salary struct {
+		Max int `json:"max"`
+	} `json:"salary"`
+}
+err := doc.Decode(&posting)
+fmt.Println(err)
+var de *scalar.DecodeError
+if errors.As(err, &de) {
+	fmt.Println(doc.At(de.Path)) // the path leads At to the value
+}
+```
+
+```
+scalar: Decode: salary.max: want int, got "competitive"
+competitive
+```
+
+<!-- reference:end -->

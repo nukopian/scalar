@@ -7,7 +7,7 @@ import (
 )
 
 // referenceGroups are the example files, in the order and under the
-// headings they appear in the README's Reference.
+// headings they appear under in docs/EXAMPLES.md.
 var referenceGroups = []docref.Group{
 	{File: "example_sv_test.go", Title: "Scalars"},
 	{File: "example_str_test.go", Title: "Strings"},
@@ -26,7 +26,7 @@ var referenceGroups = []docref.Group{
 // Every exported function and method has an example.
 func TestEveryFeatureHasExample(t *testing.T) { docref.CheckExamples(t, referenceGroups) }
 
-// README.md's Reference section is what the examples generate. To update it:
+// docs/EXAMPLES.md is what the examples generate. To update it:
 //
 //	go test -run TestReference -update
-func TestReference(t *testing.T) { docref.CheckReadme(t, referenceGroups) }
+func TestReference(t *testing.T) { docref.CheckDoc(t, "docs/EXAMPLES.md", referenceGroups) }
