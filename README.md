@@ -16,8 +16,8 @@ resp, err := http.Get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary
 if err != nil {
 	return err
 }
-defer resp.Body.Close()
 body, err := io.ReadAll(resp.Body)
+resp.Body.Close()
 if err != nil {
 	return err
 }
@@ -28,50 +28,64 @@ if err != nil {
 }
 
 // Search the whole tree with JSONPath: the strongest magnitude anywhere.
-fmt.Println("Strongest:", feed.Find("$..mag").MaxNum())
+strongest := feed.Find("$..mag").MaxNum().Num()
 
-// Filter with JSONPath, then read nested values: anything missing or
-// null is undef, not a panic, and Or supplies a default.
+// Filter with JSONPath, then reshape each quake. Anything missing or null
+// is undef, not a panic, and Or supplies a default.
+big := scalar.Array()
 for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
-	mag := q.At("properties.mag").Num()
-	depth := q.At("geometry.coordinates[2]").Num()   // [lon, lat, depth]
-
 	// "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"; with no "of", the
 	// place itself; with no place at all, a default.
 	place := q.At("properties.place")
-	near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place").Str()
+	near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place")
 
-	when := time.UnixMilli(q.At("properties.time").Int()).UTC()
-	fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
+	big.Push(scalar.Value(scalar.Hash(
+		"mag", q.At("properties.mag"),
+		"near", near,
+		"depth", q.At("geometry.coordinates[2]"),   // [lon, lat, depth]
+		"time", q.At("properties.time"),
+	)))
 }
 
-// Then back to ordinary, typed Go: the fields you want, checked.
+// The shape is known: into ordinary, typed Go.
 type Quake struct {
 	Mag   float64 `json:"mag"`
-	Place string  `json:"place"`
+	Near  string  `json:"near"`
+	Depth float64 `json:"depth"`   // km
+	Time  int64   `json:"time"`    // ms since 1970
 }
-quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
+quakes, err := scalar.To[[]Quake](big)
+if err != nil {
+	return err
+}
+
+// From here on, it's plain Go.
+fmt.Printf("Strongest: M%.1f\n", strongest)
+for _, q := range quakes {
+	when := time.UnixMilli(q.Time).UTC().Format("2 Jan 15:04 GMT")
+	fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", q.Mag, q.Near, q.Depth, when)
+}
 ```
 
 One day's run printed:
 
 ```
-Strongest: 5.2
-M4.5 near Kermadec Islands, New Zealand, 10 km deep, 18 Oct 12:42 UTC
-M5.2 near Ruteng, Indonesia, 10 km deep, 18 Oct 08:00 UTC
-M4.8 near Kainantu, Papua New Guinea, 124 km deep, 18 Oct 00:28 UTC
-M4.6 near Uyuni, Bolivia, 189 km deep, 17 Oct 16:52 UTC
+Strongest: M5.2
+M4.7 near Sandy Point Town, Saint Kitts and Nevis, 150 km deep, 18 Oct 15:35 GMT
+M4.5 near Kermadec Islands, New Zealand, 10 km deep, 18 Oct 12:42 GMT
+M5.2 near Ruteng, Indonesia, 10 km deep, 18 Oct 08:00 GMT
+M4.8 near Kainantu, Papua New Guinea, 124 km deep, 18 Oct 00:28 GMT
 ```
 
-There isn't a type assertion or a nil check in that code, nor a loop to find
-the big ones. `$..mag` searches the whole tree, and the filter picks out the
-quakes of 4.5 and over. A `null` place, a missing field and a pattern that
-didn't match are all undef, an ordinary value that passes along the chain,
-so one `Or` after another tries each fallback in turn. Once the data is in
-shape, `To` converts it to your own types, or returns an error saying which
-value didn't fit, and where. The same code runs as a test on a fixed sample
-of the feed, with every case above: `Example_overview`, in
-`example_test.go`.
+There isn't a type assertion or a nil check in the `scalar` part, nor a loop
+to find the big ones. `$..mag` searches the whole tree, and the filter picks
+out the quakes of 4.5 and over. A `null` place, a missing field and a
+pattern that didn't match are all undef, an ordinary value that passes along
+the chain, so one `Or` after another tries each fallback in turn. Once the
+data has the shape you want, `To` converts it to your own types, or returns
+an error saying which value didn't fit, and where, and the rest is ordinary
+Go. The same code runs as a test on a fixed sample of the feed, with every
+case above: `Example_overview`, in `example_test.go`.
 
 Most of the tools come from Perl, which has handled exactly this kind of
 data for decades: its nested paths, regular expressions, `//` operator,
@@ -92,41 +106,51 @@ Perl-compatible regular expressions, `yaml/v3`, and `x/text`.
 
 ## Rationale
 
-Though, I'm relatively new to Go, I've been programming for nearly over
-three decades: C, REXX, Perl, Python, JavaScript, XSLT and Scala came
-first. Go's concepts weren't the hard part. What struck me was how painful
-and tediously repetitive even basic tasks can be: a struct to write before
-you can read a field, a check for every value that might be missing, a
-loop for what is a one-liner elsewhere. I understand why Go's idioms
-matter. But sometimes a job needs doing and doing quickly, and
-brains *do* prefer shortcuts.
+I am relatively new to Go, but I've written code for well over thirty
+years, encountering C/C++, REXX, XSLT, JavaScript (and friends), Scala,
+Python, and, to a much greater extent, Perl at various points throughout
+that journey. While I may be learning on the job, this is definitely not
+my first rodeo, and I'm looking forward to mastering this new skill.
 
-The barrier between an idea and its implementation is often the language,
-its ecosystem, and the time it takes to learn them. Many of the shortcuts
-I've wanted already exist, proven over decades, in other languages and
-paradigms I've used, and `scalar` borrows from them:
+Learning on the job often requires flexibility, adaptability and a healthy
+dose of pragmatism when dealing with obstacles. When learning a new
+language while trying to be productive, the barriers between an idea or
+concept and its eventual expression can often be the language itself,
+its ecosystem, and the time it takes to learn both, especially when time
+is in short supply.
 
-- Perl's way with messy data: nested paths, a regex at every turn, `//`,
+For newcomers to any language, even basic tasks can be frustratingly
+tedious, and Go is not immune to this: a struct to write before you can
+read a field, or checking for every value that might be missing, or a loop
+for what is a one-liner elsewhere. I get why Go's idioms matter, but
+sometimes a job needs doing fast, and brains are hard-wired to prefer
+shortcuts!
+
+Many of the shortcuts I've wanted already exist, proven over decades,
+in other languages and paradigms, and this package borrows from them:
+
+- Perl: handling messy data, nested paths, a regex at every turn, `//`,
   `map` and `grep`.
-- Functional programming's Maybe, Scala's `Option`, in which a missing
+- Functional programming: Maybe, Scala's `Option`, in which a missing
   value flows quietly through a chain of `Then` and `Or`.
-- XPath's way of querying a tree, as JSONPath, with Python's slices.
-- The set theory of sets and bags.
-- Go's own iterators and generics, to get back to typed Go at the end.
+- XPath: its way of querying a tree, as JSONPath, with Python's slices.
+- Set theory: sets and bags.
+- Go: its own iterators and generics, to get back to typed Go at the
+  end.
 
-Then solving a problem quickly and well enough doesn't mean torturing
-yourself for linguistic purity, or giving up on Go for another language
-and its ecosystem. Be practical, and pragmatic.
+Solving a problem quickly and well enough doesn't always mean torturing
+oneself in service to linguistic purity, nor does it mean giving up on
+one language for another language and its ecosystem. We can choose to
+be practical.
 
-Primarily, this is for my own use, when I'm in a hurry, but also for
-anyone who wants a helping hand turning ideas, experiments and proofs of
-concept into something that works: especially people learning Go, and Go
-programmers tired of schlepping. It isn't for Go purists, and doesn't try
-to be. Think of it as a half-way house. It gets you to a working result
-quickly, and leaves room to improve. When production performance begins
-to bite and the data's shape has settled, `To` hands the data back as
-ordinary typed Go, and the code that stays can become as idiomatic as it
-needs to be.
+I created `scalar` for my own use, when I'm in a hurry. I also created
+it the way I did to help me learn. I am sharing it because it might be
+helpful to others wanting to turn an idea, experiment or proof-of-concept
+into working Go code, especially those like me who are learning Go. The
+work isn't aimed at Go purists. It should be thought of as a halfway
+house that gets you to a working solution to a problem quickly, leaving
+room for improvement. When performance requirements bite and the shape of
+the data has settled, `To` hands that data back as ordinary typed Go.
 
 ## What's in it
 

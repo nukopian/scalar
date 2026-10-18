@@ -28,44 +28,54 @@ func Example_overview() {
 		{"properties": {"mag": null, "place": "Alaska Peninsula", "time": 1760787000000},
 		 "geometry": {"coordinates": [-157.1, 56.2, 35.4]}}
 	]}`)
-	type Quake struct {
-		Mag   float64 `json:"mag"`
-		Place string  `json:"place"`
-	}
-
 	feed, err := scalar.FromJSON(body) // a USGS earthquake feed, in GeoJSON
 	if err != nil {
 		panic(err)
 	}
 
 	// Search the whole tree with JSONPath: the strongest magnitude anywhere.
-	fmt.Println("Strongest:", feed.Find("$..mag").MaxNum())
+	strongest := feed.Find("$..mag").MaxNum().Num()
 
-	// Filter with JSONPath, then read nested values: anything missing or
-	// null is undef, not a panic, and Or supplies a default.
+	// Filter with JSONPath, then reshape each quake. Anything missing or null
+	// is undef, not a panic, and Or supplies a default.
+	big := scalar.Array()
 	for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
-		mag := q.At("properties.mag").Num()
-		depth := q.At("geometry.coordinates[2]").Num() // [lon, lat, depth]
 		// "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"; with no "of", the
 		// place itself; with no place at all, a default.
 		place := q.At("properties.place")
-		near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place").Str()
-		when := time.UnixMilli(q.At("properties.time").Int()).UTC()
-		fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
+		near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place")
+
+		big.Push(scalar.Value(scalar.Hash(
+			"mag", q.At("properties.mag"),
+			"near", near,
+			"depth", q.At("geometry.coordinates[2]"), // [lon, lat, depth]
+			"time", q.At("properties.time"),
+		)))
 	}
 
-	// Then back to ordinary, typed Go.
-	quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
+	// The shape is known: into ordinary, typed Go.
+	type Quake struct {
+		Mag   float64 `json:"mag"`
+		Near  string  `json:"near"`
+		Depth float64 `json:"depth"` // km
+		Time  int64   `json:"time"`  // ms since 1970
+	}
+	quakes, err := scalar.To[[]Quake](big)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%+v\n", quakes)
+
+	// From here on, it's plain Go.
+	fmt.Printf("Strongest: M%.1f\n", strongest)
+	for _, q := range quakes {
+		when := time.UnixMilli(q.Time).UTC().Format("2 Jan 15:04 GMT")
+		fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", q.Mag, q.Near, q.Depth, when)
+	}
 	// Output:
-	// Strongest: 5.1
-	// M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 UTC
-	// M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 UTC
-	// M4.9 near Mid-Atlantic Ridge, 10 km deep, 18 Oct 11:15 UTC
-	// [{Mag:5.1 Place:12 km NNE of Ridgecrest, CA} {Mag:2.3 Place:5 km W of Cobb, CA} {Mag:4.7 Place:} {Mag:4.9 Place:Mid-Atlantic Ridge} {Mag:0 Place:Alaska Peninsula}]
+	// Strongest: M5.1
+	// M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 GMT
+	// M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 GMT
+	// M4.9 near Mid-Atlantic Ridge, 10 km deep, 18 Oct 11:15 GMT
 }
 
 const quakeFeed = `{
