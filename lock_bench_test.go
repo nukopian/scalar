@@ -1,68 +1,85 @@
 package scalar
 
 import (
-	"bufio"
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"strings"
 	"sync"
 	"testing"
 )
 
-// The benchmarks for what a lock might speed up (the README's Locking
-// section), on a realistic shape: the ONS's ASHE pay table (pay.tsv,
-// 14,931 rows of 34 fields) as an import gives it, every field a string,
-// nested period → sheet → code → field. It isn't in this repository; set
-// ASHE_PAY_TSV to its path to run them, or they skip.
+// The benchmarks for what a lock might speed up (the reference's Locking
+// section), on a realistic shape: a table of seismic statistics as an
+// import gives it, every field a string, nested window → network →
+// station → field. It's generated, from a fixed seed, in the shape of the
+// ONS's ASHE pay table the measurements were first made on: 3 × 9 × 553 =
+// 14,931 rows of 31 fields, a place name and 30 values, of which about
+// 40% are decimals, 27% "x" (not computed), 19% whole numbers, 7.5%
+// empty and 7% ".".
 
-var payTable = sync.OnceValue(func() *SV {
-	f, err := os.Open(os.Getenv("ASHE_PAY_TSV"))
-	if err != nil {
-		return nil
+var (
+	windows  = []string{"day", "week", "month"}
+	networks = []string{"ak", "ci", "hv", "nc", "nn", "pr", "se", "us", "uw"}
+	statKeys = []string{"events", "mag_median", "mag_median_change", "mag_mean", "mag_mean_change",
+		"mag_p10", "mag_p20", "mag_p25", "mag_p30", "mag_p40", "mag_p60", "mag_p70", "mag_p75", "mag_p80", "mag_p90",
+		"err_events", "err_median", "err_median_change", "err_mean", "err_mean_change",
+		"err_p10", "err_p20", "err_p25", "err_p30", "err_p40", "err_p60", "err_p70", "err_p75", "err_p80", "err_p90"}
+)
+
+// station is the code of a network's i'th station: AAA, AAB and so on.
+func station(i int) string {
+	return string([]byte{byte('A' + i/676), byte('A' + i/26%26), byte('A' + i%26)})
+}
+
+var statTable = sync.OnceValue(func() *SV {
+	r := rand.New(rand.NewPCG(1, 2))
+	value := func() string {
+		switch n := r.IntN(1000); {
+		case n < 400:
+			return fmt.Sprintf("%d.%d", r.IntN(100), r.IntN(10))
+		case n < 670:
+			return "x"
+		case n < 860:
+			return fmt.Sprint(r.IntN(100000))
+		case n < 935:
+			return ""
+		default:
+			return "."
+		}
 	}
-	defer f.Close()
 	root := Hash()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(nil, 1<<20)
-	var header []string
-	for sc.Scan() {
-		fields := strings.Split(sc.Text(), "\t")
-		if header == nil {
-			header = fields
-			continue
+	for _, w := range windows {
+		for _, net := range networks {
+			for i := range 553 {
+				row := Hash("place", fmt.Sprintf("%d km %s of station %s, network %s", r.IntN(100), []string{"N", "NNE", "E", "SW", "W"}[r.IntN(5)], station(i), net))
+				for _, k := range statKeys {
+					row.Set(k, value())
+				}
+				root.Get(w).HV().Get(net).HV().Set(station(i), row)
+			}
 		}
-		row := Hash()
-		for i, name := range header[3:] {
-			row.Set(name, fields[3+i])
-		}
-		root.Get(fields[0]).HV().Get(fields[1]).HV().Set(fields[2], row)
 	}
 	return Value(root)
 })
 
-// table returns a fresh copy of the pay table, locked or not.
+// table returns a fresh copy of the table, locked or not.
 func table(b *testing.B, locked bool) *SV {
-	if payTable() == nil {
-		b.Skip("set ASHE_PAY_TSV to the pay table's path")
-	}
-	t := payTable().Clone()
+	t := statTable().Clone()
 	if locked {
 		t.Lock()
 	}
 	return t
 }
 
-var numFields = []string{"median", "mean", "p10", "p20", "p25", "p30", "p40", "p60", "p70", "p75", "p80", "p90"}
+var numFields = []string{"mag_median", "mag_mean", "mag_p10", "mag_p20", "mag_p25", "mag_p30", "mag_p40", "mag_p60", "mag_p70", "mag_p75", "mag_p80", "mag_p90"}
 
 // Reading numbers stored as strings, as an import gives them: every row's
-// median, mean and percentiles, as Num.
+// magnitude median, mean and percentiles, as Num.
 func benchNums(b *testing.B, locked bool) {
 	t := table(b, locked)
 	var rows []*SV
-	for _, period := range t.HV().All() {
-		for _, sheet := range period.HV().All() {
-			for _, row := range sheet.HV().All() {
+	for _, window := range t.HV().All() {
+		for _, network := range window.HV().All() {
+			for _, row := range network.HV().All() {
 				rows = append(rows, row)
 			}
 		}
@@ -90,14 +107,8 @@ func benchAt(b *testing.B, locked bool) {
 	t := table(b, locked)
 	var paths []string
 	r := rand.New(rand.NewPCG(1, 2))
-	var codes []string
-	for code := range t.At("annual.Full-Time").HV().All() {
-		if code != "" {
-			codes = append(codes, code)
-		}
-	}
 	for range 1000 {
-		paths = append(paths, fmt.Sprintf("annual.Full-Time{%s}.%s", codes[r.IntN(len(codes))], numFields[r.IntN(len(numFields))]))
+		paths = append(paths, fmt.Sprintf("week.ci{%s}.%s", station(r.IntN(553)), numFields[r.IntN(len(numFields))]))
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -115,7 +126,7 @@ func BenchmarkAtLocked(b *testing.B)   { benchAt(b, true) }
 func benchEqual(b *testing.B, locked, alike bool) {
 	x, y := table(b, locked), table(b, false)
 	if !alike {
-		y.At("hourly.Female Part-Time{9269}.median").Set("0")
+		y.At("month.us{" + station(400) + "}.mag_median").Set("-1") // a station that exists: one field differs
 	}
 	if locked {
 		y.Lock()

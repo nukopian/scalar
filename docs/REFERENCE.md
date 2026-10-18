@@ -2059,9 +2059,11 @@ that has to stay in scalar.
 
 **Does locking make reads faster?** No, and it doesn't need to. Data that
 can't change could keep work it has done once, so we tried that, measured
-on the ASHE pay table, 15,000 rows of strings (`lock_bench_test.go`). The
-profiles found two costs that every value paid, locked or not, and those
-were fixed for everyone instead:
+on a table of 15,000 rows of strings: at first the ONS's ASHE pay table,
+and now a generated table of seismic statistics in the same shape, which
+anyone can run and which gives the same results (`lock_bench_test.go`).
+The profiles found two costs that every value paid, locked or not, and
+those were fixed for everyone instead:
 
 | Read | Before | After | What it was |
 |---|---|---|---|

@@ -63,8 +63,9 @@ else.
   switch. Each one has a test that runs with it on and off and compares
   the output, and a planted-bug check that the comparison catches a
   difference.
-- The lock benchmarks need the ONS ASHE pay table. Set `ASHE_PAY_TSV` to
-  its path, or they skip.
+- The lock benchmarks run on a generated table, from a fixed seed, in the
+  shape of the ONS ASHE pay table the reference's measurements were first
+  made on. They need no data from outside the repository.
 - scalar supports Go 1.25 and later, as `go.mod` says, and CI tests both
   1.25 and the newest Go. Don't use newer standard-library features unless
   raising the minimum is a deliberate decision. Dependencies set the floor
