@@ -8,11 +8,21 @@ missing, nesting varies, numbers turn up as strings, and the value you need
 is buried in a sentence. In plain Go, each of those costs a type assertion,
 a nil check or a hand-written loop.
 
-`scalar` takes that ceremony away. Here it reads an earthquake feed from
-the US Geological Survey:
+`scalar` takes that ceremony away. Here it reads the last day's
+earthquakes from the US Geological Survey's live feed:
 
 ```go
-feed, err := scalar.FromJSON(body)   // a USGS earthquake feed, in GeoJSON
+resp, err := http.Get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson")
+if err != nil {
+	return err
+}
+defer resp.Body.Close()
+body, err := io.ReadAll(resp.Body)
+if err != nil {
+	return err
+}
+
+feed, err := scalar.FromJSON(body)   // GeoJSON, whatever shape it turns out to be
 if err != nil {
 	return err
 }
@@ -25,9 +35,12 @@ fmt.Println("Strongest:", feed.Find("$..mag").MaxNum())
 for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
 	mag := q.At("properties.mag").Num()
 	depth := q.At("geometry.coordinates[2]").Num()   // [lon, lat, depth]
-	near := q.At("properties.place").
-		M(`of (.+)$`).Get(1).   // "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"
-		Or("an unknown place").Str()
+
+	// "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"; with no "of", the
+	// place itself; with no place at all, a default.
+	place := q.At("properties.place")
+	near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place").Str()
+
 	when := time.UnixMilli(q.At("properties.time").Int()).UTC()
 	fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
 }
@@ -36,20 +49,25 @@ for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
 quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
 ```
 
+One day's run printed:
+
 ```
-Strongest: 5.1
-M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 UTC
-M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 UTC
+Strongest: 5.2
+M4.5 near Kermadec Islands, New Zealand, 10 km deep, 18 Oct 12:42 UTC
+M5.2 near Ruteng, Indonesia, 10 km deep, 18 Oct 08:00 UTC
+M4.8 near Kainantu, Papua New Guinea, 124 km deep, 18 Oct 00:28 UTC
+M4.6 near Uyuni, Bolivia, 189 km deep, 17 Oct 16:52 UTC
 ```
 
 There isn't a type assertion or a nil check in that code, nor a loop to find
 the big ones. `$..mag` searches the whole tree, and the filter picks out the
 quakes of 4.5 and over. A `null` place, a missing field and a pattern that
 didn't match are all undef, an ordinary value that passes along the chain,
-and `Or` supplies a default wherever you want one. Once the data is in
+so one `Or` after another tries each fallback in turn. Once the data is in
 shape, `To` converts it to your own types, or returns an error saying which
-value didn't fit, and where. The example runs as a test, on a sample of the
-feed: `Example_overview`, in `example_test.go`.
+value didn't fit, and where. The same code runs as a test on a fixed sample
+of the feed, with every case above: `Example_overview`, in
+`example_test.go`.
 
 Most of the tools come from Perl, which has handled exactly this kind of
 data for decades: its nested paths, regular expressions, `//` operator,

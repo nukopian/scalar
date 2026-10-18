@@ -23,6 +23,8 @@ func Example_overview() {
 		 "geometry": {"coordinates": [-122.8, 38.8, 1.9]}},
 		{"properties": {"mag": 4.7, "place": null, "time": 1760785200000},
 		 "geometry": {"coordinates": [-125.9, 40.3, 10.0]}},
+		{"properties": {"mag": 4.9, "place": "Mid-Atlantic Ridge", "time": 1760786100000},
+		 "geometry": {"coordinates": [-29.4, 0.9, 10.0]}},
 		{"properties": {"mag": null, "place": "Alaska Peninsula", "time": 1760787000000},
 		 "geometry": {"coordinates": [-157.1, 56.2, 35.4]}}
 	]}`)
@@ -44,9 +46,10 @@ func Example_overview() {
 	for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
 		mag := q.At("properties.mag").Num()
 		depth := q.At("geometry.coordinates[2]").Num() // [lon, lat, depth]
-		near := q.At("properties.place").
-			M(`of (.+)$`).Get(1). // "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"
-			Or("an unknown place").Str()
+		// "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"; with no "of", the
+		// place itself; with no place at all, a default.
+		place := q.At("properties.place")
+		near := place.M(`of (.+)$`).Get(1).Or(place).Or("an unknown place").Str()
 		when := time.UnixMilli(q.At("properties.time").Int()).UTC()
 		fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
 	}
@@ -61,7 +64,8 @@ func Example_overview() {
 	// Strongest: 5.1
 	// M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 UTC
 	// M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 UTC
-	// [{Mag:5.1 Place:12 km NNE of Ridgecrest, CA} {Mag:2.3 Place:5 km W of Cobb, CA} {Mag:4.7 Place:} {Mag:0 Place:Alaska Peninsula}]
+	// M4.9 near Mid-Atlantic Ridge, 10 km deep, 18 Oct 11:15 UTC
+	// [{Mag:5.1 Place:12 km NNE of Ridgecrest, CA} {Mag:2.3 Place:5 km W of Cobb, CA} {Mag:4.7 Place:} {Mag:4.9 Place:Mid-Atlantic Ridge} {Mag:0 Place:Alaska Peninsula}]
 }
 
 const toolUseResponse = `{
