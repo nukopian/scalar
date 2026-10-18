@@ -116,10 +116,10 @@ straight through, without calling its function, so a chain stops quietly at
 the first step that finds nothing, and `Or` supplies the default at the end:
 
 ```go
-annual := posting.At("salary.text").
+depthKm := event.At("depth.text").
 	Then(parseFigure).   // undef if the text has no figure
 	When(isPositive).    // undef unless the figure is above zero
-	Then(toAnnual).      // skipped if anything before gave undef
+	Then(metresToKm).    // skipped if anything before gave undef
 	Or("unknown")
 ```
 
@@ -175,9 +175,9 @@ like Perl's four-argument `substr`. It also does the job of assigning to
 
 | Perl | Go | |
 |------|-----|---|
-| `index($s, "£")` | `s.Index("£")` | first position of `"£"`, or -1 |
-| `index($s, "£", 5)` | `s.Index("£", 5)` | first position at or after 5 |
-| `rindex($s, "£")` | `s.RIndex("£")` | last position, or -1 |
+| `index($s, "±")` | `s.Index("±")` | first position of `"±"`, or -1 |
+| `index($s, "±", 5)` | `s.Index("±", 5)` | first position at or after 5 |
+| `rindex($s, "±")` | `s.RIndex("±")` | last position, or -1 |
 | `lc($s)`, `uc($s)` | `s.Lc()`, `s.Uc()` | lower or upper case |
 | `ucfirst($s)`, `lcfirst($s)` | `s.UcFirst()`, `s.LcFirst()` | change just the first character |
 | `fc($s)` | `s.Fc()` | case-fold, for comparing regardless of case |
@@ -188,13 +188,13 @@ They all return a new value and leave the scalar alone, so they chain:
 
 `Index` and `RIndex` count characters, like Perl. Go's own `strings.Index`
 counts bytes, which gives the wrong answer for `Substr` as soon as the text
-contains `£`, `é` or `•`. The positions from `Index` can go straight into
+contains `±`, `é` or `•`. The positions from `Index` can go straight into
 `Substr`:
 
 ```go
-salary := scalar.Value("Salary: £45,000 – £55,000")
-salary.Substr(salary.Index("£"), 7)   // "£45,000"
-salary.Substr(salary.RIndex("£"))     // "£55,000"
+s := scalar.Value("Magnitude 5.1 ± 0.2 · Depth 8 km ± 1.5 km")
+s.Substr(s.Index("±"), 5)   // "± 0.2"
+s.Substr(s.RIndex("±"))     // "± 1.5 km"
 ```
 
 The case functions use Unicode's full rules, as Perl does, so
@@ -204,8 +204,8 @@ all to the same thing:
 
 ```go
 seen := scalar.Hash()
-for _, skill := range skills.All() {
-	seen.Get(skill.Fc().Str()).Inc()   // "Go", "GO" and "go" count as one
+for _, station := range stations.All() {
+	seen.Get(station.Fc().Str()).Inc()   // "PAS", "Pas" and "pas" count as one
 }
 ```
 
@@ -243,15 +243,15 @@ fmt.Println(doc.Dump())   // print Dumper($doc)
 
 ```
 {
-  salary => {
-    max => undef,
-    min => 45000,
+  id => "ci40123456",
+  mag => {
+    error => undef,
+    value => "5.1",
   },
-  skills => [
-    "Go",
-    "SQL",
+  stations => [
+    "PAS",
+    "GSC",
   ],
-  title => "Go Developer",
 }
 ```
 
@@ -260,14 +260,14 @@ double-quoted, with escapes for anything that isn't printable ASCII:
 `"caf\x{e9}"` for text, and octal, `"\211PNG"`, for a byte string. A
 boolean prints as `!!1` or `!!0`, as in Perl 5.36 and later. An array or
 hash that appears twice prints in full the first time, then as its path,
-such as `$VAR1->{tags}`, so a structure that loops back on itself is safe.
+such as `$VAR1->{stations}`, so a structure that loops back on itself is safe.
 `TestDumpMatchesPerl` checks hundreds of random structures against Perl's
 own `Data::Dumper` with Concise's settings. The one difference is that
 there's no newline at the end, since `fmt.Println` adds one.
 
 Arrays and hashes also have `String()`, which gives the same on one line, so
-`fmt.Println(a)` shows `["Go",1,[2,3]]` and `fmt.Println(h)` shows
-`{title => "Go Developer"}`.
+`fmt.Println(a)` shows `["PAS",1,[2,3]]` and `fmt.Println(h)` shows
+`{place => "Cobb, CA"}`.
 
 ### Reading a dump back: `FromDump`
 
@@ -279,8 +279,8 @@ write, in the form you'd write it in Perl:
 
 ```go
 want := scalar.MustFromDump(`{
-	title  => "Go Developer",
-	skills => ["Go", "SQL"],   # comments are fine
+	id       => "ci40123456",
+	stations => ["PAS", "GSC"],   # comments are fine
 }`)
 if d := got.Diff(want); d != "" {
 	t.Error(d)
@@ -338,7 +338,7 @@ each verb implies:
 | `%s`, `%q`, `%v` and the rest | string (see `Str`) | `fmt.Sprintf("%5s", scalar.Value("ab"))` is `"   ab"` |
 
 ```go
-fmt.Printf("%d items, £%.2f each\n", count, price)   // printf "%d items, £%.2f each\n", $count, $price
+fmt.Printf("%d quakes, the largest M%.1f\n", count, mag)   // printf "%d quakes, the largest M%.1f\n", $count, $mag
 ```
 
 Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
@@ -350,20 +350,20 @@ Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
 double-quoted string, with the hash's keys as the variables:
 
 ```go
-doc.Interpolate("$title in $location: @skills")   // "Go Developer in Leeds: Go SQL"
-doc.Interpolate("Up to £$salary{max}")            // $doc->{salary}{max}
-doc.Interpolate("Up to £${salary.max}")           // the same: any At path inside ${...}
+doc.Interpolate("M$mag near $place: @stations")   // "M5.1 near Ridgecrest, CA: PAS GSC"
+doc.Interpolate("Depth $depth{km} km")            // $doc->{depth}{km}
+doc.Interpolate("Depth ${depth.km} km")           // the same: any At path inside ${...}
 ```
 
 | In the template | Gives |
 |---|---|
 | `$name` | the value of that key |
 | `$name{key}`, `$name[0]`, `$name[0]{key}` | subscripts straight after a name are part of it, as in Perl, written as for `At` |
-| `${path}` | any `At` path, dots included: `${salary.max}` |
+| `${path}` | any `At` path, dots included: `${depth.km}` |
 | `@name`, `@{path}` | an array's elements, joined with a space, as Perl's `"@a"` joins them |
 | `\$`, `\@` | a literal `$` or `@`, as in Perl |
 
-As in Perl, `$title.x` is the title followed by `.x`, and `${title}s` puts
+As in Perl, `$place.x` is the place followed by `.x`, and `${place}s` puts
 text straight after a value. A `$` or `@` not followed by a name or `{`, as
 in `$5`, is literal, but `@example` in an email address is an array, so
 write `me\@example.com`, as in Perl. A missing value gives `""`, and nothing
@@ -377,9 +377,9 @@ returns an error instead. A compiled template can also change the separator
 for lists, as `local $" = ", "` does:
 
 ```go
-var summary = scalar.MustTemplate("$title. Skills: @skills.").ListSeparator(", ")
+var summary = scalar.MustTemplate("$place. Stations: @stations.").ListSeparator(", ")
 
-doc.Interpolate(summary)   // "Go Developer. Skills: Go, SQL."
+doc.Interpolate(summary)   // "Ridgecrest, CA. Stations: PAS, GSC."
 ```
 
 There are no conditionals or loops: for text that leaves out lines with
@@ -473,7 +473,7 @@ would instead, and never fail:
 | `a.NumSlice()` | `[]float64` | as a number |
 
 ```go
-skills := scalar.Array(raw).Grep(notBlank).StrSlice()   // back to a []string
+stations := scalar.Array(raw).Grep(notBlank).StrSlice() // back to a []string
 scalar.Array("3", "five").IntSlice()                     // [3 0]: "five" is 0, as in Perl
 scalar.To[[]int](scalar.Array("3", "five"))              // an error: [1]: want int, got "five"
 ```
@@ -532,14 +532,14 @@ where Perl takes a block:
 | `reduce { ... } @a` | `a.Reduce(func(acc, x *scalar.SV) any { ... })` |
 
 ```go
-remote := func(s *scalar.SV) bool { return s.M(`(?i)\bremote\b`) != nil }
-if bullets.AnyMatch(remote) { ... }
+offshore := func(s *scalar.SV) bool { return s.M(`(?i)\boffshore\b`) != nil }
+if places.AnyMatch(offshore) { ... }
 
-salary := chunks.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
+mag := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("Magnitude") >= 0 })
 
-skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr()   // ignoring case
+stations.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr() // ignoring case
 
-total := salaries.Sum0()                                             // sum0 @salaries
+total := felt.Sum0()                                                 // sum0 @felt
 longest := words.Reduce(func(a, b *scalar.SV) any {                  // reduce { length $b > length $a ? $b : $a } @words
 	if b.Length() > a.Length() {
 		return b
@@ -576,13 +576,13 @@ These follow CPAN's `List::UtilsBy`. Each takes a function that gives a key
 for an element, calls it once for each element, and works on the keys:
 
 ```go
-salary := func(p *scalar.SV) any { return p.At("salary.max") }
+mag := func(q *scalar.SV) any { return q.At("mag.value") }
 
-postings.SortByNum(salary)        // nsort_by { $_->{salary}{max} } @postings
-postings.RevSortByNum(salary)     // rev_nsort_by: the best paid first
-postings.MaxBy(salary)            // max_by: the best paid posting itself
-postings.PartitionBy(func(p *scalar.SV) any { return p.At("seniority") })   // partition_by
-postings.CountBy(func(p *scalar.SV) any { return p.At("location") }).MostCommon(5)
+quakes.SortByNum(mag)        // nsort_by { $_->{mag}{value} } @quakes
+quakes.RevSortByNum(mag)     // rev_nsort_by: the strongest first
+quakes.MaxBy(mag)            // max_by: the strongest quake itself
+quakes.PartitionBy(func(q *scalar.SV) any { return q.At("net") })   // partition_by
+quakes.CountBy(func(q *scalar.SV) any { return q.At("region") }).MostCommon(5)
 ```
 
 | `List::UtilsBy` | Go | Gives |
@@ -635,11 +635,11 @@ returns the first comparison that isn't zero, just like chaining comparisons
 with `or` in Perl:
 
 ```go
-// sort { $a->{dept} cmp $b->{dept} or $b->{salary} <=> $a->{salary} } @people
-sorted := people.AV().Sort(func(x, y *scalar.SV) int {
+// sort { $a->{net} cmp $b->{net} or $b->{mag} <=> $a->{mag} } @quakes
+sorted := quakes.AV().Sort(func(x, y *scalar.SV) int {
 	return cmp.Or(
-		scalar.StrCmp(x.Path("dept"), y.Path("dept")),     // by department,
-		scalar.NumCmp(y.Path("salary"), x.Path("salary")), // then highest salary
+		scalar.StrCmp(x.Path("net"), y.Path("net")), // by network,
+		scalar.NumCmp(y.Path("mag"), x.Path("mag")), // then strongest first
 	)
 })
 ```
@@ -796,18 +796,18 @@ keys. CPAN's `Set::Scalar` and `Set::Bag` give the familiar operations, and
 `Set` and `Bag` follow them.
 
 ```go
-mine := scalar.NewSet("Go", "Perl", "SQL")   // Set::Scalar->new(...)
-wanted := scalar.NewSet("Go", "SQL", "Rust")
-mine.Intersection(wanted)                    // (Go SQL): $mine->intersection($wanted)
-wanted.Difference(mine)                      // (Rust)
-mine.Has("Perl")                             // $mine->has("Perl")
+recorded := scalar.NewSet("PAS", "GSC", "ISA")   // Set::Scalar->new(...)
+expected := scalar.NewSet("PAS", "ISA", "SVD")
+recorded.Intersection(expected)                  // (ISA PAS): $recorded->intersection($expected)
+expected.Difference(recorded)                    // (SVD): expected, but silent
+recorded.Has("GSC")                              // $recorded->has("GSC")
 
-var skills scalar.Bag                        // the zero value is empty, ready to use
-for _, posting := range postings {
-	skills.Insert(posting.Skills)            // count every skill across postings
+var networks scalar.Bag                          // the zero value is empty, ready to use
+for _, day := range days {
+	networks.Insert(day.Networks)                // count every network across days
 }
-skills.MostCommon(10)                        // the 10 most wanted, most common first
-skills.Count("Go")                           // $skills->grab("Go")
+networks.MostCommon(10)                          // the 10 busiest, most common first
+networks.Count("ci")                             // $networks->grab("ci")
 ```
 
 | Set::Scalar | `Set` | | Set::Bag | `Bag` |
@@ -819,11 +819,11 @@ skills.Count("Go")                           // $skills->grab("Go")
 | `is_subset`, `is_proper_subset`, `is_superset`, `is_equal`, `is_disjoint` | `IsSubset`, `IsProperSubset`, `IsSuperset`, `IsEqual`, `IsDisjoint` | | | `Total`, `Counts` (a hash), `MostCommon` |
 
 - **Members are compared as strings,** as Perl's hash keys are, and both
-  modules: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"Go"`
-  and `"go"` are each different. The first value inserted is the one kept.
+  modules: `1`, `"1"` and `1.0` are one member, while `"1.0"`, `"PAS"`
+  and `"pas"` are each different. The first value inserted is the one kept.
   For a case-insensitive set, insert `s.Fc()`.
 - **Lists flatten,** as everywhere in `scalar`: `NewSet(array)`,
-  `skills.Insert(goSlice)`.
+  `networks.Insert(goSlice)`.
 - **Set operations return new sets and bags,** leaving the originals alone.
   `Insert` and `Delete` change the set or bag, and return it.
 - **Members are copies,** so changing a value after inserting it, or
@@ -913,8 +913,8 @@ doc.At("items[-1].name")         // negative indices count from the end
 doc.At("meta{log.level}")        // a key with dots in it, in braces
 doc.At(`meta["log.level"]`)      // or quoted
 doc.At("rules[0].name").Set("x") // writing autovivifies
-v, ok := doc.AtOK("salary.max")  // as PathOK: present? without creating anything
-doc.DeleteAt("salary.bonus")     // delete $doc->{salary}{bonus}
+v, ok := doc.AtOK("depth.km")    // as PathOK: present? without creating anything
+doc.DeleteAt("depth.error")      // delete $doc->{depth}{error}
 ```
 
 `DeletePath` is `DeleteAt` with the route as `Path` takes it, for keys that
@@ -967,10 +967,10 @@ Both a missing key and a JSON `null` read as undef. To tell them apart, use
 `PathOK`, which adds Go's comma-ok:
 
 ```go
-v, ok := resp.PathOK("salary", "max")
+v, ok := event.PathOK("depth", "km")
 switch {
 case !ok:
-	// the model left the field out (or something on the way is missing)
+	// the feed left the field out (or something on the way is missing)
 case !v.Defined():
 	// the field is there, but null
 default:
@@ -1003,11 +1003,11 @@ JSONPath query ([RFC 9535](https://www.rfc-editor.org/rfc/rfc9535)) and
 returns every match as an array, or `nil` if nothing matched:
 
 ```go
-resp.Find("$.content[*].text")    // the text of every content block
-meta.Find("$..skills[*]")         // every skill, at any depth
+feed.Find("$.features[*].properties.place") // every quake's place
+feed.Find("$..stations[*]")       // every station, at any depth
 doc.Find("$.items[-1].name")      // the last item's name
 doc.Find("$.items[0:3]")          // the first three items
-doc.Find("$['salary-min']")       // keys that aren't plain words need brackets
+doc.Find("$['mag-type']")         // keys that aren't plain words need brackets
 ```
 
 | JSONPath | Selects |
@@ -1029,8 +1029,8 @@ Like `Get` and `Path`, the matches are the stored values themselves, so you
 can change data where it sits:
 
 ```go
-for _, s := range meta.Find("$.requiredSkills[*]").All() {
-	s.Set(s.Trim())   // trims each skill inside meta
+for _, s := range config.Find("$.stations[*]").All() {
+	s.Set(s.Trim())   // trims each station code inside config
 }
 ```
 
@@ -1041,18 +1041,18 @@ expression is true. In it, `@` is the child, and `$` the value `Find` was
 called on:
 
 ```go
-jobs.Find("$[?@.salary.min >= 30000].title")              // a comparison
-jobs.Find("$[?@.salary.max]")                             // has a maximum
-jobs.Find("$[?!@.remote]")                                // hasn't "remote" at all
-jobs.Find("$[?@.salary.min > $.threshold]")               // against the root
-jobs.Find("$[?@.type == 'contract' && @.days <= 5]")      // && || ! and ( )
-jobs.Find("$[?count(@.skills[*]) > 2]")                   // functions
-resp.Find("$.content[?@.type == 'tool_use'].input")       // the tool_use block in a Claude response
+quakes.Find("$[?@.mag >= 4.5].place")                     // a comparison
+quakes.Find("$[?@.felt]")                                  // has felt reports
+quakes.Find("$[?!@.tsunami]")                              // hasn't "tsunami" at all
+quakes.Find("$[?@.mag > $.threshold]")                     // against the root
+quakes.Find("$[?@.net == 'ci' && @.depth <= 5]")           // && || ! and ( )
+quakes.Find("$[?count(@.stations[*]) > 2]")                // functions
+feed.Find("$.features[?@.properties.alert == 'red'].id")  // events with a red alert
 ```
 
 | In a filter | Means |
 |---|---|
-| `@.a`, `$.a` on their own | the query selects something: `@.remote` is true even if it's `false` |
+| `@.a`, `$.a` on their own | the query selects something: `@.tsunami` is true even if it's `false` |
 | `==`, `!=`, `<`, `<=`, `>`, `>=` | a comparison, of literals, queries that select one node at most (names and indexes only), or functions returning a value |
 | `'text'`, `"text"`, `42`, `-1.5e3`, `true`, `false`, `null` | literals, written as in JSON |
 | `&&`, `\|\|`, `!`, `( )` | and, or, not, grouping |
@@ -1096,7 +1096,7 @@ the quotes by hand breaks on an apostrophe, and a value such as
 `']) || true || ('` would change the query:
 
 ```go
-doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]")
+doc.Find("$.regions[?@.name == " + scalar.QuoteJSONPath(name) + "].stations[*]")   // name: "Hawai'i"
 doc.Find("$[" + scalar.QuoteJSONPath(key) + "]")   // a key that isn't a plain word
 ```
 
@@ -1104,9 +1104,9 @@ For a condition the language can't say, the list utilities on the result are
 plain Go:
 
 ```go
-input := resp.Find("$.content[*]").FirstMatch(func(b *scalar.SV) bool {
-	return b.Path("type").Eq("tool_use") && b.At("input.query").Defined()
-}).Path("input")
+event := feed.Find("$.features[*]").FirstMatch(func(f *scalar.SV) bool {
+	return f.At("properties.place").M(`(?i)\boffshore\b`) != nil && f.At("properties.felt").Defined()
+}).Path("properties")
 ```
 
 ### Things to know
@@ -1167,9 +1167,9 @@ doc.Apply(func(v *scalar.SV) any {   // rmap { $_ = trim $_ } $doc
 scalar or a plain Go value:
 
 ```go
-doc.Equal(map[string]any{"skills": []string{"Go", "SQL"}})   // is_deeply
+doc.Equal(map[string]any{"stations": []string{"PAS", "GSC"}})   // is_deeply
 
-rules.Diff(model)    // skills[1]: got "SQL", want "Docker"
+ours.Diff(theirs)    // stations[1]: got "GSC", want "ISA"
 ```
 
 The rules are `is_deeply`'s:
@@ -1187,12 +1187,12 @@ The rules are `is_deeply`'s:
 `Diff` returns `""` when the two are equal. Otherwise it gives the path,
 then what's on each side, with `does not exist` for a missing element or key.
 Keys are taken in sorted order, so the same difference is always the one
-reported. That makes it handy in tests, and for comparing two extractions
-of the same posting.
+reported. That makes it handy in tests, and for comparing two catalogues'
+versions of the same event.
 
 When the answer is all you need, `Equal` is the cheaper call: it builds no
-report and stops at the first difference. On two copies of the ASHE pay
-table (15,000 rows), it takes 28 ms where `Diff` takes 123 ms.
+report and stops at the first difference. On two copies of a table of
+15,000 rows, it takes 28 ms where `Diff` takes 123 ms.
 
 ## Operators
 
@@ -1258,8 +1258,8 @@ accumulating works the Perl way:
 
 ```go
 totals := scalar.Hash()
-for _, job := range jobs {
-	totals.Get(job.Dept).AddInPlace(job.Salary)   // $totals{$dept} += $salary
+for _, q := range quakes {
+	totals.Get(q.Region).AddInPlace(q.Felt)   // $totals{$region} += $felt
 }
 ```
 
@@ -1281,7 +1281,7 @@ You write patterns inline, as in Perl. Each pattern is compiled the first time
 it's used and then reused. You can also compile a pattern up front, as with
 Perl's `qr//`; see [Compiling patterns up front](#compiling-patterns-up-front).
 The cache of compiled patterns holds 4,096, and starts again when it's full,
-so patterns built from data, such as one for each skill name, can't make it
+so patterns built from data, such as one for each station name, can't make it
 grow without end. `At` paths and `Interpolate` templates are cached the same
 way.
 
@@ -1323,14 +1323,14 @@ like Perl's `qr//`. `M`, `Matches`, `Named`, `S` and `Split` take one
 wherever they take a pattern string:
 
 ```go
-var salary = scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/;
+var mag = scalar.MustCompile(`M(\d\.\d)`) // my $mag = qr/M(\d\.\d)/;
 
-for m := range s.Matches(salary) { ... }
-s.S(salary, "£X", "g")
+for m := range s.Matches(mag) { ... }
+s.S(mag, "M?", "g")
 ```
 
 Declare the patterns your program relies on as package-level variables, as
-`salary` is above. If one of them is invalid, the program then panics as soon
+`mag` is above. If one of them is invalid, the program then panics as soon
 as it starts, rather than later, when the pattern is first used. Go's own
 `regexp.MustCompile` works the same way.
 
@@ -1356,13 +1356,14 @@ passing anything other than a string or a `*Regexp` panics at run time.
 ### Building patterns from data
 
 To use text from your data inside a pattern, pass it through
-`scalar.QuoteMeta`, Perl's `quotemeta` (`\Q...\E`). Skill names are full of
-characters that mean something in a regex: without it, `s.M("C++")` panics
-with an invalid pattern, and `s.M(".NET")` also matches `"xNET"`.
+`scalar.QuoteMeta`, Perl's `quotemeta` (`\Q...\E`). Labels in data are
+often full of characters that mean something in a regex: without it,
+`s.M("(USGS")` panics with an invalid pattern, and `s.M("M4.5")` also
+matches `"M405"`.
 
 ```go
-for _, skill := range []string{"C++", ".NET", "Node.js"} {
-	if posting.M(`(?i)` + scalar.QuoteMeta(skill)) != nil { ... }
+for _, label := range []string{"M4.5+", "(USGS)", "Mw 6.0"} {
+	if bulletin.M(`(?i)` + scalar.QuoteMeta(label)) != nil { ... }
 }
 ```
 
@@ -1372,14 +1373,14 @@ add to a pattern.
 ### Matching
 
 ```go
-s := scalar.Value("Salary: £45,000 - £55,000")
+s := scalar.Value("Magnitude range: M4.8 - M5.3")
 
-if s.M(`(?i)salary`) != nil { ... }
+if s.M(`(?i)magnitude`) != nil { ... }
 
-m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
-m.Get(0) // "£45,000 - £55,000"   ($&)
-m.Get(1) // "45,000"              ($1)
-m.Get(2) // "55,000"              ($2)
+m := s.M(`M(\d\.\d)\s*-\s*M(\d\.\d)`)
+m.Get(0) // "M4.8 - M5.3"   ($&)
+m.Get(1) // "4.8"           ($1)
+m.Get(2) // "5.3"           ($2)
 ```
 
 Unlike Perl's list of captures, which starts at `$1`, `M` puts the whole
@@ -1394,8 +1395,8 @@ over `Matches`. Each `m` is laid out as `M` lays out one match, so
 `m.Get(1)` is `$1`, and breaking out of the loop stops the search:
 
 ```go
-for m := range s.Matches(`£([\d,]+)`) {
-	fmt.Println(m.Get(1))   // 45,000 then 55,000
+for m := range s.Matches(`M(\d\.\d)`) {
+	fmt.Println(m.Get(1))   // 4.8 then 5.3
 }
 ```
 
@@ -1489,8 +1490,8 @@ character.
 ### Timeouts
 
 regexp2 backtracks, like Perl. That means a badly written pattern, such as
-`^(a+)+$`, can take a very long time on some inputs. To stop one bad job
-posting from hanging the whole program, every match has a time limit
+`^(a+)+$`, can take a very long time on some inputs. To stop one bad record
+from hanging the whole program, every match has a time limit
 (`scalar.RegexTimeout`, 100ms by default).
 
 If a match runs past the limit, it panics. It may run a little past the limit
@@ -1697,10 +1698,10 @@ which the compiler checks. `scalar.To` converts a scalar, array, hash, set or
 bag into the Go type you name in brackets, and returns it:
 
 ```go
-skills, err := scalar.To[[]string](doc.At("skills"))   // a []string
-max, err := scalar.To[int](doc.At("salary.max"))       // an int, even from "55000"
-posting, err := scalar.To[Posting](doc)                // your own struct
-counts, err := scalar.To[map[string]int](bag)          // a bag's counts
+stations, err := scalar.To[[]string](doc.At("stations"))   // a []string
+km, err := scalar.To[int](doc.At("depth.km"))               // an int, even from "8"
+event, err := scalar.To[Event](doc)                         // your own struct
+counts, err := scalar.To[map[string]int](bag)               // a bag's counts
 ```
 
 `s.Decode(&v)` does the same into a value you already have. Both follow the
@@ -1711,21 +1712,21 @@ With a struct, `To` takes you from loosely shaped data to a typed value,
 which [What it costs](#what-it-costs) recommends doing as early as you can:
 
 ```go
-type Posting struct {
-	Title  string   `json:"title"`
-	Skills []string `json:"skills"`
-	Salary struct {
-		Min int `json:"min"`      // "45000" fills it, as Perl would numify it
-		Max int `json:"max"`
-	} `json:"salary"`
+type Event struct {
+	Place    string   `json:"place"`
+	Stations []string `json:"stations"`
+	Depth    struct {
+		Km    int `json:"km"`      // "8" fills it, as Perl would numify it
+		Error int `json:"error"`
+	} `json:"depth"`
 	Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar
 }
 
-p, err := scalar.To[Posting](doc)
+e, err := scalar.To[Event](doc)
 if err != nil {
-	return err   // scalar: Decode: salary.max: want int, got "competitive"
+	return err   // scalar: Decode: depth.km: want int, got "unknown"
 }
-fmt.Println(p.Title, p.Salary.Max)
+fmt.Println(e.Place, e.Depth.Km)
 ```
 
 `To` is a function rather than a method, `scalar.To[T](x)` rather than
@@ -1735,23 +1736,23 @@ fmt.Println(p.Title, p.Salary.Max)
 
 | Type | Takes | Example |
 |---|---|---|
-| a struct | a hash: each key fills the field with that name (see below) | `scalar.To[Posting](doc)` |
-| a slice, `[]T`, or an array, `[N]T` | an array, or a set's members | `scalar.To[[]string](doc.At("skills"))` |
+| a struct | a hash: each key fills the field with that name (see below) | `scalar.To[Event](doc)` |
+| a slice, `[]T`, or an array, `[N]T` | an array, or a set's members | `scalar.To[[]string](doc.At("stations"))` |
 | a map, `map[string]T` or `map[int]T` | a hash, or a bag's counts | `scalar.To[map[string]int](bag)` |
-| `string` | any plain value, as its string | `scalar.To[string](doc.At("title"))` |
-| `int`, `int64`, `uint`, … | a whole number, or a string holding one, that fits | `scalar.To[int](doc.At("salary.max"))` |
-| `float64`, `float32` | a number, or a string holding one | `scalar.To[float64](doc.At("rate"))` |
-| `bool` | a boolean, `0` or `1`, or `"true"` or `"false"` | `scalar.To[bool](doc.At("remote"))` |
-| a pointer, `*T` | what `T` takes; undef gives nil | `scalar.To[*int](doc.At("bonus"))` |
+| `string` | any plain value, as its string | `scalar.To[string](doc.At("place"))` |
+| `int`, `int64`, `uint`, … | a whole number, or a string holding one, that fits | `scalar.To[int](doc.At("depth.km"))` |
+| `float64`, `float32` | a number, or a string holding one | `scalar.To[float64](doc.At("mag"))` |
+| `bool` | a boolean, `0` or `1`, or `"true"` or `"false"` | `scalar.To[bool](doc.At("tsunami"))` |
+| a pointer, `*T` | what `T` takes; undef gives nil | `scalar.To[*int](doc.At("felt"))` |
 | `any` | anything, as plain Go values, as `Any()` gives them | `scalar.To[any](doc)` |
 | `*scalar.SV`, `*scalar.AV`, `*scalar.HV` | a deep copy (see `Clone`) of whatever is there | a struct field for a part that stays loose |
 | a type with `UnmarshalJSON` or `UnmarshalText`, such as `time.Time` | whatever it accepts | `scalar.To[time.Time](doc.At("posted"))` |
-| `[]byte` | a byte string's bytes, or text in base64, as `encoding/json` takes it | `scalar.To[[]byte](doc.At("blob"))` |
+| `[]byte` | a byte string's bytes, or text in base64, as `encoding/json` takes it | `scalar.To[[]byte](doc.At("samples"))` |
 
-These nest as you'd expect: `[]Posting` takes an array of hashes,
+These nest as you'd expect: `[]Event` takes an array of hashes,
 `map[string][]string` a hash of arrays. The source can be a scalar holding an
 array or hash, or the array or hash itself: `scalar.To[[]string](a)` works
-for an `*AV`, as does `scalar.To[[]string]([]any{"Go", "SQL"})` for a Go value.
+for an `*AV`, as does `scalar.To[[]string]([]any{"PAS", "GSC"})` for a Go value.
 
 ### How values convert
 
@@ -1787,15 +1788,15 @@ from a zero, which `Str`, `Int` and `Num` can't, as they give `""` and `0`
 for undef:
 
 ```go
-bonus, err := scalar.To[*int](doc.At("bonus"))     // nil if there's no bonus, or it's null
-min, err := scalar.To[*float64](doc.At("min"))     // nil, or a pointer to the number
-period, err := scalar.To[*string](doc.At("period"))
+felt, err := scalar.To[*int](doc.At("felt"))           // nil if no one reported it, or it's null
+magErr, err := scalar.To[*float64](doc.At("error"))    // nil, or a pointer to the number
+magType, err := scalar.To[*string](doc.At("magType"))
 ```
 
 There's no `StrPtr` or `NumPtr` method, because `To[*T]` does this for any
 type, and inside structs too, so a struct with `*string` and `*float64`
-fields (as the model's metadata has) fills in one call. It's also checked:
-`To[*float64]` refuses `"competitive"` with an error, where `Num` would make
+fields (as a feed's optional fields often are) fills in one call. It's also
+checked: `To[*float64]` refuses `"unknown"` with an error, where `Num` would make
 it `0` and a pointer method would have to choose between the two.
 
 | You want | Use |
@@ -1817,16 +1818,16 @@ error is a `*scalar.DecodeError`, whose `Path` is written as `At` takes it,
 so it leads straight to the value:
 
 ```go
-p, err := scalar.To[Posting](doc)
-// scalar: Decode: salary.max: want int, got "competitive"
+e, err := scalar.To[Event](doc)
+// scalar: Decode: depth.km: want int, got "unknown"
 
 var de *scalar.DecodeError
 if errors.As(err, &de) {
-	log.Printf("%s is %s", de.Path, doc.At(de.Path).Dump())   // salary.max is "competitive"
+	log.Printf("%s is %s", de.Path, doc.At(de.Path).Dump())   // depth.km is "unknown"
 }
 ```
 
-Paths look like `salary.max`, `skills[2]` or `meta{log.level}`, the last for
+Paths look like `depth.km`, `stations[2]` or `meta{log.level}`, the last for
 a key that isn't a plain word. An empty path means the value itself.
 
 Data that refers back to itself is an error too, where decoding it into a
@@ -1841,8 +1842,8 @@ fields with no key are left alone, it can fill in a struct whose defaults
 are already set:
 
 ```go
-p := Posting{Title: "Untitled"}          // the default
-if err := doc.Decode(&p); err != nil {   // a title in doc replaces it; none leaves it
+e := Event{Place: "unknown"}             // the default
+if err := doc.Decode(&e); err != nil {   // a place in doc replaces it; none leaves it
 	return err
 }
 ```
@@ -1867,12 +1868,11 @@ refuses one with an error, but `Value` has no error to return, and
 following the loop would overflow the stack, which kills the program.
 
 ```go
-result.At("occupation").Set(occupations.Summarise(cd)) // a soc.Summary, as a hash
+doc.At("origin").Set(Origin{Lat: 35.7, Lon: -117.6})   // a struct, as a hash
 ```
 
 Perl has no structs, so this goes beyond it, as `Decode` does, for Go's
-sake. Before, a struct was stringified with `fmt.Sprint`, quietly: found
-writing `cmd/grammarrules`, where it took a JSON round trip each time.
+sake.
 
 ### Which way out?
 
@@ -2010,8 +2010,8 @@ g.Go(func() error {
 	if err != nil {
 		return err
 	}
-	p, err := scalar.To[Posting](doc) // the shape is known: into Go
-	results[i] = p                    // a plain struct, safe to share
+	e, err := scalar.To[Event](doc) // the shape is known: into Go
+	results[i] = e                  // a plain struct, safe to share
 	return err
 })
 ```
@@ -2026,10 +2026,10 @@ g.Go(func() error {
 ```go
 doc, _ := scalar.FromJSON(body)
 doc.Lock()
-doc.At("pay.min")              // reading what's there is as usual
-doc.At("titel")                // panics: Attempt to access disallowed key 'titel' in a restricted hash
-doc.At("pay.max").Set(30000)   // panics: as it would add a key
-doc.At("pay.min").Set(1)       // panics: Modification of a read-only value attempted
+doc.At("depth.km")              // reading what's there is as usual
+doc.At("plcae")                 // panics: Attempt to access disallowed key 'plcae' in a restricted hash
+doc.At("depth.error").Set(0.5)  // panics: as it would add a key
+doc.At("depth.km").Set(1)       // panics: Modification of a read-only value attempted
 ```
 
 | Locked | Like Perl's | Reading | Writing |
@@ -2146,8 +2146,8 @@ package is:
 > structs as soon as you know the shape, and keep the core of the program
 > typed.**
 
-`To` is that conversion, in one step: `scalar.To[Posting](doc)` gives you a
-`Posting`, or an error saying which value didn't fit. See
+`To` is that conversion, in one step: `scalar.To[Event](doc)` gives you an
+`Event`, or an error saying which value didn't fit. See
 [Into Go values](#into-go-values-to-and-decode).
 
 It's also what makes concurrent code safe. A struct of plain values can be

@@ -133,10 +133,10 @@ needs to be.
 | For | Use | Perl |
 |---|---|---|
 | Reading nested data | `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `MustPath` to compile a route once | `$r->{content}[0]{text}` |
-| Searching nested data | `Find("$..skills[*]")`, `Find("$.jobs[?@.salary.min > 30000]")`, JSONPath (RFC 9535, all of it); `QuoteJSONPath` to put a Go value into a query | |
+| Searching nested data | `Find("$..stations[*]")`, `Find("$.features[?@.properties.mag >= 4.5]")`, JSONPath (RFC 9535, all of it); `QuoteJSONPath` to put a Go value into a query | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
-| Filling in text | `Interpolate("$title in $location: @skills")`, with `MustTemplate` to compile one and set the list separator | `"$title: @skills"`, `$"` |
+| Filling in text | `Interpolate("M$mag near $place: @stations")`, with `MustTemplate` to compile one and set the list separator | `"$place: @stations"`, `$"` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
 | Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
