@@ -45,7 +45,11 @@ for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
 	fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
 }
 
-// Then back to ordinary, typed Go.
+// Then back to ordinary, typed Go: the fields you want, checked.
+type Quake struct {
+	Mag   float64 `json:"mag"`
+	Place string  `json:"place"`
+}
 quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
 ```
 
