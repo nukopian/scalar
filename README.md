@@ -203,21 +203,18 @@ The grammar package, in [grammar/](grammar/), has a licence of its own.
 
 ## Acknowledgements
 
-The ideas here aren't new. `scalar` borrows Perl's way with data: undef
-that passes harmlessly through a chain, autovivification, context, list
-utilities, and a regex at every turn. It's tested against Perl itself to
-keep its behaviour faithful. Thanks to the Perl community for decades of
-thought about handling messy data well.
+The ideas here aren't new. Most come from Perl, and the rest from
+JSONPath, functional programming and a few CPAN modules. Thanks to the
+Perl community, whose thinking about messy data I've leaned on for years,
+and to the authors of the JSONPath Compliance Test Suite, which keeps
+`Find` honest.
 
-`scalar` was conceived and directed by Iain Campbell (nukopian). He set
-its rules: Perl as the baseline, checked against Perl itself, with any
-difference from Perl only where Go can't follow, each one documented;
-tests first; and speed changes kept only when measured. He decided what
-to build and what not to, and reviewed and committed each change. Most of
-the code, tests and documentation were written by Claude, Anthropic's AI
-model, working to that direction, from the package's first commit on 11
-October 2026, and every commit credits Claude in a `Co-Authored-By`
-trailer.
+Claude, Anthropic's AI model, wrote most of the code, tests and
+documentation, and every commit says so in a `Co-Authored-By` trailer. My
+part was deciding what `scalar` should do and
+what it shouldn't, setting the rules it's built by (they're in
+[CLAUDE.md](CLAUDE.md)), and reviewing the work. It has been a
+partnership, and I've learned a good deal of Go along the way.
 
-`scalar` was extracted, with its history, from a larger project, so some
-commit messages mention packages that stayed behind.
+`scalar` started inside a larger project and was extracted with its
+history, so some commit messages mention packages that stayed behind.
