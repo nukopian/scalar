@@ -159,15 +159,15 @@ func ExampleAV_PopN() {
 }
 
 func ExampleAV_ShiftN() {
-	queue := scalar.Array("job1", "job2", "job3", "job4", "job5")
+	queue := scalar.Array("PAS", "GSC", "ISA", "SVD", "BBR")
 	for queue.Length() > 0 {
 		batch := queue.ShiftN(2) // splice(@queue, 0, 2): the next batch
 		fmt.Println(batch.Join(","))
 	}
 	// Output:
-	// job1,job2
-	// job3,job4
-	// job5
+	// PAS,GSC
+	// ISA,SVD
+	// BBR
 }
 
 func ExampleAV_Splice() {
@@ -329,25 +329,25 @@ func ExampleAV_SplitAtSlice() {
 }
 
 func ExampleAV_Clone() {
-	rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
-	mine := rows.Clone()                                                        // dclone(\@rows): the rows too, not just the list
-	mine.Get(0).At("title").Set("Perl Developer")
-	fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
+	rows := scalar.Array(scalar.Value(map[string]any{"place": "Cobb, CA"})) // one row: a hash reference
+	mine := rows.Clone()                                                    // dclone(\@rows): the rows too, not just the list
+	mine.Get(0).At("place").Set("Anza, CA")
+	fmt.Println(rows.Get(0).At("place"), "/", mine.Get(0).At("place"))
 	// Output:
-	// Go Developer / Perl Developer
+	// Cobb, CA / Anza, CA
 }
 
 func ExampleAV_Equal() {
-	a := scalar.Array("Go", 1)
-	fmt.Println(a.Equal([]any{"Go", "1"}), a.Equal([]any{"Go"}))
+	a := scalar.Array("PAS", 1)
+	fmt.Println(a.Equal([]any{"PAS", "1"}), a.Equal([]any{"PAS"}))
 	// Output:
 	// true false
 }
 
 func ExampleAV_Diff() {
-	fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
+	fmt.Println(scalar.Array("PAS", "GSC").Diff([]string{"PAS"}))
 	// Output:
-	// [1]: got "SQL", want does not exist
+	// [1]: got "GSC", want does not exist
 }
 
 func ExampleAV_Apply() {

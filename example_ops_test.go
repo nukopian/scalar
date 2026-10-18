@@ -149,11 +149,11 @@ func ExampleSV_PowInPlace() {
 }
 
 func ExampleSV_ConcatInPlace() {
-	s := scalar.Value("Go")
-	s.ConcatInPlace(" developer") // $s .= " developer"
+	s := scalar.Value("M5.1")
+	s.ConcatInPlace(" near Ridgecrest") // $s .= " near Ridgecrest"
 	fmt.Println(s)
 	// Output:
-	// Go developer
+	// M5.1 near Ridgecrest
 }
 
 func ExampleSV_RepeatInPlace() {

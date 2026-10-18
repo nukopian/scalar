@@ -9,12 +9,12 @@ import (
 	"github.com/nukopian/scalar"
 )
 
-var isRemote = func(s *scalar.SV) bool { return s.M(`(?i)\bremote\b`) != nil }
+var isOffshore = func(s *scalar.SV) bool { return s.M(`(?i)\boffshore\b`) != nil }
 
 func ExampleAV_AnyMatch() {
-	lines := scalar.Array("Office in Leeds", "Remote working available")
-	fmt.Println(lines.AnyMatch(isRemote)) // any { /remote/i } @lines
-	fmt.Println(scalar.Array().AnyMatch(isRemote))
+	places := scalar.Array("5 km W of Cobb, CA", "Offshore Northern California")
+	fmt.Println(places.AnyMatch(isOffshore)) // any { /offshore/i } @places
+	fmt.Println(scalar.Array().AnyMatch(isOffshore))
 	// Output:
 	// true
 	// false
@@ -23,25 +23,25 @@ func ExampleAV_AnyMatch() {
 func ExampleAV_AllMatch() {
 	n := scalar.Array(2, 4, 6)
 	fmt.Println(n.AllMatch(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })) // all { $_ % 2 == 0 }
-	fmt.Println(scalar.Array().AllMatch(isRemote))                                  // true for nothing
+	fmt.Println(scalar.Array().AllMatch(isOffshore))                                // true for nothing
 	// Output:
 	// true
 	// true
 }
 
 func ExampleAV_NoneMatch() {
-	fmt.Println(scalar.Array("Leeds", "York").NoneMatch(isRemote))
+	fmt.Println(scalar.Array("Ridgecrest", "Cobb").NoneMatch(isOffshore))
 	// Output:
 	// true
 }
 
 func ExampleAV_FirstMatch() {
-	lines := scalar.Array("Leeds office", "Salary: £45k", "Salary: £50k")
-	salary := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
-	fmt.Println(salary) // first { index($_, "£") >= 0 } @lines
-	fmt.Println(lines.FirstMatch(isRemote).Defined())
+	lines := scalar.Array("Origin: 35.7N 117.6W", "Magnitude: 5.1 ml", "Magnitude: 5.3 mw")
+	mag := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("Magnitude") >= 0 })
+	fmt.Println(mag) // first { index($_, "Magnitude") >= 0 } @lines
+	fmt.Println(lines.FirstMatch(isOffshore).Defined())
 	// Output:
-	// Salary: £45k
+	// Magnitude: 5.1 ml
 	// false
 }
 
@@ -70,12 +70,12 @@ func ExampleAV_MinStr() {
 }
 
 func ExampleAV_UniqueStr() {
-	fmt.Println(scalar.Array("Go", "go", "Go", "Perl").UniqueStr().Join(",")) // first of each, in order
-	skills := scalar.Array("Go", "go", "Perl")
-	fmt.Println(skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
+	fmt.Println(scalar.Array("PAS", "pas", "PAS", "GSC").UniqueStr().Join(",")) // first of each, in order
+	stations := scalar.Array("PAS", "pas", "GSC")
+	fmt.Println(stations.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
 	// Output:
-	// Go,go,Perl
-	// go,perl
+	// PAS,pas,GSC
+	// pas,gsc
 }
 
 func ExampleAV_UniqueNum() {
@@ -121,19 +121,19 @@ func ExampleAV_Reduce() {
 }
 
 func ExampleAV_SortByStr() {
-	titles := scalar.Array("data engineer", "Go Developer", "Analyst")
-	byTitle := titles.SortByStr(func(t *scalar.SV) any { return t.Fc() }) // sort_by { fc } @titles
-	fmt.Println(byTitle.Join(", "))
+	places := scalar.Array("ridgecrest", "Cobb", "Anza")
+	byName := places.SortByStr(func(p *scalar.SV) any { return p.Fc() }) // sort_by { fc } @places
+	fmt.Println(byName.Join(", "))
 	// Output:
-	// Analyst, data engineer, Go Developer
+	// Anza, Cobb, ridgecrest
 }
 
 func ExampleAV_SortByNum() {
-	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
-	bySalary := jobs.AV().SortByNum(func(j *scalar.SV) any { return j.At("salary") }) // nsort_by { $_->{salary} }
-	fmt.Println(bySalary.Get(0).At("title"), bySalary.Get(1).At("title"))
+	quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "mag": 5.1}, {"place": "Cobb", "mag": 2.3}]`))
+	byMag := quakes.AV().SortByNum(func(q *scalar.SV) any { return q.At("mag") }) // nsort_by { $_->{mag} }
+	fmt.Println(byMag.Get(0).At("place"), byMag.Get(1).At("place"))
 	// Output:
-	// SQL Go
+	// Cobb Ridgecrest
 }
 
 func ExampleAV_RevSortByStr() {
@@ -144,19 +144,19 @@ func ExampleAV_RevSortByStr() {
 }
 
 func ExampleAV_RevSortByNum() {
-	jobs, _ := scalar.FromJSON([]byte(`[{"title": "SQL", "salary": 30000}, {"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}]`))
-	best := jobs.AV().RevSortByNum(func(j *scalar.SV) any { return j.At("salary") }) // the best paid first
-	fmt.Println(best.Get(0).At("title"), best.Get(1).At("title"), best.Get(2).At("title"))
+	quakes, _ := scalar.FromJSON([]byte(`[{"place": "Cobb", "mag": 2.3}, {"place": "Ridgecrest", "mag": 5.1}, {"place": "Anza", "mag": 5.1}]`))
+	strongest := quakes.AV().RevSortByNum(func(q *scalar.SV) any { return q.At("mag") }) // the strongest first
+	fmt.Println(strongest.Get(0).At("place"), strongest.Get(1).At("place"), strongest.Get(2).At("place"))
 	// Output:
-	// Go Perl SQL
+	// Ridgecrest Anza Cobb
 }
 
 func ExampleAV_MaxBy() {
-	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
-	best := jobs.AV().MaxBy(func(j *scalar.SV) any { return j.At("salary") }) // max_by { $_->{salary} }
-	fmt.Println(best.At("title"))                                             // the first of the best paid
+	quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "mag": 5.1}, {"place": "Anza", "mag": 5.1}, {"place": "Cobb", "mag": 2.3}]`))
+	strongest := quakes.AV().MaxBy(func(q *scalar.SV) any { return q.At("mag") }) // max_by { $_->{mag} }
+	fmt.Println(strongest.At("place"))                                            // the first of the strongest
 	// Output:
-	// Go
+	// Ridgecrest
 }
 
 func ExampleAV_MinBy() {
@@ -167,11 +167,11 @@ func ExampleAV_MinBy() {
 }
 
 func ExampleAV_UniqueBy() {
-	jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "level": "Senior"}, {"title": "SQL", "level": "Junior"}, {"title": "Perl", "level": "Senior"}]`))
-	oneEach := jobs.AV().UniqueBy(func(j *scalar.SV) any { return j.At("level") }) // the first job at each level
-	fmt.Println(oneEach.Length(), oneEach.Get(0).At("title"), oneEach.Get(1).At("title"))
+	quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "net": "ci"}, {"place": "Cobb", "net": "nc"}, {"place": "Anza", "net": "ci"}]`))
+	oneEach := quakes.AV().UniqueBy(func(q *scalar.SV) any { return q.At("net") }) // the first quake from each network
+	fmt.Println(oneEach.Length(), oneEach.Get(0).At("place"), oneEach.Get(1).At("place"))
 	// Output:
-	// 2 Go SQL
+	// 2 Ridgecrest Cobb
 }
 
 func ExampleAV_PartitionBy() {
@@ -183,11 +183,11 @@ func ExampleAV_PartitionBy() {
 }
 
 func ExampleAV_CountBy() {
-	places := scalar.Array("Leeds", "London", "leeds", "LEEDS")
+	places := scalar.Array("Ridgecrest", "Cobb", "ridgecrest", "RIDGECREST")
 	where := places.CountBy(func(p *scalar.SV) any { return p.Fc() }) // a Bag: count_by's counts, with MostCommon
-	fmt.Println(where.MostCommon(1).Get(0), where.Count("leeds"), where.Counts())
+	fmt.Println(where.MostCommon(1).Get(0), where.Count("ridgecrest"), where.Counts())
 	// Output:
-	// leeds 3 {leeds => 3,london => 1}
+	// ridgecrest 3 {cobb => 1,ridgecrest => 3}
 }
 
 func ExampleAV_ExtractBy() {

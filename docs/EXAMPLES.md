@@ -1002,19 +1002,19 @@ fmt.Println(scalar.Value(12345).Length())  // in string context
 Substr is Perl's substr($s, offset) or substr($s, offset, length): a new scalar holding part of s in string context, counted in characters.
 
 ```go
-s := scalar.Value("Senior Go Developer")
-fmt.Println(s.Substr(7))            // substr($s, 7)
-fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
-fmt.Println(s.Substr(-9))           // from the end
-fmt.Println(s.Substr(0, -10))       // all but the last 10
+s := scalar.Value("12 km NNE of Ridgecrest, CA")
+fmt.Println(s.Substr(13))           // substr($s, 13)
+fmt.Println(s.Substr(13, 10))       // substr($s, 13, 10)
+fmt.Println(s.Substr(-2))           // from the end
+fmt.Println(s.Substr(0, -15))       // all but the last 15
 fmt.Println(s.Substr(99).Defined()) // entirely outside: undef
 ```
 
 ```
-Go Developer
-Go
-Developer
-Senior Go
+Ridgecrest, CA
+Ridgecrest
+CA
+12 km NNE of
 false
 ```
 
@@ -1023,13 +1023,13 @@ false
 SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
 
 ```go
-s := scalar.Value("Junior Go Developer")
-old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
+s := scalar.Value("12 km NNE of Ridgecrest, CA")
+old := s.SubstrReplace(0, 2, "15") // substr($s, 0, 2) = "15"
 fmt.Println(s, "/", old)
 ```
 
 ```
-Senior Go Developer / Junior
+15 km NNE of Ridgecrest, CA / 12
 ```
 
 #### `SV.Index`
@@ -1144,13 +1144,13 @@ fmt.Printf("%q\n", scalar.Value("\u00a0 padded \t").Trim()) // Unicode spaces to
 QuoteMeta is Perl's quotemeta: x in string context with every character that could mean something in a pattern backslash-escaped, so that it matches literally.
 
 ```go
-fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
-posting := scalar.Value("Skills: C++ and .NET")
-fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
+fmt.Println(scalar.QuoteMeta("M4.5+ (USGS)"))
+alert := scalar.Value("Alerts for M4.5+ quakes")
+fmt.Println(alert.M(scalar.QuoteMeta("M4.5+")) != nil) // a literal match
 ```
 
 ```
-C\+\+\ \(\.NET\)
+M4\.5\+\ \(USGS\)
 true
 ```
 
@@ -1159,19 +1159,19 @@ true
 Interpolate fills in a template from s, as Perl interpolates variables in a double-quoted string, with the keys of the hash s holds as the variables:
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "location": "Leeds",
-	"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
-fmt.Println(doc.Interpolate("$title in $location: @skills"))   // doc's keys are the variables
-fmt.Println(doc.Interpolate("Up to $salary{max}"))             // subscripts, as in Perl
-fmt.Println(doc.Interpolate("Up to ${salary.max}"))            // any At path in ${...}
-fmt.Println(doc.Interpolate(`[$bonus] \$5 jobs\@example.com`)) // missing is ""; \$ and \@ are literal
+doc, _ := scalar.FromJSON([]byte(`{"mag": 5.1, "place": "Ridgecrest, CA",
+	"stations": ["PAS", "GSC"], "depth": {"km": 8}}`))
+fmt.Println(doc.Interpolate("M$mag near $place: @stations"))   // doc's keys are the variables
+fmt.Println(doc.Interpolate("Depth $depth{km} km"))            // subscripts, as in Perl
+fmt.Println(doc.Interpolate("Depth ${depth.km} km"))           // any At path in ${...}
+fmt.Println(doc.Interpolate(`[$cdi] \$0 alerts\@example.com`)) // missing is ""; \$ and \@ are literal
 ```
 
 ```
-Go Developer in Leeds: Go SQL
-Up to 55000
-Up to 55000
-[] $5 jobs@example.com
+M5.1 near Ridgecrest, CA: PAS GSC
+Depth 8 km
+Depth 8 km
+[] $0 alerts@example.com
 ```
 
 #### `HV.Interpolate`
@@ -1192,13 +1192,13 @@ Ada writes Go Perl
 MustTemplate is CompileTemplate, panicking if the template is malformed.
 
 ```go
-var summary = scalar.MustTemplate("$title. Skills: @skills.") // parsed once
-doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+var summary = scalar.MustTemplate("$place. Stations: @stations.") // parsed once
+doc, _ := scalar.FromJSON([]byte(`{"place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]}`))
 fmt.Println(doc.Interpolate(summary))
 ```
 
 ```
-Go Developer. Skills: Go SQL.
+Ridgecrest, CA. Stations: PAS GSC.
 ```
 
 #### `CompileTemplate`
@@ -1206,12 +1206,12 @@ Go Developer. Skills: Go SQL.
 CompileTemplate compiles a template for Interpolate, or returns an error if it's malformed, for templates that come from outside the program.
 
 ```go
-t, err := scalar.CompileTemplate("Up to ${salary.max") // a template from outside the program: check it
+t, err := scalar.CompileTemplate("Depth ${depth.km") // a template from outside the program: check it
 fmt.Println(t == nil, err)
 ```
 
 ```
-true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
+true scalar: bad template "Depth ${depth.km" at offset 7: no } to match the {
 ```
 
 #### `Template.ListSeparator`
@@ -1219,12 +1219,12 @@ true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
 ListSeparator returns a copy of t that joins the elements of an array with sep, as local $" = sep does in Perl.
 
 ```go
-t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
-fmt.Println(scalar.Hash("skills", scalar.Value([]string{"Go", "SQL"})).Interpolate(t))
+t := scalar.MustTemplate("Stations: @stations").ListSeparator(", ") // local $" = ", "
+fmt.Println(scalar.Hash("stations", scalar.Value([]string{"PAS", "GSC"})).Interpolate(t))
 ```
 
 ```
-Skills: Go, SQL
+Stations: PAS, GSC
 ```
 
 #### `Template.String`
@@ -1232,11 +1232,11 @@ Skills: Go, SQL
 String returns the template as written.
 
 ```go
-fmt.Println(scalar.MustTemplate("$title in $location"))
+fmt.Println(scalar.MustTemplate("M$mag near $place"))
 ```
 
 ```
-$title in $location
+M$mag near $place
 ```
 
 ### Reference: Operators
@@ -1486,13 +1486,13 @@ fmt.Println(s)
 ConcatInPlace is Perl's .=.
 
 ```go
-s := scalar.Value("Go")
-s.ConcatInPlace(" developer") // $s .= " developer"
+s := scalar.Value("M5.1")
+s.ConcatInPlace(" near Ridgecrest") // $s .= " near Ridgecrest"
 fmt.Println(s)
 ```
 
 ```
-Go developer
+M5.1 near Ridgecrest
 ```
 
 #### `SV.RepeatInPlace`
@@ -1915,7 +1915,7 @@ a,b | 0
 ShiftN removes the first n elements and returns them, in array order, as splice(@a, 0, n) does: Array(1, 2, 3, 4).ShiftN(2) gives 1, 2 and leaves 3, 4.
 
 ```go
-queue := scalar.Array("job1", "job2", "job3", "job4", "job5")
+queue := scalar.Array("PAS", "GSC", "ISA", "SVD", "BBR")
 for queue.Length() > 0 {
 	batch := queue.ShiftN(2) // splice(@queue, 0, 2): the next batch
 	fmt.Println(batch.Join(","))
@@ -1923,9 +1923,9 @@ for queue.Length() > 0 {
 ```
 
 ```
-job1,job2
-job3,job4
-job5
+PAS,GSC
+ISA,SVD
+BBR
 ```
 
 #### `AV.Splice`
@@ -2199,14 +2199,14 @@ fmt.Println(year, month, day, rest.Length())
 Clone returns a deep copy of a, as dclone(\@a) does; see `SV.Clone`.
 
 ```go
-rows := scalar.Array(scalar.Value(map[string]any{"title": "Go Developer"})) // one row: a hash reference
-mine := rows.Clone()                                                        // dclone(\@rows): the rows too, not just the list
-mine.Get(0).At("title").Set("Perl Developer")
-fmt.Println(rows.Get(0).At("title"), "/", mine.Get(0).At("title"))
+rows := scalar.Array(scalar.Value(map[string]any{"place": "Cobb, CA"})) // one row: a hash reference
+mine := rows.Clone()                                                    // dclone(\@rows): the rows too, not just the list
+mine.Get(0).At("place").Set("Anza, CA")
+fmt.Println(rows.Get(0).At("place"), "/", mine.Get(0).At("place"))
 ```
 
 ```
-Go Developer / Perl Developer
+Cobb, CA / Anza, CA
 ```
 
 #### `AV.Equal`
@@ -2214,8 +2214,8 @@ Go Developer / Perl Developer
 Equal reports whether a and other hold the same data; see `SV.Equal`.
 
 ```go
-a := scalar.Array("Go", 1)
-fmt.Println(a.Equal([]any{"Go", "1"}), a.Equal([]any{"Go"}))
+a := scalar.Array("PAS", 1)
+fmt.Println(a.Equal([]any{"PAS", "1"}), a.Equal([]any{"PAS"}))
 ```
 
 ```
@@ -2227,11 +2227,11 @@ true false
 Diff says where a and other first differ; see `SV.Diff`.
 
 ```go
-fmt.Println(scalar.Array("Go", "SQL").Diff([]string{"Go"}))
+fmt.Println(scalar.Array("PAS", "GSC").Diff([]string{"PAS"}))
 ```
 
 ```
-[1]: got "SQL", want does not exist
+[1]: got "GSC", want does not exist
 ```
 
 #### `AV.Apply`
@@ -2426,12 +2426,12 @@ Ada 36
 String returns h on one line, as Dump does but with Indent = 0, so `fmt.Println`(h) shows its keys and values: {a => 1,b => [2]}.
 
 ```go
-h := scalar.Hash("title", "Go Developer", "log level", "debug")
+h := scalar.Hash("place", "Cobb, CA", "log level", "debug")
 fmt.Println(h) // keys sorted, and quoted only when they need to be
 ```
 
 ```
-{"log level" => "debug",title => "Go Developer"}
+{"log level" => "debug",place => "Cobb, CA"}
 ```
 
 #### `HV.Dump`
@@ -2514,17 +2514,17 @@ go,perl
 Push adds key/value pairs to h and returns h.
 
 ```go
-h := scalar.Hash("title", "Developer")
-h.Push("location", "Leeds", "salary", 45000) // $h{location} = "Leeds"; $h{salary} = 45000
-defaults := scalar.Hash("remote", false, "salary", 0)
-h.Push(defaults, "salary", 50000) // merge, later keys winning
+h := scalar.Hash("id", "ci40123456")
+h.Push("place", "Ridgecrest, CA", "felt", 1204) // $h{place} = "Ridgecrest, CA"; $h{felt} = 1204
+defaults := scalar.Hash("tsunami", false, "felt", 0)
+h.Push(defaults, "felt", 1500) // merge, later keys winning
 fmt.Println(h.Keys().Sort(nil).Join(","))
-fmt.Println(h.Get("salary"))
+fmt.Println(h.Get("felt"))
 ```
 
 ```
-location,remote,salary,title
-50000
+felt,id,place,tsunami
+1500
 ```
 
 #### `HV.Exists`
@@ -2532,8 +2532,8 @@ location,remote,salary,title
 Exists is Perl's exists.
 
 ```go
-h := scalar.Hash("salary", nil)
-fmt.Println(h.Exists("salary"), h.Exists("bonus")) // there, though undef
+h := scalar.Hash("felt", nil)
+fmt.Println(h.Exists("felt"), h.Exists("cdi")) // there, though undef
 ```
 
 ```
@@ -2545,8 +2545,8 @@ true false
 Defined is Perl's defined $h{key}: whether key exists and its value isn't undef.
 
 ```go
-h := scalar.Hash("salary", nil, "title", "Developer")
-fmt.Println(h.Defined("salary"), h.Defined("title"))
+h := scalar.Hash("felt", nil, "place", "Cobb, CA")
+fmt.Println(h.Defined("felt"), h.Defined("place"))
 ```
 
 ```
@@ -2573,16 +2573,16 @@ false
 Clone returns a deep copy of h, as dclone(\%h) does; see `SV.Clone`.
 
 ```go
-defaults := scalar.Hash("remote", false, "tags", scalar.Value([]string{"go"}))
+defaults := scalar.Hash("tsunami", false, "stations", scalar.Value([]string{"PAS"}))
 row := defaults.Clone() // dclone(\%defaults): nested arrays too
-row.Get("tags").AV().Push("perl")
-merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
-merged.Get("tags").AV().Push("sql")
-fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(","))
+row.Get("stations").AV().Push("GSC")
+merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same stations array
+merged.Get("stations").AV().Push("ISA")
+fmt.Println(defaults.Get("stations").AV().Join(","), "/", row.Get("stations").AV().Join(","))
 ```
 
 ```
-go,sql / go,perl
+PAS,ISA / PAS,GSC
 ```
 
 #### `HV.Equal`
@@ -2590,8 +2590,8 @@ go,sql / go,perl
 Equal reports whether h and other hold the same data; see `SV.Equal`.
 
 ```go
-h := scalar.Hash("remote", true, "days", 2)
-fmt.Println(h.Equal(map[string]any{"remote": 1, "days": "2"})) // true is 1, as in Perl
+h := scalar.Hash("tsunami", true, "felt", 2)
+fmt.Println(h.Equal(map[string]any{"tsunami": 1, "felt": "2"})) // true is 1, as in Perl
 ```
 
 ```
@@ -2603,12 +2603,12 @@ true
 Diff says where h and other first differ; see `SV.Diff`.
 
 ```go
-h := scalar.Hash("bonus", nil)
+h := scalar.Hash("felt", nil)
 fmt.Println(h.Diff(map[string]any{})) // a key whose value is undef isn't a missing key
 ```
 
 ```
-bonus: got undef, want does not exist
+felt: got undef, want does not exist
 ```
 
 #### `HV.Apply`
@@ -2616,18 +2616,18 @@ bonus: got undef, want does not exist
 Apply calls f on every plain value in h, all the way down, as rmap { ...
 
 ```go
-row := scalar.Hash("title", "go developer", "remote", true)
+row := scalar.Hash("place", "ridgecrest, CA", "tsunami", true)
 row.Apply(func(v *scalar.SV) any {
 	if v.Kind() == scalar.String {
 		return v.UcFirst()
 	}
 	return v
 })
-fmt.Println(row.Get("title"), row.Get("remote"))
+fmt.Println(row.Get("place"), row.Get("tsunami"))
 ```
 
 ```
-Go developer 1
+Ridgecrest, CA 1
 ```
 
 #### `HV.Pairs`
@@ -2785,9 +2785,9 @@ fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallie
 AtOK is `SV.AtOK`, starting at h.
 
 ```go
-h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", nil)))
-_, ok := h.AtOK("pay.min") // exists, though undef
-_, missing := h.AtOK("pay.max")
+h := scalar.Hash("depth", scalar.Value(scalar.Hash("error", nil)))
+_, ok := h.AtOK("depth.error") // exists, though undef
+_, missing := h.AtOK("depth.km")
 fmt.Println(ok, missing)
 ```
 
@@ -2800,14 +2800,14 @@ true false
 DeleteAt is `SV.DeleteAt`, starting at h.
 
 ```go
-h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
-fmt.Println(h.DeleteAt("pay.max")) // delete $h{pay}{max}
-fmt.Println(h.At("pay").HV().KeysSlice())
+h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
+fmt.Println(h.DeleteAt("depth.error")) // delete $h{depth}{error}
+fmt.Println(h.At("depth").HV().KeysSlice())
 ```
 
 ```
-55000
-[min]
+2
+[km]
 ```
 
 #### `HV.Path`
@@ -2844,13 +2844,13 @@ go true false
 DeletePath is `SV.DeletePath`, starting at h.
 
 ```go
-section, key := "pay", "max" // from data
-h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+section, key := "depth", "error" // from data
+h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
 fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
 ```
 
 ```
-55000
+2
 ```
 
 #### `HV.Undef`
@@ -2875,15 +2875,15 @@ Map builds a new hash from h, as %new = map { f($_, $h{$_}) } keys %h does: f ge
 Map builds a new hash, renaming keys or changing values or both. The old hash is unchanged.
 
 ```go
-pay := scalar.Hash("min", 40000, "max", 50000)
-k := pay.Map(func(key string, v *scalar.SV) (string, any) {
-	return "pay_" + key, v.Div(1000).Str() + "k"
+depth := scalar.Hash("min", 2000, "max", 12500) // metres
+km := depth.Map(func(key string, v *scalar.SV) (string, any) {
+	return "depth_" + key, v.Div(1000).Str() + " km"
 })
-fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
+fmt.Println(km.Get("depth_min"), "-", km.Get("depth_max"), depth.Get("min"))
 ```
 
 ```
-40k 50k 40000
+2 km - 12.5 km 2000
 ```
 
 #### `HV.Lock`
@@ -2939,9 +2939,9 @@ false true
 AnyMatch is List::Util's any: whether f is true for at least one element.
 
 ```go
-lines := scalar.Array("Office in Leeds", "Remote working available")
-fmt.Println(lines.AnyMatch(isRemote)) // any { /remote/i } @lines
-fmt.Println(scalar.Array().AnyMatch(isRemote))
+places := scalar.Array("5 km W of Cobb, CA", "Offshore Northern California")
+fmt.Println(places.AnyMatch(isOffshore)) // any { /offshore/i } @places
+fmt.Println(scalar.Array().AnyMatch(isOffshore))
 ```
 
 ```
@@ -2956,7 +2956,7 @@ AllMatch is List::Util's all: whether f is true for every element.
 ```go
 n := scalar.Array(2, 4, 6)
 fmt.Println(n.AllMatch(func(s *scalar.SV) bool { return s.Mod(2).Int() == 0 })) // all { $_ % 2 == 0 }
-fmt.Println(scalar.Array().AllMatch(isRemote))                                  // true for nothing
+fmt.Println(scalar.Array().AllMatch(isOffshore))                                // true for nothing
 ```
 
 ```
@@ -2969,7 +2969,7 @@ true
 NoneMatch is List::Util's none: whether f is false for every element.
 
 ```go
-fmt.Println(scalar.Array("Leeds", "York").NoneMatch(isRemote))
+fmt.Println(scalar.Array("Ridgecrest", "Cobb").NoneMatch(isOffshore))
 ```
 
 ```
@@ -2981,14 +2981,14 @@ true
 FirstMatch is List::Util's first: the first element for which f is true, or undef if there's none.
 
 ```go
-lines := scalar.Array("Leeds office", "Salary: £45k", "Salary: £50k")
-salary := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("£") >= 0 })
-fmt.Println(salary) // first { index($_, "£") >= 0 } @lines
-fmt.Println(lines.FirstMatch(isRemote).Defined())
+lines := scalar.Array("Origin: 35.7N 117.6W", "Magnitude: 5.1 ml", "Magnitude: 5.3 mw")
+mag := lines.FirstMatch(func(s *scalar.SV) bool { return s.Index("Magnitude") >= 0 })
+fmt.Println(mag) // first { index($_, "Magnitude") >= 0 } @lines
+fmt.Println(lines.FirstMatch(isOffshore).Defined())
 ```
 
 ```
-Salary: £45k
+Magnitude: 5.1 ml
 false
 ```
 
@@ -3045,14 +3045,14 @@ a
 UniqueStr is List::Util's uniqstr: a new array of copies of the elements, keeping only the first of each distinct string, in order.
 
 ```go
-fmt.Println(scalar.Array("Go", "go", "Go", "Perl").UniqueStr().Join(",")) // first of each, in order
-skills := scalar.Array("Go", "go", "Perl")
-fmt.Println(skills.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
+fmt.Println(scalar.Array("PAS", "pas", "PAS", "GSC").UniqueStr().Join(",")) // first of each, in order
+stations := scalar.Array("PAS", "pas", "GSC")
+fmt.Println(stations.Map(func(s *scalar.SV) any { return s.Fc() }).UniqueStr().Join(",")) // ignoring case
 ```
 
 ```
-Go,go,Perl
-go,perl
+PAS,pas,GSC
+pas,gsc
 ```
 
 #### `AV.UniqueNum`
@@ -3132,13 +3132,13 @@ perl go+perl+c
 SortByStr is List::UtilsBy's sort_by: a sorted copy of a, ordered by the string keys f gives, as sort { $a cmp $b } would order them.
 
 ```go
-titles := scalar.Array("data engineer", "Go Developer", "Analyst")
-byTitle := titles.SortByStr(func(t *scalar.SV) any { return t.Fc() }) // sort_by { fc } @titles
-fmt.Println(byTitle.Join(", "))
+places := scalar.Array("ridgecrest", "Cobb", "Anza")
+byName := places.SortByStr(func(p *scalar.SV) any { return p.Fc() }) // sort_by { fc } @places
+fmt.Println(byName.Join(", "))
 ```
 
 ```
-Analyst, data engineer, Go Developer
+Anza, Cobb, ridgecrest
 ```
 
 #### `AV.SortByNum`
@@ -3146,13 +3146,13 @@ Analyst, data engineer, Go Developer
 SortByNum is List::UtilsBy's nsort_by: as SortByStr, but comparing the keys as numbers.
 
 ```go
-jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
-bySalary := jobs.AV().SortByNum(func(j *scalar.SV) any { return j.At("salary") }) // nsort_by { $_->{salary} }
-fmt.Println(bySalary.Get(0).At("title"), bySalary.Get(1).At("title"))
+quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "mag": 5.1}, {"place": "Cobb", "mag": 2.3}]`))
+byMag := quakes.AV().SortByNum(func(q *scalar.SV) any { return q.At("mag") }) // nsort_by { $_->{mag} }
+fmt.Println(byMag.Get(0).At("place"), byMag.Get(1).At("place"))
 ```
 
 ```
-SQL Go
+Cobb Ridgecrest
 ```
 
 #### `AV.RevSortByStr`
@@ -3173,13 +3173,13 @@ bb dd a e
 RevSortByNum is List::UtilsBy's rev_nsort_by: SortByNum, in descending order, with elements of equal keys keeping their order.
 
 ```go
-jobs, _ := scalar.FromJSON([]byte(`[{"title": "SQL", "salary": 30000}, {"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}]`))
-best := jobs.AV().RevSortByNum(func(j *scalar.SV) any { return j.At("salary") }) // the best paid first
-fmt.Println(best.Get(0).At("title"), best.Get(1).At("title"), best.Get(2).At("title"))
+quakes, _ := scalar.FromJSON([]byte(`[{"place": "Cobb", "mag": 2.3}, {"place": "Ridgecrest", "mag": 5.1}, {"place": "Anza", "mag": 5.1}]`))
+strongest := quakes.AV().RevSortByNum(func(q *scalar.SV) any { return q.At("mag") }) // the strongest first
+fmt.Println(strongest.Get(0).At("place"), strongest.Get(1).At("place"), strongest.Get(2).At("place"))
 ```
 
 ```
-Go Perl SQL
+Ridgecrest Anza Cobb
 ```
 
 #### `AV.MaxBy`
@@ -3187,13 +3187,13 @@ Go Perl SQL
 MaxBy is List::UtilsBy's max_by: the element with the largest numeric key, the first of them if several share it, or undef for an empty array.
 
 ```go
-jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "salary": 60000}, {"title": "Perl", "salary": 60000}, {"title": "SQL", "salary": 30000}]`))
-best := jobs.AV().MaxBy(func(j *scalar.SV) any { return j.At("salary") }) // max_by { $_->{salary} }
-fmt.Println(best.At("title"))                                             // the first of the best paid
+quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "mag": 5.1}, {"place": "Anza", "mag": 5.1}, {"place": "Cobb", "mag": 2.3}]`))
+strongest := quakes.AV().MaxBy(func(q *scalar.SV) any { return q.At("mag") }) // max_by { $_->{mag} }
+fmt.Println(strongest.At("place"))                                            // the first of the strongest
 ```
 
 ```
-Go
+Ridgecrest
 ```
 
 #### `AV.MinBy`
@@ -3214,13 +3214,13 @@ a
 UniqueBy is List::UtilsBy's uniq_by: a new array of copies of the elements, keeping only the first with each key, in order.
 
 ```go
-jobs, _ := scalar.FromJSON([]byte(`[{"title": "Go", "level": "Senior"}, {"title": "SQL", "level": "Junior"}, {"title": "Perl", "level": "Senior"}]`))
-oneEach := jobs.AV().UniqueBy(func(j *scalar.SV) any { return j.At("level") }) // the first job at each level
-fmt.Println(oneEach.Length(), oneEach.Get(0).At("title"), oneEach.Get(1).At("title"))
+quakes, _ := scalar.FromJSON([]byte(`[{"place": "Ridgecrest", "net": "ci"}, {"place": "Cobb", "net": "nc"}, {"place": "Anza", "net": "ci"}]`))
+oneEach := quakes.AV().UniqueBy(func(q *scalar.SV) any { return q.At("net") }) // the first quake from each network
+fmt.Println(oneEach.Length(), oneEach.Get(0).At("place"), oneEach.Get(1).At("place"))
 ```
 
 ```
-2 Go SQL
+2 Ridgecrest Cobb
 ```
 
 #### `AV.PartitionBy`
@@ -3242,13 +3242,13 @@ fmt.Println(byLength)
 CountBy is List::UtilsBy's count_by: how many elements have each key f gives, as a Bag, so MostCommon lists the commonest first.
 
 ```go
-places := scalar.Array("Leeds", "London", "leeds", "LEEDS")
+places := scalar.Array("Ridgecrest", "Cobb", "ridgecrest", "RIDGECREST")
 where := places.CountBy(func(p *scalar.SV) any { return p.Fc() }) // a Bag: count_by's counts, with MostCommon
-fmt.Println(where.MostCommon(1).Get(0), where.Count("leeds"), where.Counts())
+fmt.Println(where.MostCommon(1).Get(0), where.Count("ridgecrest"), where.Counts())
 ```
 
 ```
-leeds 3 {leeds => 3,london => 1}
+ridgecrest 3 {cobb => 1,ridgecrest => 3}
 ```
 
 #### `AV.ExtractBy`
@@ -3404,13 +3404,13 @@ fmt.Println(a.Union(b, scalar.NewSet("d"))) // several at once
 Intersection is Set::Scalar's intersection: a new set of the members of s that are also in every one of others.
 
 ```go
-mine := scalar.NewSet("Go", "Perl", "SQL")
-wanted := scalar.NewSet("Go", "SQL", "Rust")
-fmt.Println(mine.Intersection(wanted)) // the skills I have that are wanted
+recorded := scalar.NewSet("PAS", "GSC", "ISA")
+expected := scalar.NewSet("PAS", "ISA", "SVD")
+fmt.Println(recorded.Intersection(expected)) // the expected stations that recorded the quake
 ```
 
 ```
-(Go SQL)
+(ISA PAS)
 ```
 
 #### `Set.Difference`
@@ -3418,13 +3418,13 @@ fmt.Println(mine.Intersection(wanted)) // the skills I have that are wanted
 Difference is Set::Scalar's difference: a new set of the members of s that are in none of others.
 
 ```go
-wanted := scalar.NewSet("Go", "SQL", "Rust")
-mine := scalar.NewSet("Go", "Perl", "SQL")
-fmt.Println(wanted.Difference(mine)) // what's wanted that I lack
+expected := scalar.NewSet("PAS", "ISA", "SVD")
+recorded := scalar.NewSet("PAS", "GSC", "ISA")
+fmt.Println(expected.Difference(recorded)) // expected, but silent
 ```
 
 ```
-(Rust)
+(SVD)
 ```
 
 #### `Set.SymmetricDifference`
@@ -3534,14 +3534,14 @@ fmt.Println(string(out))
 NewBag returns a bag of vals, flattened as a list is (see `AV.Push`), each counting once, so NewBag("Go", "Go", "Perl") has two Go and one Perl.
 
 ```go
-skills := scalar.NewBag("Go", "Perl", "Go") // each value counts once
-fmt.Println(skills)
+networks := scalar.NewBag("ci", "us", "ci") // each value counts once
+fmt.Println(networks)
 apples := scalar.NewBag().InsertN("apples", 3) // Set::Bag->new(apples => 3)
 fmt.Println(apples)
 ```
 
 ```
-(Go => 2, Perl => 1)
+(ci => 2, us => 1)
 (apples => 3)
 ```
 
@@ -3551,14 +3551,14 @@ Insert adds one of each of vals, flattened as by NewBag, and returns b.
 
 ```go
 var counts scalar.Bag // the zero value is an empty bag
-for _, posting := range [][]string{{"Go", "SQL"}, {"Go", "Perl"}, {"Go"}} {
-	counts.Insert(posting) // count the skills across postings
+for _, day := range [][]string{{"ci", "us"}, {"ci", "nc"}, {"ci"}} {
+	counts.Insert(day) // count the networks across days
 }
 fmt.Println(&counts)
 ```
 
 ```
-(Go => 3, Perl => 1, SQL => 1)
+(ci => 3, nc => 1, us => 1)
 ```
 
 #### `Bag.InsertN`
@@ -3673,14 +3673,14 @@ fmt.Println(counts.Get("Go"), counts.Get("Perl"))
 MostCommon returns copies of the members with the highest counts, most common first, and the first inserted first among equal counts: the top n, or every member if n is left out or there are fewer.
 
 ```go
-skills := scalar.NewBag("SQL", "Go", "Perl", "Go", "SQL", "Go")
-fmt.Println(skills.MostCommon(2).Join(",")) // the top 2
-fmt.Println(skills.MostCommon().Join(","))  // all, most common first
+networks := scalar.NewBag("us", "ci", "nc", "ci", "us", "ci")
+fmt.Println(networks.MostCommon(2).Join(",")) // the top 2
+fmt.Println(networks.MostCommon().Join(","))  // all, most common first
 ```
 
 ```
-Go,SQL
-Go,SQL,Perl
+ci,us
+ci,us,nc
 ```
 
 #### `Bag.All`
@@ -3718,13 +3718,13 @@ fmt.Println(a, b)
 Sum is Set::Bag's sum: a new bag in which each member's count is its counts in b and others added together.
 
 ```go
-monday := scalar.NewBag().InsertN("Go", 3).InsertN("SQL", 1)
-tuesday := scalar.NewBag().InsertN("Go", 1).InsertN("Perl", 2)
+monday := scalar.NewBag().InsertN("ci", 3).InsertN("us", 1)
+tuesday := scalar.NewBag().InsertN("ci", 1).InsertN("nc", 2)
 fmt.Println(monday.Sum(tuesday)) // counts added: $monday->sum($tuesday)
 ```
 
 ```
-(Go => 4, Perl => 2, SQL => 1)
+(ci => 4, nc => 2, us => 1)
 ```
 
 #### `Bag.Union`
@@ -3801,23 +3801,23 @@ fmt.Println(string(out))
 M is $s =~ /re/ with captures.
 
 ```go
-s := scalar.Value("Salary: £45,000 - £55,000")
-if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
+s := scalar.Value("Magnitude range: M4.8 - M5.3")
+if s.M(`(?i)magnitude`) != nil { // if ($s =~ /magnitude/i)
 	fmt.Println("matched")
 }
-m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
+m := s.M(`M(\d\.\d)\s*-\s*M(\d\.\d)`)
 fmt.Println(m.Get(0)) // $&
 fmt.Println(m.Get(1), m.Get(2))
-all := s.M(`£([\d,]+)`, "g")                // @all = all the matches: one array of captures each
-fmt.Println(all.Length(), all.At("[1][1]")) // $all[1][1]: the second match's $1
-fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
+all := s.M(`M(\d\.\d)`, "g")                  // @all = all the matches: one array of captures each
+fmt.Println(all.Length(), all.At("[1][1]"))   // $all[1][1]: the second match's $1
+fmt.Println(s.M(`offshore`).Get(1).Defined()) // no match: nil, still safe to read
 ```
 
 ```
 matched
-£45,000 - £55,000
-45,000 55,000
-2 55,000
+M4.8 - M5.3
+4.8 5.3
+2 5.3
 false
 ```
 
@@ -3826,12 +3826,12 @@ false
 Named is $s =~ /re/ followed by reading %+.
 
 ```go
-d := scalar.Value("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+d := scalar.Value("Origin 2026-10-18 10:00 UTC").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
 fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
 ```
 
 ```
-2026 11 30
+2026 10 18
 ```
 
 #### `SV.S`
@@ -3900,7 +3900,7 @@ abc
 Compile compiles pattern with flags, any of "i", "m", "s" and "x", or returns an error if the pattern is invalid.
 
 ```go
-re, err := scalar.Compile(`£([\d,]+`) // a pattern from outside the program: check it
+re, err := scalar.Compile(`M(\d\.\d`) // a pattern from outside the program: check it
 fmt.Println(re == nil, err != nil)
 ```
 
@@ -3913,17 +3913,17 @@ true true
 MustCompile is Compile, panicking if the pattern is invalid.
 
 ```go
-salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
-s := scalar.Value("£45,000 to £55,000")
-fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
-fmt.Println(s.S(salary, "£X", "gr"))
-insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
-fmt.Println(scalar.Value("REMOTE").M(insensitive) != nil)
+mag := scalar.MustCompile(`M(\d\.\d)`) // my $mag = qr/M(\d\.\d)/
+s := scalar.Value("M4.8 then M5.3")
+fmt.Println(s.M(mag, "g").Length()) // use it anywhere a pattern string goes
+fmt.Println(s.S(mag, "M?", "gr"))
+insensitive := scalar.MustCompile(`offshore`, "i") // flags are fixed when compiling
+fmt.Println(scalar.Value("OFFSHORE").M(insensitive) != nil)
 ```
 
 ```
 2
-£X to £X
+M? then M?
 true
 ```
 
@@ -3944,8 +3944,8 @@ fmt.Println(scalar.MustCompile(`\d+`, "i"))
 Matches is Perl's while ($s =~ /re/g) { ...
 
 ```go
-s := scalar.Value("Salary: £45,000 - £55,000")
-for m := range s.Matches(`£([\d,]+)`) { // while ($s =~ /£([\d,]+)/g)
+s := scalar.Value("Felt reports: 1,204 - 12,431")
+for m := range s.Matches(`(\d[\d,]*)`) { // while ($s =~ /(\d[\d,]*)/g)
 	fmt.Println(m.Get(1)) // $1
 }
 for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
@@ -3957,8 +3957,8 @@ for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
 ```
 
 ```
-45,000
-55,000
+1,204
+12,431
 found b: 2
 ```
 
@@ -4012,19 +4012,19 @@ fmt.Println(scalar.Unpack("f<*", scalar.Pack("f<*", 1.5, 0.1)).Join(", "))
 FromJSON decodes data into a scalar.
 
 ```go
-doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "pay": 45000.5, "skills": ["Go"], "bonus": null}`))
+doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "depth": 8.25, "stations": ["PAS"], "felt": null}`))
 if err != nil {
 	fmt.Println(err)
 	return
 }
 fmt.Println(doc.Path("id")) // whole numbers stay exact
-fmt.Println(doc.Path("pay"), doc.Path("skills").Ref())
-fmt.Println(doc.HV().Exists("bonus"), doc.Path("bonus").Defined()) // null is undef
+fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
+fmt.Println(doc.HV().Exists("felt"), doc.Path("felt").Defined()) // null is undef
 ```
 
 ```
 9007199254740993
-45000.5 ARRAY
+8.25 ARRAY
 true false
 ```
 
@@ -4095,45 +4095,45 @@ Find runs a JSONPath query (RFC 9535) on s and returns every match, or nil if no
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{
-	"store": {"book": [
-		{"title": "Go", "price": 30},
-		{"title": "Perl", "price": 45}
+	"network": {"station": [
+		{"code": "PAS", "elevation": 295},
+		{"code": "GSC", "elevation": 990}
 	]}
 }`))
-fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
-fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
-fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
-fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
+fmt.Println(doc.Find("$.network.station[*].code").Join(","))  // every code
+fmt.Println(doc.Find("$..elevation").Join(","))               // every elevation, at any depth
+fmt.Println(doc.Find("$.network.station[-1].code").Join(",")) // the last station's code
+fmt.Println(doc.Find("$.network.sensor") == nil)              // nothing matched
 ```
 
 ```
-Go,Perl
-30,45
-Perl
+PAS,GSC
+295,990
+GSC
 true
 ```
 
 #### `SV.Find_filter`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"jobs": [
-	{"title": "Nurse", "salary": {"min": 32000}, "skills": ["care"]},
-	{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "skills": ["Go", "SQL"]},
-	{"title": "Café manager", "skills": []}
+doc, _ := scalar.FromJSON([]byte(`{"quakes": [
+	{"place": "Northern Alaska", "mag": {"value": 3.2}, "stations": ["FAIR"]},
+	{"place": "Ridgecrest, CA", "mag": {"value": 5.1, "error": 0.2}, "stations": ["PAS", "GSC"]},
+	{"place": "Golfe du Saint-Laurent", "stations": []}
 ]}`))
-fmt.Println(doc.Find("$.jobs[?@.salary.min >= 40000].title").Join(","))  // a comparison
-fmt.Println(doc.Find("$.jobs[?!@.salary].title").Join(","))              // no salary at all
-fmt.Println(doc.Find("$.jobs[?count(@.skills[*]) > 1].title").Join(",")) // a function
-fmt.Println(doc.Find("$.jobs[?match(@.title, 'N.*')].title").Join(","))  // I-Regexp, whole string
-fmt.Println(doc.Find("$..[?@ == 'SQL']").Join(","))                      // at any depth
+fmt.Println(doc.Find("$.quakes[?@.mag.value >= 4.5].place").Join("; "))       // a comparison
+fmt.Println(doc.Find("$.quakes[?!@.mag].place").Join("; "))                   // no magnitude at all
+fmt.Println(doc.Find("$.quakes[?count(@.stations[*]) > 1].place").Join("; ")) // a function
+fmt.Println(doc.Find("$.quakes[?match(@.place, 'N.*')].place").Join("; "))    // I-Regexp, whole string
+fmt.Println(doc.Find("$..[?@ == 'GSC']").Join("; "))                          // at any depth
 ```
 
 ```
-Developer
-Café manager
-Developer
-Nurse
-SQL
+Ridgecrest, CA
+Golfe du Saint-Laurent
+Ridgecrest, CA
+Northern Alaska
+GSC
 ```
 
 #### `QuoteJSONPath`
@@ -4141,18 +4141,18 @@ SQL
 QuoteJSONPath returns s as a JSONPath string literal, quoted and escaped as RFC 9535 requires, to put a value or a name from Go into a query safely, as `regexp.QuoteMeta` does for a pattern:
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"sections": [
-	{"kind": "summary", "lines": ["We're hiring."]},
-	{"kind": "it's benefits", "lines": ["Pension", "Gym"]}
+doc, _ := scalar.FromJSON([]byte(`{"regions": [
+	{"name": "Alaska", "stations": ["FAIR"]},
+	{"name": "Hawai'i", "stations": ["HVO", "KHU"]}
 ]}`))
-kind := "it's benefits" // from Go, with a quote in it
-fmt.Println(scalar.QuoteJSONPath(kind))
-fmt.Println(doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]").Join(", "))
+name := "Hawai'i" // from Go, with a quote in it
+fmt.Println(scalar.QuoteJSONPath(name))
+fmt.Println(doc.Find("$.regions[?@.name == " + scalar.QuoteJSONPath(name) + "].stations[*]").Join(", "))
 ```
 
 ```
-'it\'s benefits'
-Pension, Gym
+'Hawai\'i'
+HVO, KHU
 ```
 
 ### Reference: YAML

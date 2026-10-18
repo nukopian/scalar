@@ -89,19 +89,19 @@ func ExampleSet_Union() {
 }
 
 func ExampleSet_Intersection() {
-	mine := scalar.NewSet("Go", "Perl", "SQL")
-	wanted := scalar.NewSet("Go", "SQL", "Rust")
-	fmt.Println(mine.Intersection(wanted)) // the skills I have that are wanted
+	recorded := scalar.NewSet("PAS", "GSC", "ISA")
+	expected := scalar.NewSet("PAS", "ISA", "SVD")
+	fmt.Println(recorded.Intersection(expected)) // the expected stations that recorded the quake
 	// Output:
-	// (Go SQL)
+	// (ISA PAS)
 }
 
 func ExampleSet_Difference() {
-	wanted := scalar.NewSet("Go", "SQL", "Rust")
-	mine := scalar.NewSet("Go", "Perl", "SQL")
-	fmt.Println(wanted.Difference(mine)) // what's wanted that I lack
+	expected := scalar.NewSet("PAS", "ISA", "SVD")
+	recorded := scalar.NewSet("PAS", "GSC", "ISA")
+	fmt.Println(expected.Difference(recorded)) // expected, but silent
 	// Output:
-	// (Rust)
+	// (SVD)
 }
 
 func ExampleSet_SymmetricDifference() {
@@ -159,23 +159,23 @@ func ExampleSet_MarshalJSON() {
 }
 
 func ExampleNewBag() {
-	skills := scalar.NewBag("Go", "Perl", "Go") // each value counts once
-	fmt.Println(skills)
+	networks := scalar.NewBag("ci", "us", "ci") // each value counts once
+	fmt.Println(networks)
 	apples := scalar.NewBag().InsertN("apples", 3) // Set::Bag->new(apples => 3)
 	fmt.Println(apples)
 	// Output:
-	// (Go => 2, Perl => 1)
+	// (ci => 2, us => 1)
 	// (apples => 3)
 }
 
 func ExampleBag_Insert() {
 	var counts scalar.Bag // the zero value is an empty bag
-	for _, posting := range [][]string{{"Go", "SQL"}, {"Go", "Perl"}, {"Go"}} {
-		counts.Insert(posting) // count the skills across postings
+	for _, day := range [][]string{{"ci", "us"}, {"ci", "nc"}, {"ci"}} {
+		counts.Insert(day) // count the networks across days
 	}
 	fmt.Println(&counts)
 	// Output:
-	// (Go => 3, Perl => 1, SQL => 1)
+	// (ci => 3, nc => 1, us => 1)
 }
 
 func ExampleBag_InsertN() {
@@ -238,12 +238,12 @@ func ExampleBag_Counts() {
 }
 
 func ExampleBag_MostCommon() {
-	skills := scalar.NewBag("SQL", "Go", "Perl", "Go", "SQL", "Go")
-	fmt.Println(skills.MostCommon(2).Join(",")) // the top 2
-	fmt.Println(skills.MostCommon().Join(","))  // all, most common first
+	networks := scalar.NewBag("us", "ci", "nc", "ci", "us", "ci")
+	fmt.Println(networks.MostCommon(2).Join(",")) // the top 2
+	fmt.Println(networks.MostCommon().Join(","))  // all, most common first
 	// Output:
-	// Go,SQL
-	// Go,SQL,Perl
+	// ci,us
+	// ci,us,nc
 }
 
 func ExampleBag_All() {
@@ -265,11 +265,11 @@ func ExampleBag_Copy() {
 }
 
 func ExampleBag_Sum() {
-	monday := scalar.NewBag().InsertN("Go", 3).InsertN("SQL", 1)
-	tuesday := scalar.NewBag().InsertN("Go", 1).InsertN("Perl", 2)
+	monday := scalar.NewBag().InsertN("ci", 3).InsertN("us", 1)
+	tuesday := scalar.NewBag().InsertN("ci", 1).InsertN("nc", 2)
 	fmt.Println(monday.Sum(tuesday)) // counts added: $monday->sum($tuesday)
 	// Output:
-	// (Go => 4, Perl => 2, SQL => 1)
+	// (ci => 4, nc => 2, us => 1)
 }
 
 func ExampleBag_Union() {

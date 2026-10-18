@@ -18,26 +18,26 @@ func ExampleSV_Length() {
 }
 
 func ExampleSV_Substr() {
-	s := scalar.Value("Senior Go Developer")
-	fmt.Println(s.Substr(7))            // substr($s, 7)
-	fmt.Println(s.Substr(7, 2))         // substr($s, 7, 2)
-	fmt.Println(s.Substr(-9))           // from the end
-	fmt.Println(s.Substr(0, -10))       // all but the last 10
+	s := scalar.Value("12 km NNE of Ridgecrest, CA")
+	fmt.Println(s.Substr(13))           // substr($s, 13)
+	fmt.Println(s.Substr(13, 10))       // substr($s, 13, 10)
+	fmt.Println(s.Substr(-2))           // from the end
+	fmt.Println(s.Substr(0, -15))       // all but the last 15
 	fmt.Println(s.Substr(99).Defined()) // entirely outside: undef
 	// Output:
-	// Go Developer
-	// Go
-	// Developer
-	// Senior Go
+	// Ridgecrest, CA
+	// Ridgecrest
+	// CA
+	// 12 km NNE of
 	// false
 }
 
 func ExampleSV_SubstrReplace() {
-	s := scalar.Value("Junior Go Developer")
-	old := s.SubstrReplace(0, 6, "Senior") // substr($s, 0, 6) = "Senior"
+	s := scalar.Value("12 km NNE of Ridgecrest, CA")
+	old := s.SubstrReplace(0, 2, "15") // substr($s, 0, 2) = "15"
 	fmt.Println(s, "/", old)
 	// Output:
-	// Senior Go Developer / Junior
+	// 15 km NNE of Ridgecrest, CA / 12
 }
 
 func ExampleSV_Index() {
@@ -100,26 +100,26 @@ func ExampleSV_Trim() {
 }
 
 func ExampleQuoteMeta() {
-	fmt.Println(scalar.QuoteMeta("C++ (.NET)"))
-	posting := scalar.Value("Skills: C++ and .NET")
-	fmt.Println(posting.M(scalar.QuoteMeta("C++")) != nil) // a literal match
+	fmt.Println(scalar.QuoteMeta("M4.5+ (USGS)"))
+	alert := scalar.Value("Alerts for M4.5+ quakes")
+	fmt.Println(alert.M(scalar.QuoteMeta("M4.5+")) != nil) // a literal match
 	// Output:
-	// C\+\+\ \(\.NET\)
+	// M4\.5\+\ \(USGS\)
 	// true
 }
 
 func ExampleSV_Interpolate() {
-	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "location": "Leeds",
-		"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
-	fmt.Println(doc.Interpolate("$title in $location: @skills"))   // doc's keys are the variables
-	fmt.Println(doc.Interpolate("Up to $salary{max}"))             // subscripts, as in Perl
-	fmt.Println(doc.Interpolate("Up to ${salary.max}"))            // any At path in ${...}
-	fmt.Println(doc.Interpolate(`[$bonus] \$5 jobs\@example.com`)) // missing is ""; \$ and \@ are literal
+	doc, _ := scalar.FromJSON([]byte(`{"mag": 5.1, "place": "Ridgecrest, CA",
+		"stations": ["PAS", "GSC"], "depth": {"km": 8}}`))
+	fmt.Println(doc.Interpolate("M$mag near $place: @stations"))   // doc's keys are the variables
+	fmt.Println(doc.Interpolate("Depth $depth{km} km"))            // subscripts, as in Perl
+	fmt.Println(doc.Interpolate("Depth ${depth.km} km"))           // any At path in ${...}
+	fmt.Println(doc.Interpolate(`[$cdi] \$0 alerts\@example.com`)) // missing is ""; \$ and \@ are literal
 	// Output:
-	// Go Developer in Leeds: Go SQL
-	// Up to 55000
-	// Up to 55000
-	// [] $5 jobs@example.com
+	// M5.1 near Ridgecrest, CA: PAS GSC
+	// Depth 8 km
+	// Depth 8 km
+	// [] $0 alerts@example.com
 }
 
 func ExampleHV_Interpolate() {
@@ -130,29 +130,29 @@ func ExampleHV_Interpolate() {
 }
 
 func ExampleMustTemplate() {
-	var summary = scalar.MustTemplate("$title. Skills: @skills.") // parsed once
-	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+	var summary = scalar.MustTemplate("$place. Stations: @stations.") // parsed once
+	doc, _ := scalar.FromJSON([]byte(`{"place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]}`))
 	fmt.Println(doc.Interpolate(summary))
 	// Output:
-	// Go Developer. Skills: Go SQL.
+	// Ridgecrest, CA. Stations: PAS GSC.
 }
 
 func ExampleCompileTemplate() {
-	t, err := scalar.CompileTemplate("Up to ${salary.max") // a template from outside the program: check it
+	t, err := scalar.CompileTemplate("Depth ${depth.km") // a template from outside the program: check it
 	fmt.Println(t == nil, err)
 	// Output:
-	// true scalar: bad template "Up to ${salary.max" at offset 7: no } to match the {
+	// true scalar: bad template "Depth ${depth.km" at offset 7: no } to match the {
 }
 
 func ExampleTemplate_ListSeparator() {
-	t := scalar.MustTemplate("Skills: @skills").ListSeparator(", ") // local $" = ", "
-	fmt.Println(scalar.Hash("skills", scalar.Value([]string{"Go", "SQL"})).Interpolate(t))
+	t := scalar.MustTemplate("Stations: @stations").ListSeparator(", ") // local $" = ", "
+	fmt.Println(scalar.Hash("stations", scalar.Value([]string{"PAS", "GSC"})).Interpolate(t))
 	// Output:
-	// Skills: Go, SQL
+	// Stations: PAS, GSC
 }
 
 func ExampleTemplate_String() {
-	fmt.Println(scalar.MustTemplate("$title in $location"))
+	fmt.Println(scalar.MustTemplate("M$mag near $place"))
 	// Output:
-	// $title in $location
+	// M$mag near $place
 }

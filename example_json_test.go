@@ -11,17 +11,17 @@ import (
 )
 
 func ExampleFromJSON() {
-	doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "pay": 45000.5, "skills": ["Go"], "bonus": null}`))
+	doc, err := scalar.FromJSON([]byte(`{"id": 9007199254740993, "depth": 8.25, "stations": ["PAS"], "felt": null}`))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	fmt.Println(doc.Path("id")) // whole numbers stay exact
-	fmt.Println(doc.Path("pay"), doc.Path("skills").Ref())
-	fmt.Println(doc.HV().Exists("bonus"), doc.Path("bonus").Defined()) // null is undef
+	fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
+	fmt.Println(doc.HV().Exists("felt"), doc.Path("felt").Defined()) // null is undef
 	// Output:
 	// 9007199254740993
-	// 45000.5 ARRAY
+	// 8.25 ARRAY
 	// true false
 }
 
@@ -64,50 +64,50 @@ func ExampleSV_UnmarshalJSON() {
 
 func ExampleSV_Find() {
 	doc, _ := scalar.FromJSON([]byte(`{
-		"store": {"book": [
-			{"title": "Go", "price": 30},
-			{"title": "Perl", "price": 45}
+		"network": {"station": [
+			{"code": "PAS", "elevation": 295},
+			{"code": "GSC", "elevation": 990}
 		]}
 	}`))
-	fmt.Println(doc.Find("$.store.book[*].title").Join(","))  // every title
-	fmt.Println(doc.Find("$..price").Join(","))               // every price, at any depth
-	fmt.Println(doc.Find("$.store.book[-1].title").Join(",")) // the last book's title
-	fmt.Println(doc.Find("$.store.magazine") == nil)          // nothing matched
+	fmt.Println(doc.Find("$.network.station[*].code").Join(","))  // every code
+	fmt.Println(doc.Find("$..elevation").Join(","))               // every elevation, at any depth
+	fmt.Println(doc.Find("$.network.station[-1].code").Join(",")) // the last station's code
+	fmt.Println(doc.Find("$.network.sensor") == nil)              // nothing matched
 	// Output:
-	// Go,Perl
-	// 30,45
-	// Perl
+	// PAS,GSC
+	// 295,990
+	// GSC
 	// true
 }
 
 func ExampleSV_Find_filter() {
-	doc, _ := scalar.FromJSON([]byte(`{"jobs": [
-		{"title": "Nurse", "salary": {"min": 32000}, "skills": ["care"]},
-		{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "skills": ["Go", "SQL"]},
-		{"title": "Café manager", "skills": []}
+	doc, _ := scalar.FromJSON([]byte(`{"quakes": [
+		{"place": "Northern Alaska", "mag": {"value": 3.2}, "stations": ["FAIR"]},
+		{"place": "Ridgecrest, CA", "mag": {"value": 5.1, "error": 0.2}, "stations": ["PAS", "GSC"]},
+		{"place": "Golfe du Saint-Laurent", "stations": []}
 	]}`))
-	fmt.Println(doc.Find("$.jobs[?@.salary.min >= 40000].title").Join(","))  // a comparison
-	fmt.Println(doc.Find("$.jobs[?!@.salary].title").Join(","))              // no salary at all
-	fmt.Println(doc.Find("$.jobs[?count(@.skills[*]) > 1].title").Join(",")) // a function
-	fmt.Println(doc.Find("$.jobs[?match(@.title, 'N.*')].title").Join(","))  // I-Regexp, whole string
-	fmt.Println(doc.Find("$..[?@ == 'SQL']").Join(","))                      // at any depth
+	fmt.Println(doc.Find("$.quakes[?@.mag.value >= 4.5].place").Join("; "))       // a comparison
+	fmt.Println(doc.Find("$.quakes[?!@.mag].place").Join("; "))                   // no magnitude at all
+	fmt.Println(doc.Find("$.quakes[?count(@.stations[*]) > 1].place").Join("; ")) // a function
+	fmt.Println(doc.Find("$.quakes[?match(@.place, 'N.*')].place").Join("; "))    // I-Regexp, whole string
+	fmt.Println(doc.Find("$..[?@ == 'GSC']").Join("; "))                          // at any depth
 	// Output:
-	// Developer
-	// Café manager
-	// Developer
-	// Nurse
-	// SQL
+	// Ridgecrest, CA
+	// Golfe du Saint-Laurent
+	// Ridgecrest, CA
+	// Northern Alaska
+	// GSC
 }
 
 func ExampleQuoteJSONPath() {
-	doc, _ := scalar.FromJSON([]byte(`{"sections": [
-		{"kind": "summary", "lines": ["We're hiring."]},
-		{"kind": "it's benefits", "lines": ["Pension", "Gym"]}
+	doc, _ := scalar.FromJSON([]byte(`{"regions": [
+		{"name": "Alaska", "stations": ["FAIR"]},
+		{"name": "Hawai'i", "stations": ["HVO", "KHU"]}
 	]}`))
-	kind := "it's benefits" // from Go, with a quote in it
-	fmt.Println(scalar.QuoteJSONPath(kind))
-	fmt.Println(doc.Find("$.sections[?@.kind == " + scalar.QuoteJSONPath(kind) + "].lines[*]").Join(", "))
+	name := "Hawai'i" // from Go, with a quote in it
+	fmt.Println(scalar.QuoteJSONPath(name))
+	fmt.Println(doc.Find("$.regions[?@.name == " + scalar.QuoteJSONPath(name) + "].stations[*]").Join(", "))
 	// Output:
-	// 'it\'s benefits'
-	// Pension, Gym
+	// 'Hawai\'i'
+	// HVO, KHU
 }

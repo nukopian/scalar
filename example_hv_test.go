@@ -23,10 +23,10 @@ func ExampleHash() {
 }
 
 func ExampleHV_String() {
-	h := scalar.Hash("title", "Go Developer", "log level", "debug")
+	h := scalar.Hash("place", "Cobb, CA", "log level", "debug")
 	fmt.Println(h) // keys sorted, and quoted only when they need to be
 	// Output:
-	// {"log level" => "debug",title => "Go Developer"}
+	// {"log level" => "debug",place => "Cobb, CA"}
 }
 
 func ExampleHV_Dump() {
@@ -75,27 +75,27 @@ func ExampleHV_Set() {
 }
 
 func ExampleHV_Push() {
-	h := scalar.Hash("title", "Developer")
-	h.Push("location", "Leeds", "salary", 45000) // $h{location} = "Leeds"; $h{salary} = 45000
-	defaults := scalar.Hash("remote", false, "salary", 0)
-	h.Push(defaults, "salary", 50000) // merge, later keys winning
+	h := scalar.Hash("id", "ci40123456")
+	h.Push("place", "Ridgecrest, CA", "felt", 1204) // $h{place} = "Ridgecrest, CA"; $h{felt} = 1204
+	defaults := scalar.Hash("tsunami", false, "felt", 0)
+	h.Push(defaults, "felt", 1500) // merge, later keys winning
 	fmt.Println(h.Keys().Sort(nil).Join(","))
-	fmt.Println(h.Get("salary"))
+	fmt.Println(h.Get("felt"))
 	// Output:
-	// location,remote,salary,title
-	// 50000
+	// felt,id,place,tsunami
+	// 1500
 }
 
 func ExampleHV_Exists() {
-	h := scalar.Hash("salary", nil)
-	fmt.Println(h.Exists("salary"), h.Exists("bonus")) // there, though undef
+	h := scalar.Hash("felt", nil)
+	fmt.Println(h.Exists("felt"), h.Exists("cdi")) // there, though undef
 	// Output:
 	// true false
 }
 
 func ExampleHV_Defined() {
-	h := scalar.Hash("salary", nil, "title", "Developer")
-	fmt.Println(h.Defined("salary"), h.Defined("title"))
+	h := scalar.Hash("felt", nil, "place", "Cobb, CA")
+	fmt.Println(h.Defined("felt"), h.Defined("place"))
 	// Output:
 	// false true
 }
@@ -110,41 +110,41 @@ func ExampleHV_Delete() {
 }
 
 func ExampleHV_Clone() {
-	defaults := scalar.Hash("remote", false, "tags", scalar.Value([]string{"go"}))
+	defaults := scalar.Hash("tsunami", false, "stations", scalar.Value([]string{"PAS"}))
 	row := defaults.Clone() // dclone(\%defaults): nested arrays too
-	row.Get("tags").AV().Push("perl")
-	merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same tags array
-	merged.Get("tags").AV().Push("sql")
-	fmt.Println(defaults.Get("tags").AV().Join(","), "/", row.Get("tags").AV().Join(","))
+	row.Get("stations").AV().Push("GSC")
+	merged := scalar.Hash(defaults) // %row = %defaults: a new hash, but the same stations array
+	merged.Get("stations").AV().Push("ISA")
+	fmt.Println(defaults.Get("stations").AV().Join(","), "/", row.Get("stations").AV().Join(","))
 	// Output:
-	// go,sql / go,perl
+	// PAS,ISA / PAS,GSC
 }
 
 func ExampleHV_Equal() {
-	h := scalar.Hash("remote", true, "days", 2)
-	fmt.Println(h.Equal(map[string]any{"remote": 1, "days": "2"})) // true is 1, as in Perl
+	h := scalar.Hash("tsunami", true, "felt", 2)
+	fmt.Println(h.Equal(map[string]any{"tsunami": 1, "felt": "2"})) // true is 1, as in Perl
 	// Output:
 	// true
 }
 
 func ExampleHV_Diff() {
-	h := scalar.Hash("bonus", nil)
+	h := scalar.Hash("felt", nil)
 	fmt.Println(h.Diff(map[string]any{})) // a key whose value is undef isn't a missing key
 	// Output:
-	// bonus: got undef, want does not exist
+	// felt: got undef, want does not exist
 }
 
 func ExampleHV_Apply() {
-	row := scalar.Hash("title", "go developer", "remote", true)
+	row := scalar.Hash("place", "ridgecrest, CA", "tsunami", true)
 	row.Apply(func(v *scalar.SV) any {
 		if v.Kind() == scalar.String {
 			return v.UcFirst()
 		}
 		return v
 	})
-	fmt.Println(row.Get("title"), row.Get("remote"))
+	fmt.Println(row.Get("place"), row.Get("tsunami"))
 	// Output:
-	// Go developer 1
+	// Ridgecrest, CA 1
 }
 
 func ExampleHV_Pairs() {
@@ -244,21 +244,21 @@ func ExampleHV_At() {
 }
 
 func ExampleHV_AtOK() {
-	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", nil)))
-	_, ok := h.AtOK("pay.min") // exists, though undef
-	_, missing := h.AtOK("pay.max")
+	h := scalar.Hash("depth", scalar.Value(scalar.Hash("error", nil)))
+	_, ok := h.AtOK("depth.error") // exists, though undef
+	_, missing := h.AtOK("depth.km")
 	fmt.Println(ok, missing)
 	// Output:
 	// true false
 }
 
 func ExampleHV_DeleteAt() {
-	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
-	fmt.Println(h.DeleteAt("pay.max")) // delete $h{pay}{max}
-	fmt.Println(h.At("pay").HV().KeysSlice())
+	h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
+	fmt.Println(h.DeleteAt("depth.error")) // delete $h{depth}{error}
+	fmt.Println(h.At("depth").HV().KeysSlice())
 	// Output:
-	// 55000
-	// [min]
+	// 2
+	// [km]
 }
 
 func ExampleHV_Path() {
@@ -279,11 +279,11 @@ func ExampleHV_PathOK() {
 }
 
 func ExampleHV_DeletePath() {
-	section, key := "pay", "max" // from data
-	h := scalar.Hash("pay", scalar.Value(scalar.Hash("min", 45000, "max", 55000)))
+	section, key := "depth", "error" // from data
+	h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
 	fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
 	// Output:
-	// 55000
+	// 2
 }
 
 func ExampleHV_Undef() {
@@ -298,13 +298,13 @@ func ExampleHV_Undef() {
 // Map builds a new hash, renaming keys or changing values or both. The old
 // hash is unchanged.
 func ExampleHV_Map() {
-	pay := scalar.Hash("min", 40000, "max", 50000)
-	k := pay.Map(func(key string, v *scalar.SV) (string, any) {
-		return "pay_" + key, v.Div(1000).Str() + "k"
+	depth := scalar.Hash("min", 2000, "max", 12500) // metres
+	km := depth.Map(func(key string, v *scalar.SV) (string, any) {
+		return "depth_" + key, v.Div(1000).Str() + " km"
 	})
-	fmt.Println(k.Get("pay_min"), k.Get("pay_max"), pay.Get("min"))
+	fmt.Println(km.Get("depth_min"), "-", km.Get("depth_max"), depth.Get("min"))
 	// Output:
-	// 40k 50k 40000
+	// 2 km - 12.5 km 2000
 }
 
 // A locked hash keeps the keys it has: reading, writing or deleting one it

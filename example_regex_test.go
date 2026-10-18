@@ -10,29 +10,29 @@ import (
 )
 
 func ExampleSV_M() {
-	s := scalar.Value("Salary: £45,000 - £55,000")
-	if s.M(`(?i)salary`) != nil { // if ($s =~ /salary/i)
+	s := scalar.Value("Magnitude range: M4.8 - M5.3")
+	if s.M(`(?i)magnitude`) != nil { // if ($s =~ /magnitude/i)
 		fmt.Println("matched")
 	}
-	m := s.M(`£([\d,]+)\s*-\s*£([\d,]+)`)
+	m := s.M(`M(\d\.\d)\s*-\s*M(\d\.\d)`)
 	fmt.Println(m.Get(0)) // $&
 	fmt.Println(m.Get(1), m.Get(2))
-	all := s.M(`£([\d,]+)`, "g")                // @all = all the matches: one array of captures each
-	fmt.Println(all.Length(), all.At("[1][1]")) // $all[1][1]: the second match's $1
-	fmt.Println(s.M(`remote`).Get(1).Defined()) // no match: nil, still safe to read
+	all := s.M(`M(\d\.\d)`, "g")                  // @all = all the matches: one array of captures each
+	fmt.Println(all.Length(), all.At("[1][1]"))   // $all[1][1]: the second match's $1
+	fmt.Println(s.M(`offshore`).Get(1).Defined()) // no match: nil, still safe to read
 	// Output:
 	// matched
-	// £45,000 - £55,000
-	// 45,000 55,000
-	// 2 55,000
+	// M4.8 - M5.3
+	// 4.8 5.3
+	// 2 5.3
 	// false
 }
 
 func ExampleSV_Named() {
-	d := scalar.Value("Closing 2026-11-30").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
+	d := scalar.Value("Origin 2026-10-18 10:00 UTC").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
 	fmt.Println(d.Get("year"), d.Get("month"), d.Get("day")) // $+{year} and so on
 	// Output:
-	// 2026 11 30
+	// 2026 10 18
 }
 
 func ExampleSV_S() {
@@ -79,22 +79,22 @@ func ExampleSV_Tr() {
 }
 
 func ExampleCompile() {
-	re, err := scalar.Compile(`£([\d,]+`) // a pattern from outside the program: check it
+	re, err := scalar.Compile(`M(\d\.\d`) // a pattern from outside the program: check it
 	fmt.Println(re == nil, err != nil)
 	// Output:
 	// true true
 }
 
 func ExampleMustCompile() {
-	salary := scalar.MustCompile(`£([\d,]+)`) // my $salary = qr/£([\d,]+)/
-	s := scalar.Value("£45,000 to £55,000")
-	fmt.Println(s.M(salary, "g").Length()) // use it anywhere a pattern string goes
-	fmt.Println(s.S(salary, "£X", "gr"))
-	insensitive := scalar.MustCompile(`remote`, "i") // flags are fixed when compiling
-	fmt.Println(scalar.Value("REMOTE").M(insensitive) != nil)
+	mag := scalar.MustCompile(`M(\d\.\d)`) // my $mag = qr/M(\d\.\d)/
+	s := scalar.Value("M4.8 then M5.3")
+	fmt.Println(s.M(mag, "g").Length()) // use it anywhere a pattern string goes
+	fmt.Println(s.S(mag, "M?", "gr"))
+	insensitive := scalar.MustCompile(`offshore`, "i") // flags are fixed when compiling
+	fmt.Println(scalar.Value("OFFSHORE").M(insensitive) != nil)
 	// Output:
 	// 2
-	// £X to £X
+	// M? then M?
 	// true
 }
 
@@ -105,8 +105,8 @@ func ExampleRegexp_String() {
 }
 
 func ExampleSV_Matches() {
-	s := scalar.Value("Salary: £45,000 - £55,000")
-	for m := range s.Matches(`£([\d,]+)`) { // while ($s =~ /£([\d,]+)/g)
+	s := scalar.Value("Felt reports: 1,204 - 12,431")
+	for m := range s.Matches(`(\d[\d,]*)`) { // while ($s =~ /(\d[\d,]*)/g)
 		fmt.Println(m.Get(1)) // $1
 	}
 	for m := range scalar.Value("a=1, b=2, c=3").Matches(`(\w)=(\d)`) {
@@ -116,7 +116,7 @@ func ExampleSV_Matches() {
 		}
 	}
 	// Output:
-	// 45,000
-	// 55,000
+	// 1,204
+	// 12,431
 	// found b: 2
 }
