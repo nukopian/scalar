@@ -13,12 +13,23 @@ half-way house for loosely shaped data (API and LLM JSON, YAML, messy
 text) on the way to typed Go. Prefer clearer, more forgiving APIs and
 good error messages over speed, unless a measurement shows a real cost.
 
-## Perl is the baseline
+## Perl is the baseline, and not the only source
 
-- **Match Perl's behaviour, and don't invent features Perl lacks.** Where
-  Go can't follow Perl, deviate pragmatically, and document each
-  deviation in the README, in the feature's section or under Caveats.
-  Raise any new deviation with Iain before building it.
+- **Where Perl has a feature, match Perl's behaviour.** Where Go can't
+  follow Perl, deviate pragmatically, and document each deviation in the
+  README, in the feature's section or under Caveats. Raise any new
+  deviation with Iain before building it.
+- **Other features are borrowed, and each is checked against where it
+  came from**, as the README's "Why scalar exists" describes:
+  - Maybe and Scala's `Option` for `Then`, `When`, `Or` and `OrSet`:
+    `TestThenMonadLaws` checks the monad laws.
+  - XPath and JSONPath for `Path`, `At`, `DeleteAt` and `Find`, with
+    Python's slices.
+  - CPAN modules for sets and bags.
+  - Go's iterators and generics for `All` and `To`.
+
+  A new borrowing names its source in the README, follows that source's
+  behaviour, and is tested against it where possible.
 - **Check what Perl does before writing an expected output.** Use
   `perl -E` (5.36 or later). For CPAN modules, install them into a
   temporary directory with `cpanm -L` and set `PERL5LIB`. Don't change
@@ -31,9 +42,10 @@ good error messages over speed, unless a measurement shows a real cost.
 - **The exception: `Find` follows RFC 9535, not Perl.** The JSONPath
   Compliance Test Suite in `testdata/cts` must pass in full.
 
-Why: scalar exists to bring Perl's way with data into Go. Faithfulness is
-what makes it predictable for anyone who knows Perl, and the documented
-deviations are what make it honest for everyone else.
+Why: scalar brings proven shortcuts from Perl and elsewhere into Go.
+Faithfulness to each source makes it predictable for anyone who knows
+that source, and the documented deviations make it honest for everyone
+else.
 
 ## Tests
 
