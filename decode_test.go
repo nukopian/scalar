@@ -26,13 +26,13 @@ type Base struct {
 
 type Extra struct{ Source string }
 
-type posting struct {
+type event struct {
 	Base
 	*Extra
-	Title    string            `json:"title"`
-	Skills   []string          `json:"skills"`
-	Salary   *salary           `json:"salary"`
-	Remote   bool              `json:"remote"`
+	Place    string            `json:"place"`
+	Stations []string          `json:"stations"`
+	Depth    *depth            `json:"depth"`
+	Tsunami  bool              `json:"tsunami"`
 	Tags     map[string]int    `json:"tags"`
 	ByYear   map[int]string    `json:"byYear"`
 	Pair     [2]float64        `json:"pair"`
@@ -49,17 +49,17 @@ type posting struct {
 	private  string
 }
 
-type salary struct {
+type depth struct {
 	Min, Max int
-	Period   string `json:"period"`
+	Unit     string `json:"unit"`
 }
 
 func TestDecode(t *testing.T) {
 	doc, err := FromJSON([]byte(`{
-		"id": "7", "note": "case-insensitive", "Source": "cv-library",
-		"title": "Go Developer", "skills": ["Go", "SQL"],
-		"salary": {"min": "45000", "MAX": 55000.0, "period": "year"},
-		"remote": "true", "tags": {"go": 3}, "byYear": {"2026": "now"},
+		"id": "7", "note": "case-insensitive", "Source": "usgs",
+		"place": "Cobb, CA", "stations": ["PAS", "GSC"],
+		"depth": {"min": "4500", "MAX": 5500.0, "unit": "m"},
+		"tsunami": "true", "tags": {"ci": 3}, "byYear": {"2026": "now"},
 		"pair": [1, "2.5", 99], "loose": {"x": [1]}, "list": ["a"], "meta": {"k": "v"},
 		"any": {"n": 1}, "posted": "2026-10-14T09:00:00Z", "code": "ab",
 		"blob": "aGk=", "Ignored": "no", "pointers": [1, null], "nested": {"a": [1, 0, false]},
@@ -68,16 +68,16 @@ func TestDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var p posting
+	var p event
 	if err := doc.Decode(&p); err != nil {
 		t.Fatal(err)
 	}
 	one := 1
-	want := posting{
-		Base: Base{ID: 7, Note: "case-insensitive"}, Extra: &Extra{Source: "cv-library"},
-		Title: "Go Developer", Skills: []string{"Go", "SQL"},
-		Salary: &salary{Min: 45000, Max: 55000, Period: "year"}, Remote: true,
-		Tags: map[string]int{"go": 3}, ByYear: map[int]string{2026: "now"}, Pair: [2]float64{1, 2.5},
+	want := event{
+		Base: Base{ID: 7, Note: "case-insensitive"}, Extra: &Extra{Source: "usgs"},
+		Place: "Cobb, CA", Stations: []string{"PAS", "GSC"},
+		Depth: &depth{Min: 4500, Max: 5500, Unit: "m"}, Tsunami: true,
+		Tags: map[string]int{"ci": 3}, ByYear: map[int]string{2026: "now"}, Pair: [2]float64{1, 2.5},
 		Any: map[string]any{"n": int64(1)}, Posted: time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC),
 		Code: "AB", Blob: []byte("hi"), Pointers: []*int{&one, nil}, Nested: map[string][]bool{"a": {true, false, false}},
 	}
@@ -107,48 +107,48 @@ func TestDecode(t *testing.T) {
 	}
 
 	// Undef: nil for pointers, slices and maps; anything else left alone.
-	q := posting{Title: "kept", Skills: []string{"x"}, Salary: &salary{}, Tags: map[string]int{}}
-	if err := Value(Hash("title", nil, "skills", nil, "salary", nil, "tags", nil, "list", nil)).Decode(&q); err != nil {
+	q := event{Place: "kept", Stations: []string{"x"}, Depth: &depth{}, Tags: map[string]int{}}
+	if err := Value(Hash("place", nil, "stations", nil, "depth", nil, "tags", nil, "list", nil)).Decode(&q); err != nil {
 		t.Fatal(err)
 	}
-	if q.Title != "kept" || q.Skills != nil || q.Salary != nil || q.Tags != nil || q.List != nil {
+	if q.Place != "kept" || q.Stations != nil || q.Depth != nil || q.Tags != nil || q.List != nil {
 		t.Errorf("undef: %+v", q)
 	}
 }
 
 func TestDecodeErrors(t *testing.T) {
 	type target struct {
-		Salary struct {
+		Depth struct {
 			Max int `json:"max"`
-		} `json:"salary"`
-		Skills []int8          `json:"skills"`
-		Meta   map[string]bool `json:"meta"`
-		Count  uint            `json:"count"`
-		Rate   float32         `json:"rate"`
-		Name   string          `json:"name"`
-		Year   map[int]string  `json:"year"`
-		Fn     func()          `json:"fn"`
-		Blob   []byte          `json:"blob"`
+		} `json:"depth"`
+		Felt  []int8          `json:"felt"`
+		Meta  map[string]bool `json:"meta"`
+		Count uint            `json:"count"`
+		Rate  float32         `json:"rate"`
+		Name  string          `json:"name"`
+		Year  map[int]string  `json:"year"`
+		Fn    func()          `json:"fn"`
+		Blob  []byte          `json:"blob"`
 	}
 	for js, want := range map[string]string{
-		`{"salary": {"max": "competitive"}}`: `salary.max: want int, got "competitive"`,
-		`{"salary": {"max": "45,000"}}`:      `salary.max: want int, got "45,000"`,
-		`{"salary": {"max": 2.5}}`:           `salary.max: want int, got 2.5`,
-		`{"salary": {"max": ""}}`:            `salary.max: want int, got ""`,
-		`{"salary": [1]}`:                    `salary: want a hash for struct { Max int "json:\"max\"" }, got an array`,
-		`{"skills": [1, 2, 300]}`:            `skills[2]: want int8, got 300`,
-		`{"skills": "Go"}`:                   `skills: want an array, got "Go"`,
-		`{"meta": {"log.level": "yes"}}`:     `meta{log.level}: want bool, got "yes"`,
-		`{"meta": {"ok": 2}}`:                `meta.ok: want bool, got 2`,
-		`{"salary": {"max": true}}`:          `salary.max: want int, got true`,
-		`{"name": false}`:                    `name: want string, got false`,
-		`{"rate": true}`:                     `rate: want float32, got true`,
-		`{"count": -1}`:                      `count: want uint, got -1`,
-		`{"rate": 1e300}`:                    `rate: want float32, got 1e+300`,
-		`{"name": {"a": 1}}`:                 `name: want string, got a hash`,
-		`{"year": {"twenty": "x"}}`:          `year: want int keys, got "twenty"`,
-		`{"fn": 1}`:                          `fn: want func(), which Decode can't fill, got 1`,
-		`{"blob": "not base64!"}`:            `blob: want base64 text for []byte, got "not base64!"`,
+		`{"depth": {"max": "unknown"}}`:  `depth.max: want int, got "unknown"`,
+		`{"depth": {"max": "12,500"}}`:   `depth.max: want int, got "12,500"`,
+		`{"depth": {"max": 2.5}}`:        `depth.max: want int, got 2.5`,
+		`{"depth": {"max": ""}}`:         `depth.max: want int, got ""`,
+		`{"depth": [1]}`:                 `depth: want a hash for struct { Max int "json:\"max\"" }, got an array`,
+		`{"felt": [1, 2, 300]}`:          `felt[2]: want int8, got 300`,
+		`{"felt": "many"}`:               `felt: want an array, got "many"`,
+		`{"meta": {"log.level": "yes"}}`: `meta{log.level}: want bool, got "yes"`,
+		`{"meta": {"ok": 2}}`:            `meta.ok: want bool, got 2`,
+		`{"depth": {"max": true}}`:       `depth.max: want int, got true`,
+		`{"name": false}`:                `name: want string, got false`,
+		`{"rate": true}`:                 `rate: want float32, got true`,
+		`{"count": -1}`:                  `count: want uint, got -1`,
+		`{"rate": 1e300}`:                `rate: want float32, got 1e+300`,
+		`{"name": {"a": 1}}`:             `name: want string, got a hash`,
+		`{"year": {"twenty": "x"}}`:      `year: want int keys, got "twenty"`,
+		`{"fn": 1}`:                      `fn: want func(), which Decode can't fill, got 1`,
+		`{"blob": "not base64!"}`:        `blob: want base64 text for []byte, got "not base64!"`,
 	} {
 		doc, err := FromJSON([]byte(js))
 		if err != nil {
@@ -197,11 +197,11 @@ func TestDecodeErrors(t *testing.T) {
 
 // On data that's already the right shape, Decode agrees with encoding/json.
 func TestDecodeMatchesJSON(t *testing.T) {
-	js := `{"id": 3, "note": "n", "Source": "s", "title": "t", "skills": ["a", "b"],
-		"salary": {"Min": 1, "Max": 2, "period": "p"}, "remote": true, "tags": {"x": 1},
+	js := `{"id": 3, "note": "n", "Source": "s", "place": "t", "stations": ["a", "b"],
+		"depth": {"Min": 1, "Max": 2, "unit": "p"}, "tsunami": true, "tags": {"x": 1},
 		"byYear": {"1999": "y"}, "pair": [0.5, 1], "posted": "2026-01-02T03:04:05Z",
 		"code": "q", "blob": "aGk=", "pointers": [5], "nested": {"k": [true]}, "any": [1, "two", null]}`
-	var want, got posting
+	var want, got event
 	if err := json.Unmarshal([]byte(js), &want); err != nil {
 		t.Fatal(err)
 	}
@@ -297,12 +297,12 @@ func TestDecodeFieldMatching(t *testing.T) {
 	}
 
 	type cased struct {
-		Title string
-		TITLE string
+		Place string
+		PLACE string
 	}
 	for range 50 {
 		var c cased
-		if err := Value(Hash("title", "x")).Decode(&c); err != nil || c.Title != "x" || c.TITLE != "" {
+		if err := Value(Hash("place", "x")).Decode(&c); err != nil || c.Place != "x" || c.PLACE != "" {
 			t.Fatalf("a case-insensitive match should be the first field: %+v, %v", c, err)
 		}
 	}

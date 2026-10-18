@@ -824,17 +824,17 @@ func TestPathOK(t *testing.T) {
 }
 
 func TestHashFlattening(t *testing.T) {
-	defaults := Hash("location", "Remote", "type", "Permanent")
+	defaults := Hash("network", "ci", "status", "automatic")
 
-	// %h = (%defaults, location => "London"): later keys win.
-	h := Hash(defaults, "location", "London")
-	if h.Get("location").Str() != "London" || h.Get("type").Str() != "Permanent" || h.Length() != 2 {
+	// %h = (%defaults, network => "us"): later keys win.
+	h := Hash(defaults, "network", "us")
+	if h.Get("network").Str() != "us" || h.Get("status").Str() != "automatic" || h.Length() != 2 {
 		t.Errorf("merge = %s", mustJSON(t, h))
 	}
 	// Copying a hash: %copy = %h
 	cp := Hash(h)
-	cp.Set("type", "Contract")
-	if h.Get("type").Str() != "Permanent" {
+	cp.Set("status", "reviewed")
+	if h.Get("status").Str() != "automatic" {
 		t.Error("Hash(h) should copy")
 	}
 	// A hash from an array of pairs.

@@ -20,8 +20,8 @@ func TestIndexRIndex(t *testing.T) {
 		{"position past the end", "hello", "o", []int{99}, -1, []int{99}, 4},
 		{"empty substring", "abc", "", nil, 0, nil, 3},
 		{"empty substring past the end", "abc", "", []int{9}, 3, []int{9}, 3},
-		{"characters, not bytes", "£45,000 – £55,000", "£", nil, 0, nil, 10},
-		{"after a multi-byte character", "£45,000", "4", nil, 1, nil, 1},
+		{"characters, not bytes", "±0.2 – ±1.5", "±", nil, 0, nil, 7},
+		{"after a multi-byte character", "±0.2", "0", nil, 1, nil, 1},
 		{"numbers in string context", 12345, 34, nil, 2, nil, 2},
 		{"undef", nil, "", nil, 0, nil, 0},
 	}
@@ -36,11 +36,11 @@ func TestIndexRIndex(t *testing.T) {
 	}
 
 	// Index's result is a character position, so it works with Substr.
-	salary := Value("Salary: £45,000 – £55,000")
-	if got := salary.Substr(salary.Index("£"), 7).Str(); got != "£45,000" {
+	errs := Value("Error: ±0.25 – ±1.50")
+	if got := errs.Substr(errs.Index("±"), 5).Str(); got != "±0.25" {
 		t.Errorf("Substr at Index = %q", got)
 	}
-	if got := salary.Substr(salary.RIndex("£")).Str(); got != "£55,000" {
+	if got := errs.Substr(errs.RIndex("±")).Str(); got != "±1.50" {
 		t.Errorf("Substr at RIndex = %q", got)
 	}
 }
@@ -51,12 +51,12 @@ func TestCase(t *testing.T) {
 		got  *SV
 		want string
 	}{
-		{"lc", Value("Senior GO Developer").Lc(), "senior go developer"},
+		{"lc", Value("Offshore NORTHERN California").Lc(), "offshore northern california"},
 		{"lc accented", Value("ÉCOLE").Lc(), "école"},
-		{"uc", Value("node.js").Uc(), "NODE.JS"},
+		{"uc", Value("ci.pas").Uc(), "CI.PAS"},
 		{"uc full mapping", Value("straße").Uc(), "STRASSE"},
 		{"fc", Value("Straße").Fc(), "strasse"},
-		{"ucfirst", Value("go developer").UcFirst(), "Go developer"},
+		{"ucfirst", Value("ridgecrest, CA").UcFirst(), "Ridgecrest, CA"},
 		{"ucfirst keeps the rest", Value("eBay").UcFirst(), "EBay"},
 		{"ucfirst titlecase", Value("ǆemal").UcFirst(), "ǅemal"},
 		{"lcfirst", Value("HELLO").LcFirst(), "hELLO"},
@@ -93,7 +93,7 @@ func TestTrim(t *testing.T) {
 		in   any
 		want string
 	}{
-		{"  Senior Developer \n\t", "Senior Developer"},
+		{"  Ridgecrest, CA \n\t", "Ridgecrest, CA"},
 		{" no-break spaces ", "no-break spaces"},
 		{"inner   spaces stay", "inner   spaces stay"},
 		{"", ""},
@@ -141,15 +141,15 @@ func TestQuotemeta(t *testing.T) {
 		}
 	}
 
-	// The point of it: patterns built from skill names.
-	posting := Value("Experience with C++ and .NET; Node.js a plus")
-	for _, skill := range []string{"C++", ".NET", "Node.js"} {
-		if posting.M(QuoteMeta(skill)) == nil {
-			t.Errorf("%s not found", skill)
+	// The point of it: patterns built from labels in data.
+	bulletin := Value("Alerts for M4.5+ (USGS); Mw 6.0 expected")
+	for _, label := range []string{"M4.5+", "(USGS)", "Mw 6.0"} {
+		if bulletin.M(QuoteMeta(label)) == nil {
+			t.Errorf("%s not found", label)
 		}
 	}
-	if Value("xNET").M(QuoteMeta(".NET")) != nil {
-		t.Error(`".NET" shouldn't match "xNET"`)
+	if Value("M405").M(QuoteMeta("M4.5")) != nil {
+		t.Error(`"M4.5" shouldn't match "M405"`)
 	}
 	if QuoteMeta(Value("a.b")) != `a\.b` {
 		t.Error("QuoteMeta should accept a scalar")

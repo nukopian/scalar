@@ -6,28 +6,28 @@ import (
 )
 
 func TestMatchPredicates(t *testing.T) {
-	bullets := Array("Write Go services", "Remote-first team", "Mentor juniors")
-	remote := func(s *SV) bool { return s.M(`(?i)\bremote\b`) != nil }
+	bullets := Array("Felt strongly in Ridgecrest", "Offshore, no damage", "Aftershocks likely")
+	offshore := func(s *SV) bool { return s.M(`(?i)\boffshore\b`) != nil }
 	hasLetters := func(s *SV) bool { return s.M(`\p{L}`) != nil }
-	salary := func(s *SV) bool { return s.Index("£") >= 0 }
+	uncertain := func(s *SV) bool { return s.Index("±") >= 0 }
 
 	tests := []struct {
 		name string
 		got  bool
 		want bool
 	}{
-		{"any: one matches", bullets.AnyMatch(remote), true},
-		{"any: none match", bullets.AnyMatch(salary), false},
+		{"any: one matches", bullets.AnyMatch(offshore), true},
+		{"any: none match", bullets.AnyMatch(uncertain), false},
 		{"all: every one matches", bullets.AllMatch(hasLetters), true},
-		{"all: one doesn't", bullets.AllMatch(remote), false},
-		{"none: none match", bullets.NoneMatch(salary), true},
-		{"none: one does", bullets.NoneMatch(remote), false},
+		{"all: one doesn't", bullets.AllMatch(offshore), false},
+		{"none: none match", bullets.NoneMatch(uncertain), true},
+		{"none: one does", bullets.NoneMatch(offshore), false},
 
 		// Empty arrays, as in List::Util.
-		{"any on empty", Array().AnyMatch(remote), false},
-		{"all on empty", Array().AllMatch(remote), true},
-		{"none on empty", Array().NoneMatch(remote), true},
-		{"nil array", (*AV)(nil).AllMatch(remote), true},
+		{"any on empty", Array().AnyMatch(offshore), false},
+		{"all on empty", Array().AllMatch(offshore), true},
+		{"none on empty", Array().NoneMatch(offshore), true},
+		{"nil array", (*AV)(nil).AllMatch(offshore), true},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
@@ -44,9 +44,9 @@ func TestMatchPredicates(t *testing.T) {
 }
 
 func TestFirstMatch(t *testing.T) {
-	chunks := Array("About us", "Salary: £45,000", "Salary: £50,000")
-	first := chunks.FirstMatch(func(s *SV) bool { return s.Index("£") >= 0 })
-	if first.Str() != "Salary: £45,000" {
+	chunks := Array("Summary", "Depth: 8 km ± 1.5", "Depth: 9 km ± 2.0")
+	first := chunks.FirstMatch(func(s *SV) bool { return s.Index("±") >= 0 })
+	if first.Str() != "Depth: 8 km ± 1.5" {
 		t.Errorf("FirstMatch = %q", first)
 	}
 
@@ -82,14 +82,14 @@ func TestMaxMinStr(t *testing.T) {
 }
 
 func TestUniqueStr(t *testing.T) {
-	skills := Array("Go", "Perl", "Go", "go", "Perl", "SQL")
-	if got := show(skills.UniqueStr()); got != "Go,Perl,go,SQL" {
+	stations := Array("PAS", "GSC", "PAS", "pas", "GSC", "ISA")
+	if got := show(stations.UniqueStr()); got != "PAS,GSC,pas,ISA" {
 		t.Errorf("UniqueStr = %s", got)
 	}
 
 	// Ignoring case: fold first, then remove duplicates.
-	folded := skills.Map(func(s *SV) any { return s.Fc() }).UniqueStr()
-	if got := show(folded); got != "go,perl,sql" {
+	folded := stations.Map(func(s *SV) any { return s.Fc() }).UniqueStr()
+	if got := show(folded); got != "pas,gsc,isa" {
 		t.Errorf("UniqueStr of Fc = %s", got)
 	}
 

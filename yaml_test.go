@@ -124,7 +124,7 @@ loop: &loop
 
 func TestToYAML(t *testing.T) {
 	tags := Value(Array("go"))
-	h := Hash("title", "Go Developer", "zero", "007", "flag", "true", "no", "no", "f", 1.0, "inf", math.Inf(1),
+	h := Hash("place", "Cobb, CA", "zero", "007", "flag", "true", "no", "no", "f", 1.0, "inf", math.Inf(1),
 		"n", nil, "yes", true, "count", 3, "blob", []byte("hi"), "tags", tags, "again", tags, "lines", "a\nb\n")
 	h.Set("self", Value(h))
 	holes := Array(1)
@@ -151,9 +151,9 @@ lines: |
   b
 "n": null
 "no": "no"
+place: Cobb, CA
 self: *1
 tags: *2
-title: Go Developer
 "yes": true
 zero: "007"
 `

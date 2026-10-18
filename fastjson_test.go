@@ -80,7 +80,7 @@ func TestReadJSONSame(t *testing.T) {
 		`null`, `true`, `false`, `0`, `-0`, `1`, `-17`, `1.5`, `-0.25`, `1e3`, `1E-2`, `2.5e+10`,
 		`9223372036854775807`, `9223372036854775808`, `-9223372036854775808`, `-9223372036854775809`,
 		`123456789012345678901234567890`, `0.1`, `1.0`, `100`,
-		`""`, `"abc"`, `"£45k – £55k"`, `"tab\there"`, `"q\"uote"`, `"back\\slash"`, `"\/"`,
+		`""`, `"abc"`, `"≈12.5 km – ≈15 km"`, `"tab\there"`, `"q\"uote"`, `"back\\slash"`, `"\/"`,
 		`"\b\f\n\r\t"`, `"£"`, `"€"`, `"😀"`, `"mixed é é"`,
 		`[]`, `{}`, `[1,"a",null,true,[],{}]`, `{"a":1,"b":[1,2,{"c":null}],"d":{"e":"f"}}`,
 		`{"a":1,"a":2}`, ` { "sp" : [ 1 , 2 ] } `, "\n\t[1]\r\n",
@@ -94,11 +94,11 @@ func TestReadJSONSame(t *testing.T) {
 	}
 }
 
-// Ordinary documents take the fast path: every posting in data/in.
-func TestReadJSONTakesPostings(t *testing.T) {
-	paths, _ := filepath.Glob("../../data/in/*.json")
+// Ordinary documents take the fast path: a real feed, in testdata/usgs.
+func TestReadJSONTakesFeeds(t *testing.T) {
+	paths, _ := filepath.Glob("testdata/usgs/*.json")
 	if len(paths) == 0 {
-		t.Skip("no postings in data/in")
+		t.Fatal("no feeds in testdata/usgs")
 	}
 	for _, p := range paths {
 		data, err := os.ReadFile(p)

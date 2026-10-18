@@ -67,17 +67,17 @@ func TestFromDump(t *testing.T) {
 
 	// Containers, keys in every form, comments, commas, bless.
 	doc := MustFromDump(`
-		# a posting, as a test might write it
+		# an event, as a test might write it
 		bless( {
-			title => "Go Developer",      # a bare key
+			place => "Cobb, CA",          # a bare key
 			'log level' => 'debug',
 			"0" => "zero", -1, "minus one",  # a comma for =>, a negative bare key
 			7 => [1, 2.5, "x", undef, !!1, [], {},],
-			tags => bless([ "go", 'perl' ], 'My::List'),
-		}, 'My::Posting' )
+			tags => bless([ "ci", 'us' ], 'My::List'),
+		}, 'My::Event' )
 	`)
-	want := map[string]any{"title": "Go Developer", "log level": "debug", "0": "zero", "-1": "minus one",
-		"7": []any{1, 2.5, "x", nil, true, []any{}, map[string]any{}}, "tags": []any{"go", "perl"}}
+	want := map[string]any{"place": "Cobb, CA", "log level": "debug", "0": "zero", "-1": "minus one",
+		"7": []any{1, 2.5, "x", nil, true, []any{}, map[string]any{}}, "tags": []any{"ci", "us"}}
 	if d := doc.Diff(want); d != "" {
 		t.Errorf("containers: %s", d)
 	}

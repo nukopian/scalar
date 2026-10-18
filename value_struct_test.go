@@ -8,7 +8,7 @@ import (
 
 type vsInner struct {
 	Code  string `json:"code"`
-	Title string `json:"title,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 type vsBase struct {
@@ -34,7 +34,7 @@ type vsOuter struct {
 // 2026-10-17: Value made a struct its fmt.Sprint).
 func TestValueStruct(t *testing.T) {
 	p := 3.5
-	x := vsOuter{vsBase: vsBase{"a1"}, Name: "n", Skip: "s", Ptr: &p, Groups: []vsInner{{Code: "2", Title: "t"}, {Code: "21"}},
+	x := vsOuter{vsBase: vsBase{"a1"}, Name: "n", Skip: "s", Ptr: &p, Groups: []vsInner{{Code: "2", Label: "t"}, {Code: "21"}},
 		When: time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC), Untagged: true, unexported: "u"}
 	v := Value(x)
 	if v.Kind() != HashRef {
@@ -45,7 +45,7 @@ func TestValueStruct(t *testing.T) {
 	if !reflect.DeepEqual(keys, want) {
 		t.Errorf("keys %q, want %q", keys, want)
 	}
-	if v.At("groups[1].code").Str() != "21" || v.At("groups[1].title").Defined() || v.At("nilPtr").Defined() ||
+	if v.At("groups[1].code").Str() != "21" || v.At("groups[1].label").Defined() || v.At("nilPtr").Defined() ||
 		v.At("ptr").Num() != 3.5 || v.At("when").Str() != "2026-10-17T09:00:00Z" || v.At("zero").Int() != 0 {
 		t.Errorf("Value(struct) = %s", v.Dump())
 	}

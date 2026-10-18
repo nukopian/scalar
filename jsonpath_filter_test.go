@@ -11,30 +11,30 @@ import (
 	"time"
 )
 
-// Filters on the kind of data the package is for: postings.
+// Filters on the kind of data the package is for: quakes.
 func TestFindFilters(t *testing.T) {
-	doc := mustFromJSON(t, `{"jobs": [
-		{"title": "Nurse", "salary": {"min": 32000}, "remote": false, "skills": ["care"]},
-		{"title": "Developer", "salary": {"min": 55000, "max": 70000}, "remote": true, "skills": ["Go", "SQL"]},
-		{"title": "Café manager", "remote": false, "skills": []}
-	], "threshold": 40000}`)
+	doc := mustFromJSON(t, `{"quakes": [
+		{"place": "Nome", "mag": {"min": 3.2}, "tsunami": false, "stations": ["FAIR"]},
+		{"place": "Ridgecrest", "mag": {"min": 5.5, "max": 7.0}, "tsunami": true, "stations": ["PAS", "GSC"]},
+		{"place": "Québec Ouest", "tsunami": false, "stations": []}
+	], "threshold": 4.0}`)
 	for path, want := range map[string][]string{
-		"$.jobs[?@.salary.min >= 30000].title":                      {"Nurse", "Developer"},
-		"$.jobs[?@.salary.max].title":                               {"Developer"},    // exists
-		"$.jobs[?!@.salary].title":                                  {"Café manager"}, // doesn't
-		"$.jobs[?@.remote == true].title":                           {"Developer"},
-		"$.jobs[?@.salary.min > $.threshold].title":                 {"Developer"}, // against the root
-		"$.jobs[?length(@.skills) == 0].title":                      {"Café manager"},
-		"$.jobs[?count(@.skills[*]) > 1].title":                     {"Developer"},
-		"$.jobs[?match(@.title, 'N.*')].title":                      {"Nurse"},
-		"$.jobs[?search(@.title, 'é')].title":                       {"Café manager"},
-		"$.jobs[?length(@.title) == 12].title":                      {"Café manager"}, // characters, not bytes
-		"$.jobs[?@.remote == false && @.salary].title":              {"Nurse"},
-		"$.jobs[?(@.remote == true || @.salary.min < 35000)].title": {"Nurse", "Developer"},
-		"$.jobs[?@.remote].title":                                   {"Nurse", "Developer", "Café manager"}, // exists, though false
-		"$..[?@ == 'SQL']":                                          {"SQL"},
-		"$.jobs[?value(@..min) == 55000].title":                     {"Developer"},
-		"$.jobs[?@.salary.min == @.salary.max].title":               {"Café manager"}, // Nothing equals Nothing
+		"$.quakes[?@.mag.min >= 3.0].place":                       {"Nome", "Ridgecrest"},
+		"$.quakes[?@.mag.max].place":                              {"Ridgecrest"},   // exists
+		"$.quakes[?!@.mag].place":                                 {"Québec Ouest"}, // doesn't
+		"$.quakes[?@.tsunami == true].place":                      {"Ridgecrest"},
+		"$.quakes[?@.mag.min > $.threshold].place":                {"Ridgecrest"}, // against the root
+		"$.quakes[?length(@.stations) == 0].place":                {"Québec Ouest"},
+		"$.quakes[?count(@.stations[*]) > 1].place":               {"Ridgecrest"},
+		"$.quakes[?match(@.place, 'N.*')].place":                  {"Nome"},
+		"$.quakes[?search(@.place, 'é')].place":                   {"Québec Ouest"},
+		"$.quakes[?length(@.place) == 12].place":                  {"Québec Ouest"}, // characters, not bytes
+		"$.quakes[?@.tsunami == false && @.mag].place":            {"Nome"},
+		"$.quakes[?(@.tsunami == true || @.mag.min < 3.5)].place": {"Nome", "Ridgecrest"},
+		"$.quakes[?@.tsunami].place":                              {"Nome", "Ridgecrest", "Québec Ouest"}, // exists, though false
+		"$..[?@ == 'GSC']":                                        {"GSC"},
+		"$.quakes[?value(@..min) == 5.5].place":                   {"Ridgecrest"},
+		"$.quakes[?@.mag.min == @.mag.max].place":                 {"Québec Ouest"}, // Nothing equals Nothing
 	} {
 		if got := strs(doc.Find(path)); !slices.Equal(got, want) {
 			t.Errorf("Find(%q) = %q, want %q", path, got, want)

@@ -53,10 +53,10 @@ func TestThen(t *testing.T) {
 	}
 
 	// A chain, as in the documentation.
-	parse := func(v *SV) any { return v.M(`£([\d,]+)`).Get(1).S(`,`, "", "gr").When(positive) }
-	annual := func(v *SV) any { return v.Mul(12) }
-	for text, want := range map[string]string{"£4,000 a month": "48000", "competitive": "none", "£0": "none"} {
-		if got := Value(text).Then(parse).Then(annual).Or("none").Str(); got != want {
+	parse := func(v *SV) any { return v.M(`≈([\d,]+) m`).Get(1).S(`,`, "", "gr").When(positive) }
+	km := func(v *SV) any { return v.Div(1000) }
+	for text, want := range map[string]string{"≈12,500 m deep": "12.5", "not determined": "none", "≈0 m": "none"} {
+		if got := Value(text).Then(parse).Then(km).Or("none").Str(); got != want {
 			t.Errorf("%q: %s, want %s", text, got, want)
 		}
 	}

@@ -125,24 +125,24 @@ func TestFindSelectors(t *testing.T) {
 }
 
 func TestFindReturnsStoredValues(t *testing.T) {
-	meta := mustFromJSON(t, `{"requiredSkills": ["  Go ", "Perl  "], "n": 1}`)
-	for _, s := range meta.Find("$.requiredSkills[*]").All() {
+	config := mustFromJSON(t, `{"stations": ["  PAS ", "GSC  "], "n": 1}`)
+	for _, s := range config.Find("$.stations[*]").All() {
 		s.Set(s.Trim())
 	}
-	if got := strs(meta.Path("requiredSkills").AV()); !slices.Equal(got, []string{"Go", "Perl"}) {
-		t.Errorf("changes through Find didn't reach meta: %q", got)
+	if got := strs(config.Path("stations").AV()); !slices.Equal(got, []string{"PAS", "GSC"}) {
+		t.Errorf("changes through Find didn't reach config: %q", got)
 	}
 
 	// Nested references can be followed further.
-	resp := mustFromJSON(t, `{"content": [
-		{"type": "text", "text": "Here you go"},
-		{"type": "tool_use", "input": {"title": "Senior Go Developer"}}
+	feed := mustFromJSON(t, `{"features": [
+		{"type": "Summary", "text": "Two events"},
+		{"type": "Feature", "properties": {"place": "12 km NNE of Ridgecrest, CA"}}
 	]}`)
-	input := resp.Find("$.content[*]").FirstMatch(func(b *SV) bool {
-		return b.Path("type").Eq("tool_use")
-	}).Path("input")
-	if input.Path("title").Str() != "Senior Go Developer" {
-		t.Errorf("tool_use input = %s", mustJSON(t, input))
+	props := feed.Find("$.features[*]").FirstMatch(func(f *SV) bool {
+		return f.Path("type").Eq("Feature")
+	}).Path("properties")
+	if props.Path("place").Str() != "12 km NNE of Ridgecrest, CA" {
+		t.Errorf("feature properties = %s", mustJSON(t, props))
 	}
 }
 

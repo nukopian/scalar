@@ -240,10 +240,10 @@ func TestAssignmentOperators(t *testing.T) {
 	// $total{$k} += $n creates the key, then accumulates.
 	totals := Hash()
 	for _, n := range []int{5, 10, 20} {
-		totals.Get("salary").AddInPlace(n)
+		totals.Get("felt").AddInPlace(n)
 	}
 	totals.Get("log").ConcatInPlace("a").ConcatInPlace("b") // chains
-	if totals.Get("salary").Int() != 35 || totals.Get("log").Str() != "ab" {
+	if totals.Get("felt").Int() != 35 || totals.Get("log").Str() != "ab" {
 		t.Errorf("accumulating = %s", mustJSON(t, totals))
 	}
 

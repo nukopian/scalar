@@ -11,8 +11,8 @@ func TestMatchAsCondition(t *testing.T) {
 		s, re, flags string
 		want         bool
 	}{
-		{"Senior Developer", `^senior`, "i", true},
-		{"Senior Developer", `^senior`, "", false},
+		{"Offshore Northern California", `^offshore`, "i", true},
+		{"Offshore Northern California", `^offshore`, "", false},
 		{"a\nb", `^b$`, "", false},
 		{"a\nb", `^b$`, "m", true},
 		{"a\nb", `a.b`, "", false},
@@ -31,8 +31,8 @@ func TestMatchAsCondition(t *testing.T) {
 }
 
 func TestMatch(t *testing.T) {
-	m := Value("Salary: £45,000 - £55,000").M(`£([\d,]+)\s*-\s*£([\d,]+)`)
-	if m.Length() != 3 || m.Get(0).Str() != "£45,000 - £55,000" || m.Get(1).Str() != "45,000" || m.Get(2).Str() != "55,000" {
+	m := Value("Depth: ≈12,500 - ≈15,000 m").M(`≈([\d,]+)\s*-\s*≈([\d,]+)`)
+	if m.Length() != 3 || m.Get(0).Str() != "≈12,500 - ≈15,000" || m.Get(1).Str() != "12,500" || m.Get(2).Str() != "15,000" {
 		t.Errorf("M = %s", mustJSON(t, m))
 	}
 
@@ -244,16 +244,16 @@ func TestRegexTimeout(t *testing.T) {
 // A compiled Regexp works wherever a pattern string does, with the same
 // results, as qr// does in Perl.
 func TestCompiledRegexp(t *testing.T) {
-	salary := MustCompile(`£([\d,]+)`)
-	s := Value("From £45,000 to £55,000")
+	depth := MustCompile(`≈([\d,]+)`)
+	s := Value("From ≈12,500 to ≈15,000 m")
 
-	if got := s.M(salary).Get(1).Str(); got != "45,000" {
+	if got := s.M(depth).Get(1).Str(); got != "12,500" {
 		t.Errorf("M = %q", got)
 	}
-	if got := s.M(salary, "g").Length(); got != 2 {
+	if got := s.M(depth, "g").Length(); got != 2 {
 		t.Errorf("M with g found %d matches, want 2", got)
 	}
-	if got := s.S(salary, "£X", "gr").Str(); got != "From £X to £X" {
+	if got := s.S(depth, "≈X", "gr").Str(); got != "From ≈X to ≈X m" {
 		t.Errorf("S = %q", got)
 	}
 	if got := Value("a1b2c").Split(MustCompile(`(\d)`)).Length(); got != 5 {
@@ -265,11 +265,11 @@ func TestCompiledRegexp(t *testing.T) {
 	}
 
 	// Flags are fixed when compiling.
-	ci := MustCompile(`SALARY`, "i")
-	if Value("Salary: £45,000").M(ci) == nil {
+	ci := MustCompile(`DEPTH`, "i")
+	if Value("Depth: ≈12,500 m").M(ci) == nil {
 		t.Error("an i-flagged Regexp should ignore case")
 	}
-	if ci.String() != "SALARY" {
+	if ci.String() != "DEPTH" {
 		t.Errorf("String = %q", ci.String())
 	}
 	// A Regexp's " " is a pattern, not awk mode, as with Perl's split qr/ /.

@@ -39,15 +39,15 @@ func TestEqualMatchesIsDeeply(t *testing.T) {
 }
 
 func TestDiff(t *testing.T) {
-	doc, _ := FromJSON([]byte(`{"title": "Go", "skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "x"}}`))
+	doc, _ := FromJSON([]byte(`{"place": "Cobb", "stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "x"}}`))
 	for want, diff := range map[string]string{
-		`{"title": "Go", "skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "x"}}`:         "",
-		`{"title": "Perl", "skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "x"}}`:       `title: got "Go", want "Perl"`,
-		`{"title": "Go", "skills": ["Go"], "meta": {"log.level": "debug", "0": "x"}}`:                `skills[1]: got "SQL", want does not exist`,
-		`{"title": "Go", "skills": ["Go", "SQL"], "meta": {"log.level": "info", "0": "x"}}`:          `meta{log.level}: got "debug", want "info"`,
-		`{"title": "Go", "skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "y"}}`:         `meta{0}: got "x", want "y"`,
-		`{"skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "x"}}`:                        `title: got "Go", want does not exist`,
-		`{"a": 1, "title": "Go", "skills": ["Go", "SQL"], "meta": {"log.level": "debug", "0": "x"}}`: `a: got does not exist, want 1`,
+		`{"place": "Cobb", "stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "x"}}`:         "",
+		`{"place": "Anza", "stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "x"}}`:         `place: got "Cobb", want "Anza"`,
+		`{"place": "Cobb", "stations": ["PAS"], "meta": {"log.level": "debug", "0": "x"}}`:                `stations[1]: got "GSC", want does not exist`,
+		`{"place": "Cobb", "stations": ["PAS", "GSC"], "meta": {"log.level": "info", "0": "x"}}`:          `meta{log.level}: got "debug", want "info"`,
+		`{"place": "Cobb", "stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "y"}}`:         `meta{0}: got "x", want "y"`,
+		`{"stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "x"}}`:                          `place: got "Cobb", want does not exist`,
+		`{"a": 1, "place": "Cobb", "stations": ["PAS", "GSC"], "meta": {"log.level": "debug", "0": "x"}}`: `a: got does not exist, want 1`,
 	} {
 		other, err := FromJSON([]byte(want))
 		if err != nil {
@@ -59,13 +59,13 @@ func TestDiff(t *testing.T) {
 	}
 
 	// The path from Diff leads At to the value; Go values compare too.
-	if !doc.At("meta{log.level}").Equal("debug") || !doc.At("skills").Equal([]string{"Go", "SQL"}) {
+	if !doc.At("meta{log.level}").Equal("debug") || !doc.At("stations").Equal([]string{"PAS", "GSC"}) {
 		t.Error("Equal with Go values")
 	}
-	if !doc.HV().Equal(doc.Clone()) || !doc.At("skills").AV().Equal(Array("Go", "SQL")) {
+	if !doc.HV().Equal(doc.Clone()) || !doc.At("stations").AV().Equal(Array("PAS", "GSC")) {
 		t.Error("Equal on arrays and hashes")
 	}
-	if d := doc.At("skills").AV().Diff([]any{"Go", 3}); d != `[1]: got "SQL", want 3` {
+	if d := doc.At("stations").AV().Diff([]any{"PAS", 3}); d != `[1]: got "GSC", want 3` {
 		t.Errorf("AV.Diff = %q", d)
 	}
 	if d := doc.HV().Diff(nil); d != `got a hash, want undef` {

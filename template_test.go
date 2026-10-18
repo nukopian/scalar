@@ -7,25 +7,25 @@ import (
 
 func TestInterpolate(t *testing.T) {
 	doc, err := FromJSON([]byte(`{
-		"title": "Go Developer", "location": "Leeds", "skills": ["Go", "SQL"],
-		"salary": {"max": 55000, "min": null}, "content": [{"rule_set": "A"}],
+		"place": "Cobb, CA", "network": "nc", "stations": ["PAS", "GSC"],
+		"depth": {"max": 5500, "min": null}, "content": [{"rule_set": "A"}],
 		"meta": {"log.level": "debug", "it's": "apostrophe", "a}b": "brace"}, "x": "X", "_u": "u"
 	}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for tmpl, want := range map[string]string{
-		"$title in $location: @skills":           "Go Developer in Leeds: Go SQL",
-		"Up to $salary{max}, from ${salary.max}": "Up to 55000, from 55000",
-		"$skills[1] $skills[-1] @{skills}":       "SQL SQL Go SQL",
+		"$place via $network: @stations":         "Cobb, CA via nc: PAS GSC",
+		"Up to $depth{max}, from ${depth.max}":   "Up to 5500, from 5500",
+		"$stations[1] $stations[-1] @{stations}": "GSC GSC PAS GSC",
 		"$content[0]{rule_set}":                  "A",
 		"${content[0].rule_set}":                 "A",
 		"$meta{log.level} ${meta{log.level}}":    "debug debug",
 		`$meta{it's} $meta{"it's"} $meta{a\}b}`:  "apostrophe apostrophe brace",
 		"$x.y ${x}y $x-y $x_u":                   "X.y Xy X-y ",                      // $x_u is a name of its own, and missing
 		`\$x \@x \\ $5 me\@example.com $ @ \n`:   `$x @x \ $5 me@example.com $ @ \n`, // literal
-		"[$missing] [$salary{min}] [@nothing]":   "[] [] []",
-		"@title":                                 "Go Developer", // @ of a plain value: its string
+		"[$missing] [$depth{min}] [@nothing]":    "[] [] []",
+		"@place":                                 "Cobb, CA", // @ of a plain value: its string
 		"$_u":                                    "u",
 		"":                                       "",
 		"no variables":                           "no variables",
@@ -34,7 +34,7 @@ func TestInterpolate(t *testing.T) {
 			t.Errorf("Interpolate(%q) = %q, want %q", tmpl, got, want)
 		}
 	}
-	if got := doc.Interpolate("$skills"); !strings.HasPrefix(got, "ARRAY(0x") {
+	if got := doc.Interpolate("$stations"); !strings.HasPrefix(got, "ARRAY(0x") {
 		t.Errorf("$ of an array is its reference, as in Perl: %q", got)
 	}
 
@@ -45,14 +45,14 @@ func TestInterpolate(t *testing.T) {
 	}
 
 	// A compiled template, with a list separator; the original keeps its own.
-	tm := MustTemplate("$title. Skills: @skills.")
-	if got := doc.Interpolate(tm.ListSeparator(", ")); got != "Go Developer. Skills: Go, SQL." {
+	tm := MustTemplate("$place. Stations: @stations.")
+	if got := doc.Interpolate(tm.ListSeparator(", ")); got != "Cobb, CA. Stations: PAS, GSC." {
 		t.Errorf("ListSeparator: %q", got)
 	}
-	if got := doc.Interpolate(tm); got != "Go Developer. Skills: Go SQL." || tm.String() != "$title. Skills: @skills." {
+	if got := doc.Interpolate(tm); got != "Cobb, CA. Stations: PAS GSC." || tm.String() != "$place. Stations: @stations." {
 		t.Errorf("the original template changed: %q", got)
 	}
-	if got := doc.HV().Interpolate("$title"); got != "Go Developer" {
+	if got := doc.HV().Interpolate("$place"); got != "Cobb, CA" {
 		t.Errorf("HV.Interpolate: %q", got)
 	}
 	holes := Hash("a", Value(Array(1)))
@@ -64,7 +64,7 @@ func TestInterpolate(t *testing.T) {
 
 func TestTemplateErrors(t *testing.T) {
 	for tmpl, want := range map[string]string{
-		"${title":    "at offset 1: no } to match the {",
+		"${place":    "at offset 1: no } to match the {",
 		"${}":        "at offset 1: empty ${}",
 		"$a[0":       "at offset 2: no ] to match the [",
 		"$a{b":       "at offset 2: no } to match the {",

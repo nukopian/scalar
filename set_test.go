@@ -130,24 +130,24 @@ func TestBagMatchesSetBag(t *testing.T) {
 }
 
 func TestBagExtras(t *testing.T) {
-	skills := NewBag("Go", "Perl", "Go", "SQL", "Go", "Perl")
-	if skills.Count("Go") != 3 || skills.Length() != 3 || skills.Total() != 6 {
-		t.Errorf("counts: Go=%d, distinct=%d, total=%d", skills.Count("Go"), skills.Length(), skills.Total())
+	networks := NewBag("ci", "us", "ci", "nc", "ci", "us")
+	if networks.Count("ci") != 3 || networks.Length() != 3 || networks.Total() != 6 {
+		t.Errorf("counts: ci=%d, distinct=%d, total=%d", networks.Count("ci"), networks.Length(), networks.Total())
 	}
-	if got := skills.MostCommon(2).Join(","); got != "Go,Perl" {
+	if got := networks.MostCommon(2).Join(","); got != "ci,us" {
 		t.Errorf("MostCommon(2) = %s", got)
 	}
 	if got := NewBag("b", "a").MostCommon().Join(","); got != "b,a" {
 		t.Errorf("ties keep insertion order: %s", got)
 	}
-	if got := skills.MostCommon(99).Length(); got != 3 {
+	if got := networks.MostCommon(99).Length(); got != 3 {
 		t.Errorf("MostCommon beyond the size = %d members", got)
 	}
-	if got := skills.Counts(); got.Get("Perl").Int() != 2 || got.Length() != 3 {
+	if got := networks.Counts(); got.Get("us").Int() != 2 || got.Length() != 3 {
 		t.Errorf("Counts = %v", got.Pairs())
 	}
-	skills.Delete("Go", "nope")
-	if skills.Count("Go") != 2 {
+	networks.Delete("ci", "nope")
+	if networks.Count("ci") != 2 {
 		t.Error("Delete takes one away, and ignores what isn't there")
 	}
 	var seen []string

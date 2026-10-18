@@ -105,7 +105,7 @@ func TestMatches(t *testing.T) {
 		text, re string
 		flags    []string
 	}{
-		{"Salary: £45,000 - £55,000", `£([\d,]+)`, nil},
+		{"Depth: ≈12,500 - ≈15,000 m", `≈([\d,]+)`, nil},
 		{"a1b22c333", `(\d)(\d)?`, nil},
 		{"no digits", `\d`, nil},
 		{"Aa aA", `a`, []string{"i"}},
