@@ -9,13 +9,13 @@ import (
 // a double-quoted string, with the keys of the hash s holds as the
 // variables:
 //
-//	doc.Interpolate("$title in $location: @skills")    // "Go Developer in Leeds: Go SQL"
-//	doc.Interpolate("Up to £$salary{max}")             // $doc->{salary}{max}
-//	doc.Interpolate("Up to £${salary.max}")            // the same: any At path in ${...}
+//	doc.Interpolate("M$mag near $place: @stations")    // "M5.1 near Ridgecrest, CA: PAS GSC"
+//	doc.Interpolate("Depth $depth{km} km")             // $doc->{depth}{km}
+//	doc.Interpolate("Depth ${depth.km} km")            // the same: any At path in ${...}
 //
 // $name is a value, and subscripts straight after it are part of it, as in
-// Perl: $salary{max}, $skills[0], $content[0]{rule_set}. ${...} takes any
-// path At takes, so ${salary.max} works too; $title.x is the title followed
+// Perl: $depth{km}, $stations[0], $content[0]{rule_set}. ${...} takes any
+// path At takes, so ${depth.km} works too; $place.x is the place followed
 // by ".x", as in Perl. @name and @{...} join the elements of an array with
 // a space, as Perl's "@a" does with $" (MustTemplate's ListSeparator
 // changes it); for anything else they give its string, as $ does.
@@ -52,8 +52,8 @@ func (h *HV) Interpolate(template any) string { return (&SV{v: h}).Interpolate(t
 // a template used often is parsed once, a bad one fails as soon as the
 // program starts, and the separator for lists can be set.
 //
-//	var embedText = scalar.MustTemplate("$title. Skills: @skills.").ListSeparator(", ")
-//	doc.Interpolate(embedText)
+//	var summary = scalar.MustTemplate("$place. Stations: @stations.").ListSeparator(", ")
+//	doc.Interpolate(summary)
 type Template struct {
 	src   string
 	parts []templatePart

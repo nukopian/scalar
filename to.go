@@ -3,9 +3,9 @@ package scalar
 // To converts v into a Go value of type T, the type in brackets: the way
 // out of scalar into ordinary Go, once you know the shape you want.
 //
-//	skills, err := scalar.To[[]string](doc.At("skills"))
-//	salary, err := scalar.To[int](doc.At("salary.max"))
-//	posting, err := scalar.To[Posting](doc)
+//	stations, err := scalar.To[[]string](doc.At("stations"))
+//	km, err := scalar.To[int](doc.At("depth.km"))
+//	event, err := scalar.To[Event](doc)
 //	counts, err := scalar.To[map[string]int](bag)
 //
 // It converts as Decode does, so the rules are Decode's: a hash fills a

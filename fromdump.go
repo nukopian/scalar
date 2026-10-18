@@ -12,7 +12,7 @@ import (
 // structure, shared parts and loops included, so FromDump(s.Dump()) is a
 // copy of s. It also makes test data quick to write:
 //
-//	want := scalar.MustFromDump(`{title => "Go Developer", skills => ["Go", "SQL"]}`)
+//	want := scalar.MustFromDump(`{place => "Cobb, CA", stations => ["PAS", "GSC"]}`)
 //
 // It reads hashes, arrays, undef, !!1 and !!0, numbers, and strings in
 // double quotes, with Perl's escapes (\n, \t, \x{263a}, octal such as \351,

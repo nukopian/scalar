@@ -8,7 +8,7 @@ import (
 // cacheLimit is how many entries each of the package's caches (compiled
 // patterns, At paths and templates) holds before it starts again empty.
 // Patterns written in the program are few, and stay cached; patterns built
-// from data, such as one for each skill name, would otherwise make a cache
+// from data, such as one for each station name, would otherwise make a cache
 // grow for as long as the program runs.
 const cacheLimit = 4096
 

@@ -33,8 +33,8 @@ func (h *HV) Equal(other any) bool { return (&SV{v: h}).Equal(other) }
 // if they're equal (see Equal). It gives the path, as At takes it, then
 // what's in s and what's in other:
 //
-//	salary.max: got 55000, want 60000
-//	skills[2]: got "SQL", want does not exist
+//	depth.km: got 8, want 12
+//	stations[2]: got "ISA", want does not exist
 //
 // Hash keys are taken in sorted order, so the first difference reported is
 // always the same one.

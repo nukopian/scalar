@@ -43,13 +43,13 @@ func (a *AV) sortBy(f func(*SV) any, cmp func(x, y *SV) int, reverse bool) *AV {
 // once for each element, not once for each comparison, and elements with
 // equal keys keep their order.
 //
-//	postings.SortByStr(func(p *scalar.SV) any { return p.At("title").Fc() })   // sort_by { fc $_->{title} }
+//	quakes.SortByStr(func(q *scalar.SV) any { return q.At("place").Fc() })   // sort_by { fc $_->{place} }
 func (a *AV) SortByStr(f func(*SV) any) *AV { return a.sortBy(f, StrCmp, false) }
 
 // SortByNum is List::UtilsBy's nsort_by: as SortByStr, but comparing the
 // keys as numbers.
 //
-//	postings.SortByNum(func(p *scalar.SV) any { return p.At("salary.max") })   // nsort_by { $_->{salary}{max} }
+//	quakes.SortByNum(func(q *scalar.SV) any { return q.At("mag.value") })   // nsort_by { $_->{mag}{value} }
 func (a *AV) SortByNum(f func(*SV) any) *AV { return a.sortBy(f, NumCmp, false) }
 
 // RevSortByStr is List::UtilsBy's rev_sort_by: SortByStr, in descending
@@ -60,7 +60,7 @@ func (a *AV) RevSortByStr(f func(*SV) any) *AV { return a.sortBy(f, StrCmp, true
 // RevSortByNum is List::UtilsBy's rev_nsort_by: SortByNum, in descending
 // order, with elements of equal keys keeping their order.
 //
-//	postings.RevSortByNum(func(p *scalar.SV) any { return p.At("salary.max") })   // the best paid first
+//	quakes.RevSortByNum(func(q *scalar.SV) any { return q.At("mag.value") })   // the strongest first
 func (a *AV) RevSortByNum(f func(*SV) any) *AV { return a.sortBy(f, NumCmp, true) }
 
 // MaxBy is List::UtilsBy's max_by: the element with the largest numeric key,
@@ -90,7 +90,7 @@ func (a *AV) extremeBy(f func(*SV) any, beats func(x, best *SV) bool) *SV {
 // elements, keeping only the first with each key, in order. Keys compare as
 // strings, undef as "".
 //
-//	postings.UniqueBy(func(p *scalar.SV) any { return p.At("url") })   // one of each posting
+//	quakes.UniqueBy(func(q *scalar.SV) any { return q.At("id") })   // one of each event
 func (a *AV) UniqueBy(f func(*SV) any) *AV {
 	seen := map[string]bool{}
 	out := &AV{}
@@ -106,8 +106,8 @@ func (a *AV) UniqueBy(f func(*SV) any) *AV {
 // PartitionBy is List::UtilsBy's partition_by: a hash from each key f gives
 // to an array of copies of the elements with that key, in order.
 //
-//	bySeniority := postings.PartitionBy(func(p *scalar.SV) any { return p.At("seniority") })
-//	bySeniority.Get("Senior").AV()   // the senior postings
+//	byNetwork := quakes.PartitionBy(func(q *scalar.SV) any { return q.At("net") })
+//	byNetwork.Get("ci").AV()   // the quakes Southern California's network recorded
 func (a *AV) PartitionBy(f func(*SV) any) *HV {
 	out := newHV(0)
 	for _, k := range a.keyed(f) {
@@ -128,7 +128,7 @@ func (a *AV) PartitionBy(f func(*SV) any) *HV {
 // gives, as a Bag, so MostCommon lists the commonest first. count_by gives
 // a hash, which the bag's Counts method gives too.
 //
-//	postings.CountBy(func(p *scalar.SV) any { return p.At("location") }).MostCommon(5)
+//	quakes.CountBy(func(q *scalar.SV) any { return q.At("region") }).MostCommon(5)
 func (a *AV) CountBy(f func(*SV) any) *Bag {
 	b := &Bag{}
 	for _, k := range a.keyed(f) {
@@ -142,7 +142,7 @@ func (a *AV) CountBy(f func(*SV) any) *Bag {
 // a keeps the rest, in order, and any holes in it become undef elements, as
 // with SortInPlace. Unlike the other functions here, f returns a bool.
 //
-//	remote := postings.ExtractBy(func(p *scalar.SV) bool { return p.At("workArrangement").Eq("Remote") })
+//	reviewed := quakes.ExtractBy(func(q *scalar.SV) bool { return q.At("status").Eq("reviewed") })
 func (a *AV) ExtractBy(f func(*SV) bool) *AV {
 	a.mustWrite()
 	out := &AV{}

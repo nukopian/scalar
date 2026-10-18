@@ -198,7 +198,7 @@ func (s *SV) Trim() *SV { return s.mapText(strings.TrimSpace) }
 // that could mean something in a pattern backslash-escaped, so that it
 // matches literally. Use it to build patterns from data:
 //
-//	s.M(`(?i)\b` + scalar.QuoteMeta(skill))   // safe for "C++" or ".NET"
+//	s.M(`(?i)` + scalar.QuoteMeta(label))   // safe for "M4.5+" or "(USGS)"
 //
 // Like Perl, it escapes every ASCII character other than letters, digits
 // and underscore. It also escapes Unicode whitespace, so that patterns

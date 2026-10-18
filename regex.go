@@ -103,8 +103,8 @@ func compileErr(pattern string, f flagSet) (*regexp2.Regexp, error) {
 // ("i", "m", "s", "x") are fixed when it's compiled; M, Matches, Named, S and
 // Split accept it wherever they accept a pattern string:
 //
-//	re := scalar.MustCompile(`£([\d,]+)`, "i") // my $re = qr/£([\d,]+)/i;
-//	s.M(re, "g")                               // $s =~ /$re/g
+//	re := scalar.MustCompile(`m(\d\.\d)`, "i") // my $re = qr/m(\d\.\d)/i;
+//	s.M(re, "g")                                 // $s =~ /$re/g
 type Regexp struct {
 	rx *regexp2.Regexp
 }
@@ -239,8 +239,8 @@ func (s *SV) M(re any, flags ...string) *AV {
 // Matches is Perl's while ($s =~ /re/g) { ... }: it yields each match's
 // captures in turn, laid out as M lays them out, so m.Get(1) is $1:
 //
-//	for m := range s.Matches(`£([\d,]+)`) {
-//		fmt.Println(m.Get(1)) // 45,000, then 55,000
+//	for m := range s.Matches(`M(\d\.\d)`) {
+//		fmt.Println(m.Get(1)) // 4.8, then 5.3
 //	}
 //
 // It takes M's flags except "g", which it always is. It finds matches as the

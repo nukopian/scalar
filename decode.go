@@ -18,15 +18,15 @@ import (
 
 // Decode stores s in the Go value v points to, as json.Unmarshal would
 // store the same data, but converting each value as Perl would, so a
-// number that came as a string, "45000", fills an int field. It's the way
+// number that came as a string, "8200", fills an int field. It's the way
 // out of scalar once the shape of the data is known:
 //
-//	var p struct {
-//		Title  string   `json:"title"`
-//		Skills []string `json:"skills"`
-//		Salary struct{ Min, Max int } `json:"salary"`
+//	var e struct {
+//		Place    string   `json:"place"`
+//		Stations []string `json:"stations"`
+//		Depth    struct{ Km, Error int } `json:"depth"`
 //	}
-//	err := doc.Decode(&p)
+//	err := doc.Decode(&e)
 //
 // Hashes fill structs, matching keys to fields as encoding/json does (the
 // json tag's name, or the field's, exactly or else ignoring case), and maps
@@ -80,8 +80,8 @@ type decodeStep struct {
 // DecodeError is the error Decode returns for a value it can't store: where
 // it is, as a path for At, and why.
 type DecodeError struct {
-	Path string // as At takes it, such as "salary.max" or "skills[2]"; "" for s itself
-	Msg  string // such as `want int, got "competitive"`
+	Path string // as At takes it, such as "depth.km" or "stations[2]"; "" for s itself
+	Msg  string // such as `want int, got "unknown"`
 }
 
 func (e *DecodeError) Error() string {

@@ -96,8 +96,8 @@ func (s *SV) AtOK(path string) (v *SV, ok bool) {
 // written as for At: it removes the last step's key or element, and returns
 // its value, or undef if there was nothing there.
 //
-//	doc.DeleteAt("salary.bonus")    // delete $doc->{salary}{bonus}
-//	doc.DeleteAt("skills[-1]")      // delete $doc->{skills}[-1]
+//	doc.DeleteAt("depth.error")     // delete $doc->{depth}{error}
+//	doc.DeleteAt("stations[-1]")    // delete $doc->{stations}[-1]
 //
 // As with HV.Delete and AV.Delete, an element in the middle of an array
 // leaves a hole, and deleting the last shrinks the array. Unlike Perl,
@@ -110,8 +110,8 @@ func (s *SV) DeleteAt(path string) *SV { return s.deleteSteps(compileAt(path)) }
 // dots and all, so it suits keys that come from data, as
 // delete $s->{$section}{$key} does in Perl.
 //
-//	doc.DeletePath("salary", "bonus") // delete $doc->{salary}{bonus}
-//	doc.DeletePath("skills", -1)      // delete $doc->{skills}[-1]
+//	doc.DeletePath("depth", "error")  // delete $doc->{depth}{error}
+//	doc.DeletePath("stations", -1)    // delete $doc->{stations}[-1]
 func (s *SV) DeletePath(keys ...any) *SV { return s.deleteSteps(pathSteps(keys)) }
 
 // deleteSteps removes what the last of steps leads to, walking the others

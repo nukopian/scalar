@@ -2770,10 +2770,10 @@ At is `SV.At`, starting at h.
 
 ```go
 tallies := scalar.Hash()
-tallies.At("benefits.right").Inc() // $tallies{benefits}{right}++
-tallies.At("benefits.right").Inc()
-tallies.At("benefits.missing").Inc()
-fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallies.At("summary.right").Int())
+tallies.At("ci.reviewed").Inc() // $tallies{ci}{reviewed}++
+tallies.At("ci.reviewed").Inc()
+tallies.At("ci.automatic").Inc()
+fmt.Println(tallies.At("ci.reviewed"), tallies.At("ci.automatic"), tallies.At("us.reviewed").Int())
 ```
 
 ```
@@ -4542,7 +4542,7 @@ ci40123456 shakemap
 
 #### `SV.Decode`
 
-Decode stores s in the Go value v points to, as `json.Unmarshal` would store the same data, but converting each value as Perl would, so a number that came as a string, "45000", fills an int field.
+Decode stores s in the Go value v points to, as `json.Unmarshal` would store the same data, but converting each value as Perl would, so a number that came as a string, "8200", fills an int field.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{

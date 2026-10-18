@@ -235,10 +235,10 @@ func ExampleHV_All() {
 
 func ExampleHV_At() {
 	tallies := scalar.Hash()
-	tallies.At("benefits.right").Inc() // $tallies{benefits}{right}++
-	tallies.At("benefits.right").Inc()
-	tallies.At("benefits.missing").Inc()
-	fmt.Println(tallies.At("benefits.right"), tallies.At("benefits.missing"), tallies.At("summary.right").Int())
+	tallies.At("ci.reviewed").Inc() // $tallies{ci}{reviewed}++
+	tallies.At("ci.reviewed").Inc()
+	tallies.At("ci.automatic").Inc()
+	fmt.Println(tallies.At("ci.reviewed"), tallies.At("ci.automatic"), tallies.At("us.reviewed").Int())
 	// Output:
 	// 2 1 0
 }

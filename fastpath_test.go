@@ -32,7 +32,7 @@ func TestHashFastPathSame(t *testing.T) {
 		{"ref", ref, "hash", hashRef}, // references stay one value
 		{"bytes", []byte{0xff, 0x00}, "n", int64(7)},
 		{"sv", Value("x"), "undef", &SV{}},
-		{"£", "45,000", "from", 0, "to", 7},
+		{"≈", "12,500", "from", 0, "to", 7},
 		{1, "one", 2, "two"},         // not string keys: no fast path
 		{"a", Array(1, 2)},           // flattens: no fast path
 		{Hash("x", 1), "y", 2},       // flattens: no fast path
