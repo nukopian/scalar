@@ -191,11 +191,11 @@ func reference(t *testing.T, groups []Group) string {
 			}
 			fmt.Fprintf(&b, "\n%s %s\n\n", level, name)
 			if synopsis := docs[ex.Name]; synopsis != "" {
-				b.WriteString(goName.ReplaceAllString(synopsis, "`$0`") + "\n\n")
+				b.WriteString(goName.ReplaceAllString(escapeDollars(synopsis), "`$0`") + "\n\n")
 			}
 			// The example's own doc comment, if it has one, explains it.
 			if ex.Doc != "" {
-				b.Write(exampleDoc(ex.Doc))
+				b.WriteString(escapeDollars(string(exampleDoc(ex.Doc))))
 				b.WriteString("\n")
 			}
 			fmt.Fprintf(&b, "```go\n%s```\n", body(fset, src, ex))
@@ -238,6 +238,38 @@ func words(suffix string) string {
 		}
 	}
 	return b.String()
+}
+
+// escapeDollars escapes each $ in Markdown prose as \$, leaving code spans,
+// fenced blocks and indented code alone. Perl in a doc comment, such as
+// "my $x = $s", is full of dollars, and GitHub, VS Code and others read
+// text between two of them as a LaTeX formula: it either renders as maths
+// or fails to parse.
+func escapeDollars(md string) string {
+	lines := strings.Split(md, "\n")
+	fenced := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			fenced = !fenced
+			continue
+		}
+		if fenced || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "    ") {
+			continue
+		}
+		var b strings.Builder
+		inCode := false
+		for _, r := range line {
+			switch {
+			case r == '`':
+				inCode = !inCode
+			case r == '$' && !inCode:
+				b.WriteByte('\\')
+			}
+			b.WriteRune(r)
+		}
+		lines[i] = b.String()
+	}
+	return strings.Join(lines, "\n")
 }
 
 // goName finds a qualified Go name in a doc comment, such as SV.Int or

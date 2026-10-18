@@ -81,7 +81,7 @@ HASH
 
 #### `SV.Copy`
 
-Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
+Copy returns a new scalar holding s's value, as Perl's my \$x = \$s does.
 
 ```go
 h := scalar.Hash("count", 1)
@@ -151,7 +151,7 @@ stations[1]: got "GSC", want "ISA"
 
 #### `SV.Apply`
 
-Apply calls f on every plain value in s, all the way down, and stores what f returns in its place, as Data::Rmap's rmap { $_ = ...
+Apply calls f on every plain value in s, all the way down, and stores what f returns in its place, as Data::Rmap's rmap { \$_ = ...
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"place": " 5 km W of Cobb, CA ", "stations": [" PAS", "GSC "], "depth": 2}`))
@@ -239,7 +239,7 @@ fmt.Println(plain["tags"])
 
 #### `SV.Or`
 
-Or is Perl's defined-or, $s // $def: a new scalar holding s's value if s is defined, otherwise def's.
+Or is Perl's defined-or, \$s // \$def: a new scalar holding s's value if s is defined, otherwise def's.
 
 ```go
 fmt.Println(scalar.Value(nil).Or("default")) // $x // "default"
@@ -253,7 +253,7 @@ default
 
 #### `SV.OrSet`
 
-OrSet is Perl's $s //= $def: if s is undef, it sets s to def.
+OrSet is Perl's \$s //= \$def: if s is undef, it sets s to def.
 
 ```go
 h := scalar.Hash()
@@ -719,7 +719,7 @@ HASH 1
 
 #### `SV.Path`
 
-Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is $s->{content}[0]{text}.
+Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is \$s->{content}[0]{text}.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"items": [{"name": "first"}]}`))
@@ -805,7 +805,7 @@ false false
 
 #### `SV.DeleteAt`
 
-DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route written as for At: it removes the last step's key or element, and returns its value, or undef if there was nothing there.
+DeleteAt is Perl's delete \$s->{content}[0]{rule_set}, with the route written as for At: it removes the last step's key or element, and returns its value, or undef if there was nothing there.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"felt": {"reports": 1204, "source": "DYFI"}, "stations": ["PAS", "GSC"]}`))
@@ -899,7 +899,7 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 
 #### `SV.DeletePath`
 
-DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete $s->{$section}{$key} does in Perl.
+DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete \$s->{\$section}{\$key} does in Perl.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
@@ -916,7 +916,7 @@ x
 
 #### `SV.Undef`
 
-Undef is Perl's undef $s: s becomes undef, and Undef returns it, now undef.
+Undef is Perl's undef \$s: s becomes undef, and Undef returns it, now undef.
 
 ```go
 h := scalar.Hash("felt", 1204)
@@ -985,7 +985,7 @@ true false
 
 #### `SV.Length`
 
-Length is Perl's length($s): the number of characters (not bytes) in s in string context, so Value(12345).Length() is 5 and "café" is 4.
+Length is Perl's length(\$s): the number of characters (not bytes) in s in string context, so Value(12345).Length() is 5 and "café" is 4.
 
 ```go
 fmt.Println(scalar.Value("café").Length()) // characters, not bytes
@@ -999,7 +999,7 @@ fmt.Println(scalar.Value(12345).Length())  // in string context
 
 #### `SV.Substr`
 
-Substr is Perl's substr($s, offset) or substr($s, offset, length): a new scalar holding part of s in string context, counted in characters.
+Substr is Perl's substr(\$s, offset) or substr(\$s, offset, length): a new scalar holding part of s in string context, counted in characters.
 
 ```go
 s := scalar.Value("12 km NNE of Ridgecrest, CA")
@@ -1020,7 +1020,7 @@ false
 
 #### `SV.SubstrReplace`
 
-SubstrReplace is Perl's 4-argument substr($s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
+SubstrReplace is Perl's 4-argument substr(\$s, offset, length, replacement), or assigning to substr: it replaces that part of s with replacement (in string context), changing s in place, and returns the part it replaced.
 
 ```go
 s := scalar.Value("12 km NNE of Ridgecrest, CA")
@@ -1034,7 +1034,7 @@ fmt.Println(s, "/", old)
 
 #### `SV.Index`
 
-Index is Perl's index($s, substr[, position]): the character position of the first occurrence of substr at or after position (default 0), or -1.
+Index is Perl's index(\$s, substr[, position]): the character position of the first occurrence of substr at or after position (default 0), or -1.
 
 ```go
 s := scalar.Value("café au lait")
@@ -1051,7 +1051,7 @@ fmt.Println(s.Index("tea"))
 
 #### `SV.RIndex`
 
-RIndex is Perl's rindex($s, substr[, position]): the character position of the last occurrence of substr starting at or before position (default the end of the string), or -1.
+RIndex is Perl's rindex(\$s, substr[, position]): the character position of the last occurrence of substr starting at or before position (default the end of the string), or -1.
 
 ```go
 s := scalar.Value("a/b/c")
@@ -1216,7 +1216,7 @@ true scalar: bad template "Depth ${depth.km" at offset 7: no } to match the {
 
 #### `Template.ListSeparator`
 
-ListSeparator returns a copy of t that joins the elements of an array with sep, as local $" = sep does in Perl.
+ListSeparator returns a copy of t that joins the elements of an array with sep, as local \$" = sep does in Perl.
 
 ```go
 t := scalar.MustTemplate("Stations: @stations").ListSeparator(", ") // local $" = ", "
@@ -1730,7 +1730,7 @@ fmt.Println(scalar.Array("x", "y").Scalar()) // scalar(@a), the same as Length
 
 #### `AV.LastIndex`
 
-LastIndex is Perl's $#a: Length() - 1, so -1 for an empty array.
+LastIndex is Perl's \$#a: Length() - 1, so -1 for an empty array.
 
 ```go
 fmt.Println(scalar.Array(1, 2, 3).LastIndex()) // $#a
@@ -1744,7 +1744,7 @@ fmt.Println(scalar.Array().LastIndex())
 
 #### `AV.SetLastIndex`
 
-SetLastIndex is Perl's $#a = n.
+SetLastIndex is Perl's \$#a = n.
 
 ```go
 a := scalar.Array(1, 2, 3, 4)
@@ -1793,7 +1793,7 @@ fmt.Println(a.Length(), a.Exists(0), a.Get(2))
 
 #### `AV.Exists`
 
-Exists is Perl's exists $a[i]: whether element i has been set.
+Exists is Perl's exists \$a[i]: whether element i has been set.
 
 ```go
 a := scalar.Array("a", nil)
@@ -1808,7 +1808,7 @@ false
 
 #### `AV.Defined`
 
-Defined is Perl's defined $a[i]: whether element i exists and isn't undef.
+Defined is Perl's defined \$a[i]: whether element i exists and isn't undef.
 
 ```go
 a := scalar.Array("a", nil)
@@ -1821,7 +1821,7 @@ true false true
 
 #### `AV.Delete`
 
-Delete is Perl's delete $a[i]: it returns the element (undef if it didn't exist) and leaves a hole.
+Delete is Perl's delete \$a[i]: it returns the element (undef if it didn't exist) and leaves a hole.
 
 ```go
 a := scalar.Array("a", "b", "c")
@@ -2169,7 +2169,7 @@ fmt.Println(a.Join(","))
 
 #### `AV.SplitAt`
 
-SplitAt splits a into its first n elements and the rest, as Perl's my ($x1, ..., $xn, @tail) = @a does.
+SplitAt splits a into its first n elements and the rest, as Perl's my (\$x1, ..., \$xn, @tail) = @a does.
 
 ```go
 head, tail := scalar.Array("Ada", "Lovelace", "maths", "poetry").SplitAt(2) // my ($first, $last, @interests) = @a
@@ -2542,7 +2542,7 @@ true false
 
 #### `HV.Defined`
 
-Defined is Perl's defined $h{key}: whether key exists and its value isn't undef.
+Defined is Perl's defined \$h{key}: whether key exists and its value isn't undef.
 
 ```go
 h := scalar.Hash("felt", nil, "place", "Cobb, CA")
@@ -2870,7 +2870,7 @@ fmt.Println(seen.KeysSlice())
 
 #### `HV.Map`
 
-Map builds a new hash from h, as %new = map { f($_, $h{$_}) } keys %h does: f gets each key and value, and returns the new key and value.
+Map builds a new hash from h, as %new = map { f(\$_, \$h{\$_}) } keys %h does: f gets each key and value, and returns the new key and value.
 
 Map builds a new hash, renaming keys or changing values or both. The old hash is unchanged.
 
@@ -3129,7 +3129,7 @@ perl go+perl+c
 
 #### `AV.SortByStr`
 
-SortByStr is List::UtilsBy's sort_by: a sorted copy of a, ordered by the string keys f gives, as sort { $a cmp $b } would order them.
+SortByStr is List::UtilsBy's sort_by: a sorted copy of a, ordered by the string keys f gives, as sort { \$a cmp \$b } would order them.
 
 ```go
 places := scalar.Array("ridgecrest", "Cobb", "Anza")
@@ -3798,7 +3798,7 @@ fmt.Println(string(out))
 
 #### `SV.M`
 
-M is $s =~ /re/ with captures.
+M is \$s =~ /re/ with captures.
 
 ```go
 s := scalar.Value("Magnitude range: M4.8 - M5.3")
@@ -3823,7 +3823,7 @@ false
 
 #### `SV.Named`
 
-Named is $s =~ /re/ followed by reading %+.
+Named is \$s =~ /re/ followed by reading %+.
 
 ```go
 d := scalar.Value("Origin 2026-10-18 10:00 UTC").Named(`(?<year>\d{4})-(?<month>\d\d)-(?<day>\d\d)`)
@@ -3861,7 +3861,7 @@ xy
 
 #### `SV.Split`
 
-Split is Perl's split /re/, $s.
+Split is Perl's split /re/, \$s.
 
 ```go
 fmt.Println(scalar.Value("a,b,,c,,").Split(`,`).Length())        // trailing empty fields dropped
@@ -3941,7 +3941,7 @@ fmt.Println(scalar.MustCompile(`\d+`, "i"))
 
 #### `SV.Matches`
 
-Matches is Perl's while ($s =~ /re/g) { ...
+Matches is Perl's while (\$s =~ /re/g) { ...
 
 ```go
 s := scalar.Value("Felt reports: 1,204 - 12,431")
