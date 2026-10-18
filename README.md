@@ -214,7 +214,8 @@ a worked example of every function and method, see the
 - [Examples](docs/EXAMPLES.md): every function and method, each with a
   working example and its output, generated from the tests.
 
-Each has a PDF beside it. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
+To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
+pandoc and Prince. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
 developed: the rules, and the reasons for them.
 
 ## Status

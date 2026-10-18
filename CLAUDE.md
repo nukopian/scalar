@@ -92,9 +92,9 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
   that you delete afterwards.
 - Every link between the documents must resolve, including the
   `#anchor`s.
-- Each document has a PDF beside it. Rebuild a document's PDF with
-  `scripts/readme-pdf.sh <file>.md` (pandoc and Prince) in the same change
-  as the document.
+- PDFs of the documents are for reading offline, and git-ignored:
+  `scripts/readme-pdf.sh` builds them all (pandoc and Prince). Don't commit
+  them; module downloads would carry them.
 
 Why: the documents are how people learn the package, its author included,
 and gaps found by reading them have led to real features.
