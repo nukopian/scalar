@@ -1,15 +1,3 @@
-// Package scalar brings Perl-style dynamic values to Go.
-//
-// SV is a scalar: undef, a boolean, an integer (IV), a float (NV), a string,
-// a byte string (binary data), or a reference to an AV (array) or HV (hash). Scalars coerce between
-// string, numeric and boolean contexts the way Perl does, and dereferencing
-// an undef scalar as an array or hash autovivifies it.
-//
-// Nothing here is safe for concurrent use, not even reading: At on a
-// missing path creates the levels on the way, and a hash caches its key
-// order as you read it. Keep each structure to one goroutine, and share
-// data as Go values (To, Decode), a Clone, or a structure you've Locked;
-// see the README's Concurrency and Locking sections.
 package scalar
 
 import (
