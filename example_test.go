@@ -1,66 +1,67 @@
 package scalar_test
 
-// These examples are the opening example and the recipes in README.md. Go
-// runs them as tests and checks their output, so if one stops working, go
-// test says so. Keep the README in step when changing them.
+// These examples are the opening example in README.md and the recipes in
+// docs/HOWTO.md. Go runs them as tests and checks their output, so if one
+// stops working, go test says so. Keep the documents in step when changing
+// them.
 
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/nukopian/scalar"
 )
 
-// The example at the top of README.md: read, extract, clean, then convert
-// to typed Go.
+// The example at the top of README.md: read an earthquake feed, search
+// and filter it, read nested values, then convert to typed Go.
 func Example_overview() {
-	body := []byte(`{"posting": {
-		"title": " Senior Go Developer ",
-		"location": null,
-		"description": "Salary: £45,000 - £55,000 per annum",
-		"skills": [" Go", "PostgreSQL ", "Docker"]
-	}}`)
-	type Posting struct {
-		Title  string   `json:"title"`
-		Skills []string `json:"skills"`
+	body := []byte(`{"type": "FeatureCollection", "features": [
+		{"properties": {"mag": 5.1, "place": "12 km NNE of Ridgecrest, CA", "time": 1760781600000},
+		 "geometry": {"coordinates": [-117.6, 35.7, 8.2]}},
+		{"properties": {"mag": 2.3, "place": "5 km W of Cobb, CA", "time": 1760783400000},
+		 "geometry": {"coordinates": [-122.8, 38.8, 1.9]}},
+		{"properties": {"mag": 4.7, "place": null, "time": 1760785200000},
+		 "geometry": {"coordinates": [-125.9, 40.3, 10.0]}},
+		{"properties": {"mag": null, "place": "Alaska Peninsula", "time": 1760787000000},
+		 "geometry": {"coordinates": [-157.1, 56.2, 35.4]}}
+	]}`)
+	type Quake struct {
+		Mag   float64 `json:"mag"`
+		Place string  `json:"place"`
 	}
 
-	doc, err := scalar.FromJSON(body) // whatever shape it turns out to be
+	feed, err := scalar.FromJSON(body) // a USGS earthquake feed, in GeoJSON
 	if err != nil {
 		panic(err)
 	}
 
-	// Clean every string in the structure, at any depth.
-	doc.Apply(func(v *scalar.SV) any {
-		if v.Kind() == scalar.String {
-			return v.Trim()
-		}
-		return v
-	})
+	// Search the whole tree with JSONPath: the strongest magnitude anywhere.
+	fmt.Println("Strongest:", feed.Find("$..mag").MaxNum())
 
-	// Read nested values: anything missing or null is undef, not a panic.
-	title := doc.At("posting.title").Str()
-	location := doc.At("posting.location").Or("Unknown").Str()
-	remote := doc.At("posting.remote").Bool() // not there at all: false
-
-	// Pull a figure out of text: no match gives -1, not an error to handle.
-	salary := doc.At("posting.description").
-		M(`£([\d,]+)`).Get(1).
-		Then(func(v *scalar.SV) any { return v.S(`,`, "", "gr") }). // "45,000" → "45000"
-		Or(-1).
-		Int()
+	// Filter with JSONPath, then read nested values: anything missing or
+	// null is undef, not a panic, and Or supplies a default.
+	for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
+		mag := q.At("properties.mag").Num()
+		depth := q.At("geometry.coordinates[2]").Num() // [lon, lat, depth]
+		near := q.At("properties.place").
+			M(`of (.+)$`).Get(1). // "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"
+			Or("an unknown place").Str()
+		when := time.UnixMilli(q.At("properties.time").Int()).UTC()
+		fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
+	}
 
 	// Then back to ordinary, typed Go.
-	posting, err := scalar.To[Posting](doc.At("posting"))
+	quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Println(title, "|", location, "|", remote, "|", salary)
-	fmt.Printf("%+v\n", posting)
+	fmt.Printf("%+v\n", quakes)
 	// Output:
-	// Senior Go Developer | Unknown | false | 45000
-	// {Title:Senior Go Developer Skills:[Go PostgreSQL Docker]}
+	// Strongest: 5.1
+	// M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 UTC
+	// M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 UTC
+	// [{Mag:5.1 Place:12 km NNE of Ridgecrest, CA} {Mag:2.3 Place:5 km W of Cobb, CA} {Mag:4.7 Place:} {Mag:0 Place:Alaska Peninsula}]
 }
 
 const toolUseResponse = `{

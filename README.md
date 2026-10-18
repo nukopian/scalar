@@ -8,48 +8,54 @@ missing, nesting varies, numbers turn up as strings, and the value you need
 is buried in a sentence. In plain Go, each of those costs a type assertion,
 a nil check or a hand-written loop.
 
-`scalar` takes that ceremony away:
+`scalar` takes that ceremony away. Here it reads an earthquake feed from
+the US Geological Survey:
 
 ```go
-doc, err := scalar.FromJSON(body)   // whatever shape it turns out to be
+feed, err := scalar.FromJSON(body)   // a USGS earthquake feed, in GeoJSON
 if err != nil {
 	return err
 }
 
-// Clean every string in the structure, at any depth.
-doc.Apply(func(v *scalar.SV) any {
-	if v.Kind() == scalar.String {
-		return v.Trim()
-	}
-	return v
-})
+// Search the whole tree with JSONPath: the strongest magnitude anywhere.
+fmt.Println("Strongest:", feed.Find("$..mag").MaxNum())
 
-// Read nested values: anything missing or null is undef, not a panic.
-title := doc.At("posting.title").Str()
-location := doc.At("posting.location").Or("Unknown").Str()
-remote := doc.At("posting.remote").Bool()   // not there at all: false
-
-// Pull a figure out of text: no match gives -1, not an error to handle.
-salary := doc.At("posting.description").
-	M(`£([\d,]+)`).Get(1).
-	Then(func(v *scalar.SV) any { return v.S(`,`, "", "gr") }).   // "45,000" → "45000"
-	Or(-1).
-	Int()
+// Filter with JSONPath, then read nested values: anything missing or
+// null is undef, not a panic, and Or supplies a default.
+for _, q := range feed.Find("$.features[?@.properties.mag >= 4.5]").All() {
+	mag := q.At("properties.mag").Num()
+	depth := q.At("geometry.coordinates[2]").Num()   // [lon, lat, depth]
+	near := q.At("properties.place").
+		M(`of (.+)$`).Get(1).   // "12 km NNE of Ridgecrest, CA" → "Ridgecrest, CA"
+		Or("an unknown place").Str()
+	when := time.UnixMilli(q.At("properties.time").Int()).UTC()
+	fmt.Printf("M%.1f near %s, %.0f km deep, %s\n", mag, near, depth, when.Format("2 Jan 15:04 MST"))
+}
 
 // Then back to ordinary, typed Go.
-posting, err := scalar.To[Posting](doc.At("posting"))
+quakes, err := scalar.To[[]Quake](feed.Find("$.features[*].properties"))
 ```
 
-There isn't a type assertion or a nil check in that code. A missing key, a
-JSON `null` and a pattern that didn't match are all undef, an ordinary value
-that passes along the chain, and `Or` supplies a default wherever you want
-one. Once the data is in shape, `To` converts it to your own struct, or
-returns an error saying which value didn't fit, and where. The example runs
-as a test: `Example_overview`, in `example_test.go`.
+```
+Strongest: 5.1
+M5.1 near Ridgecrest, CA, 8 km deep, 18 Oct 10:00 UTC
+M4.7 near an unknown place, 10 km deep, 18 Oct 11:00 UTC
+```
 
-The tools come from Perl, which has handled exactly this kind of data for
-decades: its nested paths, regular expressions, `//` operator, `map`, `grep`
-and list utilities, carried over faithfully and checked against Perl itself.
+There isn't a type assertion or a nil check in that code, nor a loop to find
+the big ones. `$..mag` searches the whole tree, and the filter picks out the
+quakes of 4.5 and over. A `null` place, a missing field and a pattern that
+didn't match are all undef, an ordinary value that passes along the chain,
+and `Or` supplies a default wherever you want one. Once the data is in
+shape, `To` converts it to your own types, or returns an error saying which
+value didn't fit, and where. The example runs as a test, on a sample of the
+feed: `Example_overview`, in `example_test.go`.
+
+Most of the tools come from Perl, which has handled exactly this kind of
+data for decades: its nested paths, regular expressions, `//` operator,
+`map`, `grep` and list utilities, carried over faithfully and checked
+against Perl itself. Searching comes from JSONPath, the RFC 9535 standard,
+checked against its compliance suite.
 You don't need to know Perl to use them. The comparisons with Perl in these
 docs are there for readers who do.
 
