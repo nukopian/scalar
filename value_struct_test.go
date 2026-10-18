@@ -30,8 +30,8 @@ type vsOuter struct {
 	unexported string
 }
 
-// A struct is a hash, as encoding/json would encode it (found dogfooding
-// cmd/grammarrules, 2026-10-17: Value made a struct its fmt.Sprint).
+// A struct is a hash, as encoding/json would encode it (found dogfooding,
+// 2026-10-17: Value made a struct its fmt.Sprint).
 func TestValueStruct(t *testing.T) {
 	p := 3.5
 	x := vsOuter{vsBase: vsBase{"a1"}, Name: "n", Skip: "s", Ptr: &p, Groups: []vsInner{{Code: "2", Title: "t"}, {Code: "21"}},

@@ -227,7 +227,6 @@ redistribute it and/or modify it under the same terms as Perl itself:
 either the GNU General Public License, version 1 or (at your option) any
 later version, or the Artistic License, as they come with Perl
 (`Artistic-1.0-Perl OR GPL-1.0-or-later`). Both are in [LICENSE](LICENSE).
-The grammar package, in [grammar/](grammar/), has a licence of its own.
 
 ## Acknowledgements
 
