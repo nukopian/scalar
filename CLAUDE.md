@@ -19,17 +19,21 @@ good error messages over speed, unless a measurement shows a real cost.
   follow Perl, deviate pragmatically, and document each deviation in the
   README, in the feature's section or under Caveats. Raise any new
   deviation with Iain before building it.
-- **Other features are borrowed, and each is checked against where it
-  came from**, as the README's "Why scalar exists" describes:
-  - Maybe and Scala's `Option` for `Then`, `When`, `Or` and `OrSet`:
-    `TestThenMonadLaws` checks the monad laws.
+- **Other features are borrowed from elsewhere**, as the README's "Why
+  scalar exists" describes:
+  - `Then`, `When`, `Or` and `OrSet` adapt the Maybe/Option style of
+    programming to scalar's undef. They don't copy any one language's API,
+    Scala's included. `TestThenMonadLaws` checks the monad laws, the rules
+    that style itself sets.
   - XPath and JSONPath for `Path`, `At`, `DeleteAt` and `Find`, with
     Python's slices.
   - CPAN modules for sets and bags.
   - Go's iterators and generics for `All` and `To`.
 
-  A new borrowing names its source in the README, follows that source's
-  behaviour, and is tested against it where possible.
+  A new borrowing names its source in the README. Where the source is
+  concrete, such as a spec or a module, follow its behaviour and test
+  against it. Where it's a style of programming, keep to that style's
+  rules.
 - **Check what Perl does before writing an expected output.** Use
   `perl -E` (5.36 or later). For CPAN modules, install them into a
   temporary directory with `cpanm -L` and set `PERL5LIB`. Don't change
