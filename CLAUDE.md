@@ -93,8 +93,8 @@ gaps found by reading it have led to real features.
 
 - Conventional commits with a scope, e.g. `feat(scalar): ...` or
   `docs(scalar): ...`. Say why as well as what.
-- Iain reviews and commits; Claude proposes the message and leaves the
-  tree uncommitted unless asked to commit. Commits are signed.
+- Claude commits and pushes changes once they're done and checked, and
+  Iain reviews them. Commits are signed.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
