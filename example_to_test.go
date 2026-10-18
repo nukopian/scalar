@@ -1,8 +1,7 @@
 package scalar_test
 
 // Examples of leaving scalar for ordinary Go values: To and Decode. They're
-// run as tests, and they make up the Reference section of README.md (see
-// TestReference).
+// run as tests, and they make up docs/EXAMPLES.md (see TestReference).
 
 import (
 	"errors"
@@ -13,85 +12,85 @@ import (
 
 func ExampleTo() {
 	doc, _ := scalar.FromJSON([]byte(`{
-		"title": "Go Developer",
-		"skills": ["Go", "SQL"],
-		"salary": {"min": "45000", "max": 55000}
+		"id": "ci40123456",
+		"stations": ["PAS", "GSC"],
+		"depth": {"km": "8", "error": 2}
 	}`))
-	type Posting struct {
-		Title  string   `json:"title"`
-		Skills []string `json:"skills"`
-		Salary struct {
-			Min int `json:"min"` // "45000" fills it, as Perl would numify it
-			Max int `json:"max"`
-		} `json:"salary"`
+	type Event struct {
+		ID       string   `json:"id"`
+		Stations []string `json:"stations"`
+		Depth    struct {
+			Km    int `json:"km"` // "8" fills it, as Perl would numify it
+			Error int `json:"error"`
+		} `json:"depth"`
 	}
-	p, err := scalar.To[Posting](doc) // the type you want, in brackets
+	e, err := scalar.To[Event](doc) // the type you want, in brackets
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(p.Title, p.Skills, p.Salary.Min, p.Salary.Max)
+	fmt.Println(e.ID, e.Stations, e.Depth.Km, e.Depth.Error)
 	// Output:
-	// Go Developer [Go SQL] 45000 55000
+	// ci40123456 [PAS GSC] 8 2
 }
 
 func ExampleTo_slice() {
-	doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "years": [3, "5"]}`))
-	skills, _ := scalar.To[[]string](doc.At("skills")) // from a scalar holding an array
-	years, _ := scalar.To[[]int](doc.At("years").AV()) // or from the array itself
-	fmt.Printf("%q %v\n", skills, years)
+	doc, _ := scalar.FromJSON([]byte(`{"stations": ["PAS", "GSC"], "felt": [3, "5"]}`))
+	stations, _ := scalar.To[[]string](doc.At("stations")) // from a scalar holding an array
+	felt, _ := scalar.To[[]int](doc.At("felt").AV())       // or from the array itself
+	fmt.Printf("%q %v\n", stations, felt)
 	// Output:
-	// ["Go" "SQL"] [3 5]
+	// ["PAS" "GSC"] [3 5]
 }
 
 func ExampleTo_number() {
-	salary, err := scalar.To[int](scalar.Value(" 55000 ")) // a numeric string, as Perl reads it
-	fmt.Println(salary, err)
-	rate, err := scalar.To[float64](scalar.Value("37.5"))
-	fmt.Println(rate, err)
+	felt, err := scalar.To[int](scalar.Value(" 1204 ")) // a numeric string, as Perl reads it
+	fmt.Println(felt, err)
+	mag, err := scalar.To[float64](scalar.Value("4.5"))
+	fmt.Println(mag, err)
 	// Output:
-	// 55000 <nil>
-	// 37.5 <nil>
+	// 1204 <nil>
+	// 4.5 <nil>
 }
 
 func ExampleTo_map() {
-	doc, _ := scalar.FromJSON([]byte(`{"go": 3, "perl": "2"}`))
+	doc, _ := scalar.FromJSON([]byte(`{"ci": 3, "us": "2"}`))
 	counts, _ := scalar.To[map[string]int](doc) // a hash fills a map
-	fmt.Println(counts["go"], counts["perl"])
+	fmt.Println(counts["ci"], counts["us"])
 	// Output:
 	// 3 2
 }
 
 func ExampleTo_set() {
-	langs := scalar.NewSet("Go", "Perl", 5)
-	members, _ := scalar.To[[]string](langs) // a set gives its members, in insertion order
+	networks := scalar.NewSet("ci", "us", 5)
+	members, _ := scalar.To[[]string](networks) // a set gives its members, in insertion order
 	fmt.Printf("%q\n", members)
 	// Output:
-	// ["Go" "Perl" "5"]
+	// ["ci" "us" "5"]
 }
 
 func ExampleTo_bag() {
-	skills := scalar.NewBag("Go", "Go", "Perl")
-	counts, _ := scalar.To[map[string]int](skills)    // a bag gives its counts
-	names, _ := scalar.To[[]string](skills.Members()) // and Members its distinct members
-	fmt.Println(counts["Go"], counts["Perl"], names)
+	regions := scalar.NewBag("Alaska", "Alaska", "Nevada")
+	counts, _ := scalar.To[map[string]int](regions)    // a bag gives its counts
+	names, _ := scalar.To[[]string](regions.Members()) // and Members its distinct members
+	fmt.Println(counts["Alaska"], counts["Nevada"], names)
 	// Output:
-	// 2 1 [Go Perl]
+	// 2 1 [Alaska Nevada]
 }
 
 func ExampleTo_any() {
-	doc, _ := scalar.FromJSON([]byte(`{"tags": ["go", 1]}`))
+	doc, _ := scalar.FromJSON([]byte(`{"types": ["origin", 1]}`))
 	plain, _ := scalar.To[any](doc) // the plain Go form, as Any gives it
 	fmt.Printf("%v\n", plain)
 	// Output:
-	// map[tags:[go 1]]
+	// map[types:[origin 1]]
 }
 
 func ExampleTo_missing() {
-	doc, _ := scalar.FromJSON([]byte(`{"bonus": null}`))
-	bonus, err := scalar.To[*int](doc.At("bonus")) // null, or missing: the zero value, here nil
-	fmt.Println(bonus, err)
-	perks, err := scalar.To[[]string](doc.At("perks"))
-	fmt.Println(perks == nil, err)
+	doc, _ := scalar.FromJSON([]byte(`{"felt": null}`))
+	felt, err := scalar.To[*int](doc.At("felt")) // null, or missing: the zero value, here nil
+	fmt.Println(felt, err)
+	products, err := scalar.To[[]string](doc.At("products"))
+	fmt.Println(products == nil, err)
 	// Output:
 	// <nil> <nil>
 	// true <nil>
@@ -102,53 +101,53 @@ func ExampleTo_missing() {
 // StrPtr or NumPtr method, as To[*T] does it for any type, and refuses a
 // value that doesn't fit, where Num would quietly make "abc" 0.
 func ExampleTo_optional() {
-	doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": null, "period": "Year", "bonus": "competitive"}`))
+	doc, _ := scalar.FromJSON([]byte(`{"value": 4.5, "error": null, "type": "ml", "felt": "widely"}`))
 
-	min, _ := scalar.To[*float64](doc.At("min"))
-	max, _ := scalar.To[*float64](doc.At("max"))      // null: nil
-	none, _ := scalar.To[*string](doc.At("currency")) // missing: nil
-	fmt.Println(*min, max, none)
+	value, _ := scalar.To[*float64](doc.At("value"))
+	magErr, _ := scalar.To[*float64](doc.At("error")) // null: nil
+	none, _ := scalar.To[*string](doc.At("network"))  // missing: nil
+	fmt.Println(*value, magErr, none)
 
-	_, err := scalar.To[*float64](doc.At("bonus")) // "competitive" isn't a number
+	_, err := scalar.To[*float64](doc.At("felt")) // "widely" isn't a number
 	fmt.Println(err)
 
-	// The same, for a struct's optional fields, as the model's metadata has.
-	type Pay struct {
-		Min, Max *float64
-		Period   *string
+	// The same, for a struct's optional fields, as a feed's often are.
+	type Mag struct {
+		Value, Error *float64
+		Type         *string
 	}
-	p, _ := scalar.To[Pay](doc)
-	fmt.Println(*p.Min, p.Max, *p.Period)
+	m, _ := scalar.To[Mag](doc)
+	fmt.Println(*m.Value, m.Error, *m.Type)
 	// Output:
-	// 45000 <nil> <nil>
-	// scalar: Decode: want float64, got "competitive"
-	// 45000 <nil> Year
+	// 4.5 <nil> <nil>
+	// scalar: Decode: want float64, got "widely"
+	// 4.5 <nil> ml
 }
 
 func ExampleTo_error() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
-	type Posting struct {
-		Salary struct {
-			Max int `json:"max"`
-		} `json:"salary"`
+	doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": "unknown"}}`))
+	type Event struct {
+		Depth struct {
+			Km int `json:"km"`
+		} `json:"depth"`
 	}
-	p, err := scalar.To[Posting](doc)
+	e, err := scalar.To[Event](doc)
 	fmt.Println(err)
-	fmt.Println(p.Salary.Max) // on an error, the zero value
+	fmt.Println(e.Depth.Km) // on an error, the zero value
 	var de *scalar.DecodeError
 	if errors.As(err, &de) {
 		fmt.Println(doc.At(de.Path)) // the path leads At to the value
 	}
 	// Output:
-	// scalar: Decode: salary.max: want int, got "competitive"
+	// scalar: Decode: depth.km: want int, got "unknown"
 	// 0
-	// competitive
+	// unknown
 }
 
 func ExampleTo_strict() {
-	years := scalar.Array("3", "five", 7)
-	fmt.Println(years.IntSlice())     // Perl's numeric context: never fails, "five" is 0
-	_, err := scalar.To[[]int](years) // To checks
+	felt := scalar.Array("3", "five", 7)
+	fmt.Println(felt.IntSlice())     // Perl's numeric context: never fails, "five" is 0
+	_, err := scalar.To[[]int](felt) // To checks
 	fmt.Println(err)
 	// Output:
 	// [3 0 7]
@@ -156,57 +155,57 @@ func ExampleTo_strict() {
 }
 
 func ExampleTo_loose() {
-	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "extra": {"benefits": ["Pension"]}}`))
-	type Posting struct {
-		Title string     `json:"title"`
+	doc, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "extra": {"products": ["shakemap"]}}`))
+	type Event struct {
+		ID    string     `json:"id"`
 		Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar: a deep copy
 	}
-	p, _ := scalar.To[Posting](doc)
-	fmt.Println(p.Title, p.Extra.At("benefits[0]"))
+	e, _ := scalar.To[Event](doc)
+	fmt.Println(e.ID, e.Extra.At("products[0]"))
 	// Output:
-	// Go Developer Pension
+	// ci40123456 shakemap
 }
 
 func ExampleSV_Decode() {
 	doc, _ := scalar.FromJSON([]byte(`{
-		"title": "Go Developer",
-		"skills": ["Go", "SQL"],
-		"salary": {"min": "45000", "max": 55000},
-		"extra": {"benefits": ["Pension"]}
+		"id": "ci40123456",
+		"stations": ["PAS", "GSC"],
+		"depth": {"km": "8", "error": 2},
+		"extra": {"products": ["shakemap"]}
 	}`))
-	var posting struct {
-		Title  string   `json:"title"`
-		Skills []string `json:"skills"`
-		Salary struct {
-			Min int `json:"min"` // "45000" fills it, as Perl would numify it
-			Max int `json:"max"`
-		} `json:"salary"`
+	var event struct {
+		ID       string   `json:"id"`
+		Stations []string `json:"stations"`
+		Depth    struct {
+			Km    int `json:"km"` // "8" fills it, as Perl would numify it
+			Error int `json:"error"`
+		} `json:"depth"`
 		Extra *scalar.SV `json:"extra"` // a part that stays loose
 	}
-	if err := doc.Decode(&posting); err != nil {
+	if err := doc.Decode(&event); err != nil {
 		panic(err)
 	}
-	fmt.Println(posting.Title, posting.Skills, posting.Salary.Min, posting.Salary.Max)
-	fmt.Println(posting.Extra.At("benefits[0]"))
+	fmt.Println(event.ID, event.Stations, event.Depth.Km, event.Depth.Error)
+	fmt.Println(event.Extra.At("products[0]"))
 	// Output:
-	// Go Developer [Go SQL] 45000 55000
-	// Pension
+	// ci40123456 [PAS GSC] 8 2
+	// shakemap
 }
 
 func ExampleDecodeError_Error() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
-	var posting struct {
-		Salary struct {
-			Max int `json:"max"`
-		} `json:"salary"`
+	doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": "unknown"}}`))
+	var event struct {
+		Depth struct {
+			Km int `json:"km"`
+		} `json:"depth"`
 	}
-	err := doc.Decode(&posting)
+	err := doc.Decode(&event)
 	fmt.Println(err)
 	var de *scalar.DecodeError
 	if errors.As(err, &de) {
 		fmt.Println(doc.At(de.Path)) // the path leads At to the value
 	}
 	// Output:
-	// scalar: Decode: salary.max: want int, got "competitive"
-	// competitive
+	// scalar: Decode: depth.km: want int, got "unknown"
+	// unknown
 }

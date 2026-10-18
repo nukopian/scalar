@@ -50,16 +50,16 @@ false
 A struct becomes a hash, keyed as encoding/json would write it: by its json tags, leaving out what's omitempty and empty. Decode is the way back.
 
 ```go
-type group struct {
-	Code  string `json:"code"`
-	Title string `json:"title,omitempty"`
+type station struct {
+	Code string `json:"code"`
+	Name string `json:"name,omitempty"`
 }
-g := scalar.Value(group{Code: "2134"})
-fmt.Println(g.Ref(), g.At("code"), g.At("title").Defined())
+st := scalar.Value(station{Code: "PAS"})
+fmt.Println(st.Ref(), st.At("code"), st.At("name").Defined())
 ```
 
 ```
-HASH 2134 false
+HASH PAS false
 ```
 
 #### `SV.Set`
@@ -120,12 +120,12 @@ go,sql
 Equal reports whether s and other hold the same data, all the way down, as Test::More's is_deeply decides it.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+doc, _ := scalar.FromJSON([]byte(`{"stations": ["PAS", "GSC"], "depth": {"max": 12}}`))
 fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
-	"skills": []string{"Go", "SQL"},
-	"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
+	"stations": []string{"PAS", "GSC"},
+	"depth":    map[string]any{"max": "12"}, // as strings, as eq compares
 }))
-fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Value(nil).Equal("")) // undef equals only undef
+fmt.Println(doc.At("depth.max").Equal(12.0), scalar.Value(nil).Equal("")) // undef equals only undef
 ```
 
 ```
@@ -138,14 +138,14 @@ true false
 Diff says where s and other first differ, as is_deeply reports it, or "" if they're equal (see Equal).
 
 ```go
-rules, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
-model, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "Docker"]}`))
-fmt.Println(rules.Diff(model)) // where they first differ, as a path for At
-fmt.Printf("%q\n", rules.Diff(rules.Clone()))
+ours, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"]}`))
+theirs, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "ISA"]}`))
+fmt.Println(ours.Diff(theirs)) // where they first differ, as a path for At
+fmt.Printf("%q\n", ours.Diff(ours.Clone()))
 ```
 
 ```
-skills[1]: got "SQL", want "Docker"
+stations[1]: got "GSC", want "ISA"
 ""
 ```
 
@@ -154,7 +154,7 @@ skills[1]: got "SQL", want "Docker"
 Apply calls f on every plain value in s, all the way down, and stores what f returns in its place, as Data::Rmap's rmap { $_ = ...
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
+doc, _ := scalar.FromJSON([]byte(`{"place": " 5 km W of Cobb, CA ", "stations": [" PAS", "GSC "], "depth": 2}`))
 doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc
 	if v.Kind() == scalar.String {
 		return v.Trim()
@@ -166,7 +166,7 @@ fmt.Println(string(out))
 ```
 
 ```
-{"salary":50000,"skills":["Go","SQL"],"title":"Go Developer"}
+{"depth":2,"place":"5 km W of Cobb, CA","stations":["PAS","GSC"]}
 ```
 
 #### `SV.Kind`
@@ -272,15 +272,15 @@ Then calls f with s if s is defined, and returns what f returns as a new scalar;
 
 ```go
 digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
-figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
-annual := func(v *scalar.SV) any { return v.Mul(12) }
-for _, text := range []string{"£4,000 a month", "Competitive"} {
-	fmt.Println(scalar.Value(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+figure := func(v *scalar.SV) any { return v.M(`([\d,]+) m\b`).Get(1).Then(digits) } // undef if no figure
+km := func(v *scalar.SV) any { return v.Div(1000) }
+for _, text := range []string{"Depth: 12,500 m", "Depth not determined"} {
+	fmt.Println(scalar.Value(text).Then(figure).Then(km).Or("unknown")) // stops at the first undef
 }
 ```
 
 ```
-48000
+12.5
 unknown
 ```
 
@@ -290,14 +290,14 @@ When returns a copy of s if s is defined and pred(s) is true, and undef otherwis
 
 ```go
 positive := func(v *scalar.SV) bool { return v.Num() > 0 }
-doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": 0}`))
-fmt.Println(doc.At("min").When(positive).Or("none"))
-fmt.Println(doc.At("max").When(positive).Or("none"))   // fails the test: undef
-fmt.Println(doc.At("bonus").When(positive).Or("none")) // missing: positive isn't called
+doc, _ := scalar.FromJSON([]byte(`{"felt": 1204, "tsunami": 0}`))
+fmt.Println(doc.At("felt").When(positive).Or("none"))
+fmt.Println(doc.At("tsunami").When(positive).Or("none")) // fails the test: undef
+fmt.Println(doc.At("cdi").When(positive).Or("none"))     // missing: positive isn't called
 ```
 
 ```
-45000
+1204
 none
 none
 ```
@@ -353,21 +353,21 @@ fmt.Println(scalar.Value(1e21)) // fmt uses String, as Perl's print would
 Dump returns s as Data::Dumper::Concise prints it: Data::Dumper with Terse, Indent = 1, Useqq, Quotekeys = 0, Sortkeys and Trailingcomma, so nested arrays and hashes are laid out one element to a line, hash keys are sorted and quoted only when they need to be, and strings are double-quoted, with escapes for anything that isn't printable ASCII.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"], "salary": {"min": 45000, "max": null}}`))
+doc, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"], "mag": {"value": 5.1, "error": null}}`))
 fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints it
 ```
 
 ```
 {
-  salary => {
-    max => undef,
-    min => 45000,
+  id => "ci40123456",
+  mag => {
+    error => undef,
+    value => "5.1",
   },
-  skills => [
-    "Go",
-    "SQL",
+  stations => [
+    "PAS",
+    "GSC",
   ],
-  title => "Go Developer",
 }
 ```
 
@@ -376,18 +376,18 @@ fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints i
 FromDump reads a structure written by Dump, or by Perl's Data::Dumper, and returns it, as FromJSON reads JSON.
 
 ```go
-tags := scalar.Value(scalar.Array("go"))
-doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
-back, err := scalar.FromDump(scalar.Value(doc).Dump())                           // a round trip
-fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
+stations := scalar.Value(scalar.Array("PAS"))
+doc := scalar.Hash("id", "ci40123456", "stations", stations, "again", stations)      // the same array twice
+back, err := scalar.FromDump(scalar.Value(doc).Dump())                               // a round trip
+fmt.Println(err, back.Equal(doc), back.At("stations").AV() == back.At("again").AV()) // still one array
 
-perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
-fmt.Println(err, perl.At("name"), perl.At("langs[1]"))
+perl, err := scalar.FromDump(`bless( {'code' => 'PAS', 'channels' => ['BHZ', 'BHN']}, 'Station' )`) // Data::Dumper's output
+fmt.Println(err, perl.At("code"), perl.At("channels[1]"))
 ```
 
 ```
 <nil> true true
-<nil> Ada Go
+<nil> PAS BHN
 ```
 
 #### `MustFromDump`
@@ -396,10 +396,10 @@ MustFromDump is FromDump, panicking if the dump is malformed.
 
 ```go
 want := scalar.MustFromDump(`{
-	title  => "Go Developer",
-	skills => ["Go", "SQL"],   # test data, as Perl would write it
+	id       => "ci40123456",
+	stations => ["PAS", "GSC"],   # test data, as Perl would write it
 }`)
-got, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+got, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"]}`))
 fmt.Printf("%q\n", got.Diff(want))
 ```
 
@@ -413,44 +413,47 @@ fmt.Printf("%q\n", got.Diff(want))
 // The expected value in a test: shorter than JSON, with comments where
 // they help.
 want := scalar.MustFromDump(`{
-	title     => "Senior Go Developer",
-	seniority => "Senior",
-	salary    => { min => 60000, max => undef },   # max: not stated
-	skills    => ["Go", "PostgreSQL", "Docker"],
-	remote    => !!1,
+	id       => "ci40123456",
+	place    => "12 km NNE of Ridgecrest, CA",
+	mag      => { value => 5.1, error => undef },   # error: not reported
+	stations => ["PAS", "GSC", "ISA"],
+	reviewed => !!1,
 }`)
-got, _ := scalar.FromJSON([]byte(`{"title": "Senior Go Developer", "seniority": "Senior",
-	"salary": {"min": 60000, "max": null}, "skills": ["Go", "PostgreSQL", "Docker"], "remote": true}`))
+got, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "place": "12 km NNE of Ridgecrest, CA",
+	"mag": {"value": 5.1, "error": null}, "stations": ["PAS", "GSC", "ISA"], "reviewed": true}`))
 fmt.Printf("%q\n", got.Diff(want))
-got.At("skills[2]").Set("Kubernetes")
+got.At("stations[2]").Set("SVD")
 fmt.Println(got.Diff(want)) // where they differ, as a path for At
 ```
 
 ```
 ""
-skills[2]: got "Kubernetes", want "Docker"
+stations[2]: got "SVD", want "ISA"
 ```
 
 #### `MustFromDump.toStruct`
 
 ```go
 // Test data straight into the struct a function under test takes.
-type Salary struct{ Min, Max int }
-type Posting struct {
-	Title  string
-	Salary Salary
-	Skills []string
+type Origin struct {
+	Lat, Lon float64
+	Depth    int // metres
 }
-p, err := scalar.To[Posting](scalar.MustFromDump(`{
-	Title  => 'Data Engineer',
-	Salary => { Min => 45_000, Max => 55_000 },   # underscores, as in Perl
-	Skills => ['Python', 'SQL'],
+type Event struct {
+	ID       string
+	Origin   Origin
+	Stations []string
+}
+e, err := scalar.To[Event](scalar.MustFromDump(`{
+	ID       => 'ci40123456',
+	Origin   => { Lat => 35.7, Lon => -117.6, Depth => 8_200 },   # underscores, as in Perl
+	Stations => ['PAS', 'GSC'],
 }`))
-fmt.Printf("%+v %v\n", p, err)
+fmt.Printf("%+v %v\n", e, err)
 ```
 
 ```
-{Title:Data Engineer Salary:{Min:45000 Max:55000} Skills:[Python SQL]} <nil>
+{ID:ci40123456 Origin:{Lat:35.7 Lon:-117.6 Depth:8200} Stations:[PAS GSC]} <nil>
 ```
 
 #### `FromDump.keysAndStrings`
@@ -557,8 +560,8 @@ int string string float string bool undef
 
 ```go
 _, err := scalar.FromDump(`{
-	title  => "Go Developer",
-	skills => ["Go" "SQL"],
+	id       => "ci40123456",
+	stations => ["PAS" "GSC"],
 }`)
 fmt.Println(err) // a line and column to look at
 _, err = scalar.FromDump(`{ handler => sub { "DUMMY" } }`)
@@ -566,7 +569,7 @@ fmt.Println(err) // data only: no Perl is ever run
 ```
 
 ```
-scalar: bad dump at line 3, column 19: expected a comma or "]", found '"'
+scalar: bad dump at line 3, column 22: expected a comma or "]", found '"'
 scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, not Perl code
 ```
 
@@ -737,11 +740,11 @@ first
 PathOK is Path with Go's comma-ok: ok reports whether every step exists, so a value that's present but null (undef) gives ok true, while a missing key or index, or a step through something that isn't an array or hash, gives ok false and an undef scalar.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"salary": null}`))
-_, ok := doc.PathOK("salary") // present, but null
+doc, _ := scalar.FromJSON([]byte(`{"alert": null}`))
+_, ok := doc.PathOK("alert") // present, but null
 fmt.Println(ok)
-_, ok = doc.PathOK("bonus") // missing: and nothing is created
-fmt.Println(ok, doc.HV().Exists("bonus"))
+_, ok = doc.PathOK("felt") // missing: and nothing is created
+fmt.Println(ok, doc.HV().Exists("felt"))
 ```
 
 ```
@@ -788,11 +791,11 @@ debug
 AtOK is PathOK with the route as one string, written as for At: ok reports whether every step exists, so a value that's present but null gives ok true.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "max": null}}`))
-_, ok := doc.AtOK("salary.max") // present, but null
+doc, _ := scalar.FromJSON([]byte(`{"mag": {"value": 5.1, "error": null}}`))
+_, ok := doc.AtOK("mag.error") // present, but null
 fmt.Println(ok)
-_, ok = doc.AtOK("salary.bonus") // missing: and nothing is created
-fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
+_, ok = doc.AtOK("mag.type") // missing: and nothing is created
+fmt.Println(ok, doc.At("mag").HV().Exists("type"))
 ```
 
 ```
@@ -805,23 +808,23 @@ false false
 DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route written as for At: it removes the last step's key or element, and returns its value, or undef if there was nothing there.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "bonus": "TBC"}, "skills": ["Go", "SQL"]}`))
-fmt.Println(doc.DeleteAt("salary.bonus")) // delete $doc->{salary}{bonus}: its value
-fmt.Println(doc.DeleteAt("skills[-1]"))   // the last element: the array shrinks
-fmt.Println(doc.DeleteAt("benefits.car")) // nothing there: undef, and nothing created
+doc, _ := scalar.FromJSON([]byte(`{"felt": {"reports": 1204, "source": "DYFI"}, "stations": ["PAS", "GSC"]}`))
+fmt.Println(doc.DeleteAt("felt.source"))  // delete $doc->{felt}{source}: its value
+fmt.Println(doc.DeleteAt("stations[-1]")) // the last element: the array shrinks
+fmt.Println(doc.DeleteAt("origin.depth")) // nothing there: undef, and nothing created
 fmt.Println(doc.Dump())
 ```
 
 ```
-TBC
-SQL
+DYFI
+GSC
 
 {
-  salary => {
-    min => 45000,
+  felt => {
+    reports => 1204,
   },
-  skills => [
-    "Go",
+  stations => [
+    "PAS",
   ],
 }
 ```
@@ -899,16 +902,16 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete $s->{$section}{$key} does in Perl.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"pay":{"min":45000,"max":55000},"v1.2":{"note":"x"}}`))
-fmt.Println(doc.DeletePath("pay", "max"))   // delete $doc->{pay}{max}
-fmt.Println(doc.DeletePath("v1.2", "note")) // keys are taken whole, dots and all
-fmt.Println(doc.At("pay").HV().KeysSlice(), doc.DeletePath("pay", "bonus").Defined())
+doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
+fmt.Println(doc.DeletePath("depth", "error")) // delete $doc->{depth}{error}
+fmt.Println(doc.DeletePath("v1.2", "note"))   // keys are taken whole, dots and all
+fmt.Println(doc.At("depth").HV().KeysSlice(), doc.DeletePath("depth", "type").Defined())
 ```
 
 ```
-55000
+2
 x
-[min] false
+[km] false
 ```
 
 #### `SV.Undef`
@@ -916,9 +919,9 @@ x
 Undef is Perl's undef $s: s becomes undef, and Undef returns it, now undef.
 
 ```go
-h := scalar.Hash("bonus", 5000)
-fmt.Println(h.Get("bonus").Undef().Defined()) // undef $h{bonus}: returns it, now undef
-fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Delete removes it
+h := scalar.Hash("felt", 1204)
+fmt.Println(h.Get("felt").Undef().Defined()) // undef $h{felt}: returns it, now undef
+fmt.Println(h.Exists("felt"))                // the key stays, as in Perl; Delete removes it
 ```
 
 ```
@@ -933,17 +936,17 @@ Lock makes s, and everything it refers to, read-only, all the way down, and retu
 Lock makes a structure read-only all the way down, as Perl's Hash::Util does a hash: its keys are fixed, so even reading one it hasn't got panics, where it would have autovivified, and a misspelled key is caught at once.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"title": "Care worker", "pay": {"min": 25000}}`))
+doc, _ := scalar.FromJSON([]byte(`{"place": "5 km W of Cobb, CA", "depth": {"km": 2}}`))
 doc.Lock()
-fmt.Println(doc.At("pay.min"))
-fmt.Println(catch(func() { doc.At("pay.max").Set(30000) }))
-fmt.Println(catch(func() { doc.At("titel") })) // misspelled
+fmt.Println(doc.At("depth.km"))
+fmt.Println(catch(func() { doc.At("depth.error").Set(0.5) }))
+fmt.Println(catch(func() { doc.At("plcae") })) // misspelled
 ```
 
 ```
-25000
-scalar: Attempt to access disallowed key 'max' in a restricted hash
-scalar: Attempt to access disallowed key 'titel' in a restricted hash
+2
+scalar: Attempt to access disallowed key 'error' in a restricted hash
+scalar: Attempt to access disallowed key 'plcae' in a restricted hash
 ```
 
 #### `SV.Unlock`
@@ -953,14 +956,14 @@ Unlock undoes Lock, all the way down, and returns s.
 Unlock undoes Lock, all the way down.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"pay": {"min": 25000}}`))
+doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": 2}}`))
 doc.Lock().Unlock()
-doc.At("pay.max").Set(30000)
-fmt.Println(doc.At("pay.max"))
+doc.At("depth.error").Set(0.5)
+fmt.Println(doc.At("depth.error"))
 ```
 
 ```
-30000
+0.5
 ```
 
 #### `SV.Locked`
@@ -4339,62 +4342,62 @@ To converts v into a Go value of type T, the type in brackets: the way out of sc
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{
-	"title": "Go Developer",
-	"skills": ["Go", "SQL"],
-	"salary": {"min": "45000", "max": 55000}
+	"id": "ci40123456",
+	"stations": ["PAS", "GSC"],
+	"depth": {"km": "8", "error": 2}
 }`))
-type Posting struct {
-	Title  string   `json:"title"`
-	Skills []string `json:"skills"`
-	Salary struct {
-		Min int `json:"min"` // "45000" fills it, as Perl would numify it
-		Max int `json:"max"`
-	} `json:"salary"`
+type Event struct {
+	ID       string   `json:"id"`
+	Stations []string `json:"stations"`
+	Depth    struct {
+		Km    int `json:"km"` // "8" fills it, as Perl would numify it
+		Error int `json:"error"`
+	} `json:"depth"`
 }
-p, err := scalar.To[Posting](doc) // the type you want, in brackets
+e, err := scalar.To[Event](doc) // the type you want, in brackets
 if err != nil {
 	panic(err)
 }
-fmt.Println(p.Title, p.Skills, p.Salary.Min, p.Salary.Max)
+fmt.Println(e.ID, e.Stations, e.Depth.Km, e.Depth.Error)
 ```
 
 ```
-Go Developer [Go SQL] 45000 55000
+ci40123456 [PAS GSC] 8 2
 ```
 
 #### `To.slice`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "years": [3, "5"]}`))
-skills, _ := scalar.To[[]string](doc.At("skills")) // from a scalar holding an array
-years, _ := scalar.To[[]int](doc.At("years").AV()) // or from the array itself
-fmt.Printf("%q %v\n", skills, years)
+doc, _ := scalar.FromJSON([]byte(`{"stations": ["PAS", "GSC"], "felt": [3, "5"]}`))
+stations, _ := scalar.To[[]string](doc.At("stations")) // from a scalar holding an array
+felt, _ := scalar.To[[]int](doc.At("felt").AV())       // or from the array itself
+fmt.Printf("%q %v\n", stations, felt)
 ```
 
 ```
-["Go" "SQL"] [3 5]
+["PAS" "GSC"] [3 5]
 ```
 
 #### `To.number`
 
 ```go
-salary, err := scalar.To[int](scalar.Value(" 55000 ")) // a numeric string, as Perl reads it
-fmt.Println(salary, err)
-rate, err := scalar.To[float64](scalar.Value("37.5"))
-fmt.Println(rate, err)
+felt, err := scalar.To[int](scalar.Value(" 1204 ")) // a numeric string, as Perl reads it
+fmt.Println(felt, err)
+mag, err := scalar.To[float64](scalar.Value("4.5"))
+fmt.Println(mag, err)
 ```
 
 ```
-55000 <nil>
-37.5 <nil>
+1204 <nil>
+4.5 <nil>
 ```
 
 #### `To.map`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"go": 3, "perl": "2"}`))
+doc, _ := scalar.FromJSON([]byte(`{"ci": 3, "us": "2"}`))
 counts, _ := scalar.To[map[string]int](doc) // a hash fills a map
-fmt.Println(counts["go"], counts["perl"])
+fmt.Println(counts["ci"], counts["us"])
 ```
 
 ```
@@ -4404,48 +4407,48 @@ fmt.Println(counts["go"], counts["perl"])
 #### `To.set`
 
 ```go
-langs := scalar.NewSet("Go", "Perl", 5)
-members, _ := scalar.To[[]string](langs) // a set gives its members, in insertion order
+networks := scalar.NewSet("ci", "us", 5)
+members, _ := scalar.To[[]string](networks) // a set gives its members, in insertion order
 fmt.Printf("%q\n", members)
 ```
 
 ```
-["Go" "Perl" "5"]
+["ci" "us" "5"]
 ```
 
 #### `To.bag`
 
 ```go
-skills := scalar.NewBag("Go", "Go", "Perl")
-counts, _ := scalar.To[map[string]int](skills)    // a bag gives its counts
-names, _ := scalar.To[[]string](skills.Members()) // and Members its distinct members
-fmt.Println(counts["Go"], counts["Perl"], names)
+regions := scalar.NewBag("Alaska", "Alaska", "Nevada")
+counts, _ := scalar.To[map[string]int](regions)    // a bag gives its counts
+names, _ := scalar.To[[]string](regions.Members()) // and Members its distinct members
+fmt.Println(counts["Alaska"], counts["Nevada"], names)
 ```
 
 ```
-2 1 [Go Perl]
+2 1 [Alaska Nevada]
 ```
 
 #### `To.any`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"tags": ["go", 1]}`))
+doc, _ := scalar.FromJSON([]byte(`{"types": ["origin", 1]}`))
 plain, _ := scalar.To[any](doc) // the plain Go form, as Any gives it
 fmt.Printf("%v\n", plain)
 ```
 
 ```
-map[tags:[go 1]]
+map[types:[origin 1]]
 ```
 
 #### `To.missing`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"bonus": null}`))
-bonus, err := scalar.To[*int](doc.At("bonus")) // null, or missing: the zero value, here nil
-fmt.Println(bonus, err)
-perks, err := scalar.To[[]string](doc.At("perks"))
-fmt.Println(perks == nil, err)
+doc, _ := scalar.FromJSON([]byte(`{"felt": null}`))
+felt, err := scalar.To[*int](doc.At("felt")) // null, or missing: the zero value, here nil
+fmt.Println(felt, err)
+products, err := scalar.To[[]string](doc.At("products"))
+fmt.Println(products == nil, err)
 ```
 
 ```
@@ -4458,43 +4461,43 @@ true <nil>
 An optional value is a pointer: nil if the value is undef, missing or null, and otherwise a pointer to it, converted and checked. There's no StrPtr or NumPtr method, as To\[\*T] does it for any type, and refuses a value that doesn't fit, where Num would quietly make "abc" 0.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": null, "period": "Year", "bonus": "competitive"}`))
+doc, _ := scalar.FromJSON([]byte(`{"value": 4.5, "error": null, "type": "ml", "felt": "widely"}`))
 
-min, _ := scalar.To[*float64](doc.At("min"))
-max, _ := scalar.To[*float64](doc.At("max"))      // null: nil
-none, _ := scalar.To[*string](doc.At("currency")) // missing: nil
-fmt.Println(*min, max, none)
+value, _ := scalar.To[*float64](doc.At("value"))
+magErr, _ := scalar.To[*float64](doc.At("error")) // null: nil
+none, _ := scalar.To[*string](doc.At("network"))  // missing: nil
+fmt.Println(*value, magErr, none)
 
-_, err := scalar.To[*float64](doc.At("bonus")) // "competitive" isn't a number
+_, err := scalar.To[*float64](doc.At("felt")) // "widely" isn't a number
 fmt.Println(err)
 
-// The same, for a struct's optional fields, as the model's metadata has.
-type Pay struct {
-	Min, Max *float64
-	Period   *string
+// The same, for a struct's optional fields, as a feed's often are.
+type Mag struct {
+	Value, Error *float64
+	Type         *string
 }
-p, _ := scalar.To[Pay](doc)
-fmt.Println(*p.Min, p.Max, *p.Period)
+m, _ := scalar.To[Mag](doc)
+fmt.Println(*m.Value, m.Error, *m.Type)
 ```
 
 ```
-45000 <nil> <nil>
-scalar: Decode: want float64, got "competitive"
-45000 <nil> Year
+4.5 <nil> <nil>
+scalar: Decode: want float64, got "widely"
+4.5 <nil> ml
 ```
 
 #### `To.error`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
-type Posting struct {
-	Salary struct {
-		Max int `json:"max"`
-	} `json:"salary"`
+doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": "unknown"}}`))
+type Event struct {
+	Depth struct {
+		Km int `json:"km"`
+	} `json:"depth"`
 }
-p, err := scalar.To[Posting](doc)
+e, err := scalar.To[Event](doc)
 fmt.Println(err)
-fmt.Println(p.Salary.Max) // on an error, the zero value
+fmt.Println(e.Depth.Km) // on an error, the zero value
 var de *scalar.DecodeError
 if errors.As(err, &de) {
 	fmt.Println(doc.At(de.Path)) // the path leads At to the value
@@ -4502,17 +4505,17 @@ if errors.As(err, &de) {
 ```
 
 ```
-scalar: Decode: salary.max: want int, got "competitive"
+scalar: Decode: depth.km: want int, got "unknown"
 0
-competitive
+unknown
 ```
 
 #### `To.strict`
 
 ```go
-years := scalar.Array("3", "five", 7)
-fmt.Println(years.IntSlice())     // Perl's numeric context: never fails, "five" is 0
-_, err := scalar.To[[]int](years) // To checks
+felt := scalar.Array("3", "five", 7)
+fmt.Println(felt.IntSlice())     // Perl's numeric context: never fails, "five" is 0
+_, err := scalar.To[[]int](felt) // To checks
 fmt.Println(err)
 ```
 
@@ -4524,17 +4527,17 @@ scalar: Decode: [1]: want int, got "five"
 #### `To.loose`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "extra": {"benefits": ["Pension"]}}`))
-type Posting struct {
-	Title string     `json:"title"`
+doc, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "extra": {"products": ["shakemap"]}}`))
+type Event struct {
+	ID    string     `json:"id"`
 	Extra *scalar.SV `json:"extra"` // a part whose shape varies stays a scalar: a deep copy
 }
-p, _ := scalar.To[Posting](doc)
-fmt.Println(p.Title, p.Extra.At("benefits[0]"))
+e, _ := scalar.To[Event](doc)
+fmt.Println(e.ID, e.Extra.At("products[0]"))
 ```
 
 ```
-Go Developer Pension
+ci40123456 shakemap
 ```
 
 #### `SV.Decode`
@@ -4543,42 +4546,42 @@ Decode stores s in the Go value v points to, as `json.Unmarshal` would store the
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{
-	"title": "Go Developer",
-	"skills": ["Go", "SQL"],
-	"salary": {"min": "45000", "max": 55000},
-	"extra": {"benefits": ["Pension"]}
+	"id": "ci40123456",
+	"stations": ["PAS", "GSC"],
+	"depth": {"km": "8", "error": 2},
+	"extra": {"products": ["shakemap"]}
 }`))
-var posting struct {
-	Title  string   `json:"title"`
-	Skills []string `json:"skills"`
-	Salary struct {
-		Min int `json:"min"` // "45000" fills it, as Perl would numify it
-		Max int `json:"max"`
-	} `json:"salary"`
+var event struct {
+	ID       string   `json:"id"`
+	Stations []string `json:"stations"`
+	Depth    struct {
+		Km    int `json:"km"` // "8" fills it, as Perl would numify it
+		Error int `json:"error"`
+	} `json:"depth"`
 	Extra *scalar.SV `json:"extra"` // a part that stays loose
 }
-if err := doc.Decode(&posting); err != nil {
+if err := doc.Decode(&event); err != nil {
 	panic(err)
 }
-fmt.Println(posting.Title, posting.Skills, posting.Salary.Min, posting.Salary.Max)
-fmt.Println(posting.Extra.At("benefits[0]"))
+fmt.Println(event.ID, event.Stations, event.Depth.Km, event.Depth.Error)
+fmt.Println(event.Extra.At("products[0]"))
 ```
 
 ```
-Go Developer [Go SQL] 45000 55000
-Pension
+ci40123456 [PAS GSC] 8 2
+shakemap
 ```
 
 #### `DecodeError.Error`
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"salary": {"max": "competitive"}}`))
-var posting struct {
-	Salary struct {
-		Max int `json:"max"`
-	} `json:"salary"`
+doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": "unknown"}}`))
+var event struct {
+	Depth struct {
+		Km int `json:"km"`
+	} `json:"depth"`
 }
-err := doc.Decode(&posting)
+err := doc.Decode(&event)
 fmt.Println(err)
 var de *scalar.DecodeError
 if errors.As(err, &de) {
@@ -4587,8 +4590,8 @@ if errors.As(err, &de) {
 ```
 
 ```
-scalar: Decode: salary.max: want int, got "competitive"
-competitive
+scalar: Decode: depth.km: want int, got "unknown"
+unknown
 ```
 
 <!-- reference:end -->

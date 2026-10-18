@@ -1,8 +1,8 @@
 package scalar_test
 
 // Examples of scalars: making them, reading them in each context, and
-// following references. They're run as tests, and they make up the
-// Reference section of README.md (see TestReference).
+// following references. They're run as tests, and they make up
+// docs/EXAMPLES.md (see TestReference).
 
 import (
 	"fmt"
@@ -27,14 +27,14 @@ func ExampleValue() {
 // A struct becomes a hash, keyed as encoding/json would write it: by its
 // json tags, leaving out what's omitempty and empty. Decode is the way back.
 func ExampleValue_struct() {
-	type group struct {
-		Code  string `json:"code"`
-		Title string `json:"title,omitempty"`
+	type station struct {
+		Code string `json:"code"`
+		Name string `json:"name,omitempty"`
 	}
-	g := scalar.Value(group{Code: "2134"})
-	fmt.Println(g.Ref(), g.At("code"), g.At("title").Defined())
+	st := scalar.Value(station{Code: "PAS"})
+	fmt.Println(st.Ref(), st.At("code"), st.At("name").Defined())
 	// Output:
-	// HASH 2134 false
+	// HASH PAS false
 }
 
 func ExampleSV_Set() {
@@ -73,29 +73,29 @@ func ExampleSV_Clone() {
 }
 
 func ExampleSV_Equal() {
-	doc, _ := scalar.FromJSON([]byte(`{"skills": ["Go", "SQL"], "salary": {"max": 55000}}`))
+	doc, _ := scalar.FromJSON([]byte(`{"stations": ["PAS", "GSC"], "depth": {"max": 12}}`))
 	fmt.Println(doc.Equal(map[string]any{ // is_deeply($doc, {...})
-		"skills": []string{"Go", "SQL"},
-		"salary": map[string]any{"max": "55000"}, // as strings, as eq compares
+		"stations": []string{"PAS", "GSC"},
+		"depth":    map[string]any{"max": "12"}, // as strings, as eq compares
 	}))
-	fmt.Println(doc.At("salary.max").Equal(55000.0), scalar.Value(nil).Equal("")) // undef equals only undef
+	fmt.Println(doc.At("depth.max").Equal(12.0), scalar.Value(nil).Equal("")) // undef equals only undef
 	// Output:
 	// true
 	// true false
 }
 
 func ExampleSV_Diff() {
-	rules, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
-	model, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "Docker"]}`))
-	fmt.Println(rules.Diff(model)) // where they first differ, as a path for At
-	fmt.Printf("%q\n", rules.Diff(rules.Clone()))
+	ours, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"]}`))
+	theirs, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "ISA"]}`))
+	fmt.Println(ours.Diff(theirs)) // where they first differ, as a path for At
+	fmt.Printf("%q\n", ours.Diff(ours.Clone()))
 	// Output:
-	// skills[1]: got "SQL", want "Docker"
+	// stations[1]: got "GSC", want "ISA"
 	// ""
 }
 
 func ExampleSV_Apply() {
-	doc, _ := scalar.FromJSON([]byte(`{"title": " Go Developer ", "skills": [" Go", "SQL "], "salary": 50000}`))
+	doc, _ := scalar.FromJSON([]byte(`{"place": " 5 km W of Cobb, CA ", "stations": [" PAS", "GSC "], "depth": 2}`))
 	doc.Apply(func(v *scalar.SV) any { // rmap { $_ = trim $_ } $doc
 		if v.Kind() == scalar.String {
 			return v.Trim()
@@ -105,7 +105,7 @@ func ExampleSV_Apply() {
 	out, _ := doc.MarshalJSON()
 	fmt.Println(string(out))
 	// Output:
-	// {"salary":50000,"skills":["Go","SQL"],"title":"Go Developer"}
+	// {"depth":2,"place":"5 km W of Cobb, CA","stations":["PAS","GSC"]}
 }
 
 func ExampleSV_Kind() {
@@ -177,24 +177,24 @@ func ExampleSV_OrSet() {
 
 func ExampleSV_Then() {
 	digits := func(v *scalar.SV) any { return v.S(`,`, "", "gr") }
-	figure := func(v *scalar.SV) any { return v.M(`£([\d,]+)`).Get(1).Then(digits) } // undef if no figure
-	annual := func(v *scalar.SV) any { return v.Mul(12) }
-	for _, text := range []string{"£4,000 a month", "Competitive"} {
-		fmt.Println(scalar.Value(text).Then(figure).Then(annual).Or("unknown")) // stops at the first undef
+	figure := func(v *scalar.SV) any { return v.M(`([\d,]+) m\b`).Get(1).Then(digits) } // undef if no figure
+	km := func(v *scalar.SV) any { return v.Div(1000) }
+	for _, text := range []string{"Depth: 12,500 m", "Depth not determined"} {
+		fmt.Println(scalar.Value(text).Then(figure).Then(km).Or("unknown")) // stops at the first undef
 	}
 	// Output:
-	// 48000
+	// 12.5
 	// unknown
 }
 
 func ExampleSV_When() {
 	positive := func(v *scalar.SV) bool { return v.Num() > 0 }
-	doc, _ := scalar.FromJSON([]byte(`{"min": 45000, "max": 0}`))
-	fmt.Println(doc.At("min").When(positive).Or("none"))
-	fmt.Println(doc.At("max").When(positive).Or("none"))   // fails the test: undef
-	fmt.Println(doc.At("bonus").When(positive).Or("none")) // missing: positive isn't called
+	doc, _ := scalar.FromJSON([]byte(`{"felt": 1204, "tsunami": 0}`))
+	fmt.Println(doc.At("felt").When(positive).Or("none"))
+	fmt.Println(doc.At("tsunami").When(positive).Or("none")) // fails the test: undef
+	fmt.Println(doc.At("cdi").When(positive).Or("none"))     // missing: positive isn't called
 	// Output:
-	// 45000
+	// 1204
 	// none
 	// none
 }
@@ -228,41 +228,41 @@ func ExampleSV_String() {
 }
 
 func ExampleSV_Dump() {
-	doc, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"], "salary": {"min": 45000, "max": null}}`))
+	doc, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"], "mag": {"value": 5.1, "error": null}}`))
 	fmt.Println(doc.Dump()) // print Dumper($doc), as Data::Dumper::Concise prints it
 	// Output:
 	// {
-	//   salary => {
-	//     max => undef,
-	//     min => 45000,
+	//   id => "ci40123456",
+	//   mag => {
+	//     error => undef,
+	//     value => "5.1",
 	//   },
-	//   skills => [
-	//     "Go",
-	//     "SQL",
+	//   stations => [
+	//     "PAS",
+	//     "GSC",
 	//   ],
-	//   title => "Go Developer",
 	// }
 }
 
 func ExampleFromDump() {
-	tags := scalar.Value(scalar.Array("go"))
-	doc := scalar.Hash("title", "Go Developer", "tags", tags, "again", tags)         // the same array twice
-	back, err := scalar.FromDump(scalar.Value(doc).Dump())                           // a round trip
-	fmt.Println(err, back.Equal(doc), back.At("tags").AV() == back.At("again").AV()) // still one array
+	stations := scalar.Value(scalar.Array("PAS"))
+	doc := scalar.Hash("id", "ci40123456", "stations", stations, "again", stations)      // the same array twice
+	back, err := scalar.FromDump(scalar.Value(doc).Dump())                               // a round trip
+	fmt.Println(err, back.Equal(doc), back.At("stations").AV() == back.At("again").AV()) // still one array
 
-	perl, err := scalar.FromDump(`bless( {'name' => 'Ada', 'langs' => ['Perl', 'Go']}, 'Person' )`) // Data::Dumper's output
-	fmt.Println(err, perl.At("name"), perl.At("langs[1]"))
+	perl, err := scalar.FromDump(`bless( {'code' => 'PAS', 'channels' => ['BHZ', 'BHN']}, 'Station' )`) // Data::Dumper's output
+	fmt.Println(err, perl.At("code"), perl.At("channels[1]"))
 	// Output:
 	// <nil> true true
-	// <nil> Ada Go
+	// <nil> PAS BHN
 }
 
 func ExampleMustFromDump() {
 	want := scalar.MustFromDump(`{
-		title  => "Go Developer",
-		skills => ["Go", "SQL"],   # test data, as Perl would write it
+		id       => "ci40123456",
+		stations => ["PAS", "GSC"],   # test data, as Perl would write it
 	}`)
-	got, _ := scalar.FromJSON([]byte(`{"title": "Go Developer", "skills": ["Go", "SQL"]}`))
+	got, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "stations": ["PAS", "GSC"]}`))
 	fmt.Printf("%q\n", got.Diff(want))
 	// Output:
 	// ""
@@ -272,38 +272,41 @@ func ExampleMustFromDump_testData() {
 	// The expected value in a test: shorter than JSON, with comments where
 	// they help.
 	want := scalar.MustFromDump(`{
-		title     => "Senior Go Developer",
-		seniority => "Senior",
-		salary    => { min => 60000, max => undef },   # max: not stated
-		skills    => ["Go", "PostgreSQL", "Docker"],
-		remote    => !!1,
+		id       => "ci40123456",
+		place    => "12 km NNE of Ridgecrest, CA",
+		mag      => { value => 5.1, error => undef },   # error: not reported
+		stations => ["PAS", "GSC", "ISA"],
+		reviewed => !!1,
 	}`)
-	got, _ := scalar.FromJSON([]byte(`{"title": "Senior Go Developer", "seniority": "Senior",
-		"salary": {"min": 60000, "max": null}, "skills": ["Go", "PostgreSQL", "Docker"], "remote": true}`))
+	got, _ := scalar.FromJSON([]byte(`{"id": "ci40123456", "place": "12 km NNE of Ridgecrest, CA",
+		"mag": {"value": 5.1, "error": null}, "stations": ["PAS", "GSC", "ISA"], "reviewed": true}`))
 	fmt.Printf("%q\n", got.Diff(want))
-	got.At("skills[2]").Set("Kubernetes")
+	got.At("stations[2]").Set("SVD")
 	fmt.Println(got.Diff(want)) // where they differ, as a path for At
 	// Output:
 	// ""
-	// skills[2]: got "Kubernetes", want "Docker"
+	// stations[2]: got "SVD", want "ISA"
 }
 
 func ExampleMustFromDump_toStruct() {
 	// Test data straight into the struct a function under test takes.
-	type Salary struct{ Min, Max int }
-	type Posting struct {
-		Title  string
-		Salary Salary
-		Skills []string
+	type Origin struct {
+		Lat, Lon float64
+		Depth    int // metres
 	}
-	p, err := scalar.To[Posting](scalar.MustFromDump(`{
-		Title  => 'Data Engineer',
-		Salary => { Min => 45_000, Max => 55_000 },   # underscores, as in Perl
-		Skills => ['Python', 'SQL'],
+	type Event struct {
+		ID       string
+		Origin   Origin
+		Stations []string
+	}
+	e, err := scalar.To[Event](scalar.MustFromDump(`{
+		ID       => 'ci40123456',
+		Origin   => { Lat => 35.7, Lon => -117.6, Depth => 8_200 },   # underscores, as in Perl
+		Stations => ['PAS', 'GSC'],
 	}`))
-	fmt.Printf("%+v %v\n", p, err)
+	fmt.Printf("%+v %v\n", e, err)
 	// Output:
-	// {Title:Data Engineer Salary:{Min:45000 Max:55000} Skills:[Python SQL]} <nil>
+	// {ID:ci40123456 Origin:{Lat:35.7 Lon:-117.6 Depth:8200} Stations:[PAS GSC]} <nil>
 }
 
 func ExampleFromDump_keysAndStrings() {
@@ -388,14 +391,14 @@ func ExampleFromDump_types() {
 
 func ExampleFromDump_errors() {
 	_, err := scalar.FromDump(`{
-		title  => "Go Developer",
-		skills => ["Go" "SQL"],
+		id       => "ci40123456",
+		stations => ["PAS" "GSC"],
 	}`)
 	fmt.Println(err) // a line and column to look at
 	_, err = scalar.FromDump(`{ handler => sub { "DUMMY" } }`)
 	fmt.Println(err) // data only: no Perl is ever run
 	// Output:
-	// scalar: bad dump at line 3, column 19: expected a comma or "]", found '"'
+	// scalar: bad dump at line 3, column 22: expected a comma or "]", found '"'
 	// scalar: bad dump at line 1, column 14: sub can't be read: FromDump reads data, not Perl code
 }
 
@@ -502,11 +505,11 @@ func ExampleSV_Path() {
 }
 
 func ExampleSV_PathOK() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": null}`))
-	_, ok := doc.PathOK("salary") // present, but null
+	doc, _ := scalar.FromJSON([]byte(`{"alert": null}`))
+	_, ok := doc.PathOK("alert") // present, but null
 	fmt.Println(ok)
-	_, ok = doc.PathOK("bonus") // missing: and nothing is created
-	fmt.Println(ok, doc.HV().Exists("bonus"))
+	_, ok = doc.PathOK("felt") // missing: and nothing is created
+	fmt.Println(ok, doc.HV().Exists("felt"))
 	// Output:
 	// true
 	// false false
@@ -541,32 +544,32 @@ func ExampleSV_At() {
 }
 
 func ExampleSV_AtOK() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "max": null}}`))
-	_, ok := doc.AtOK("salary.max") // present, but null
+	doc, _ := scalar.FromJSON([]byte(`{"mag": {"value": 5.1, "error": null}}`))
+	_, ok := doc.AtOK("mag.error") // present, but null
 	fmt.Println(ok)
-	_, ok = doc.AtOK("salary.bonus") // missing: and nothing is created
-	fmt.Println(ok, doc.At("salary").HV().Exists("bonus"))
+	_, ok = doc.AtOK("mag.type") // missing: and nothing is created
+	fmt.Println(ok, doc.At("mag").HV().Exists("type"))
 	// Output:
 	// true
 	// false false
 }
 
 func ExampleSV_DeleteAt() {
-	doc, _ := scalar.FromJSON([]byte(`{"salary": {"min": 45000, "bonus": "TBC"}, "skills": ["Go", "SQL"]}`))
-	fmt.Println(doc.DeleteAt("salary.bonus")) // delete $doc->{salary}{bonus}: its value
-	fmt.Println(doc.DeleteAt("skills[-1]"))   // the last element: the array shrinks
-	fmt.Println(doc.DeleteAt("benefits.car")) // nothing there: undef, and nothing created
+	doc, _ := scalar.FromJSON([]byte(`{"felt": {"reports": 1204, "source": "DYFI"}, "stations": ["PAS", "GSC"]}`))
+	fmt.Println(doc.DeleteAt("felt.source"))  // delete $doc->{felt}{source}: its value
+	fmt.Println(doc.DeleteAt("stations[-1]")) // the last element: the array shrinks
+	fmt.Println(doc.DeleteAt("origin.depth")) // nothing there: undef, and nothing created
 	fmt.Println(doc.Dump())
 	// Output:
-	// TBC
-	// SQL
+	// DYFI
+	// GSC
 	//
 	// {
-	//   salary => {
-	//     min => 45000,
+	//   felt => {
+	//     reports => 1204,
 	//   },
-	//   skills => [
-	//     "Go",
+	//   stations => [
+	//     "PAS",
 	//   ],
 	// }
 }
@@ -610,20 +613,20 @@ func ExampleNumCmp() {
 }
 
 func ExampleSV_DeletePath() {
-	doc, _ := scalar.FromJSON([]byte(`{"pay":{"min":45000,"max":55000},"v1.2":{"note":"x"}}`))
-	fmt.Println(doc.DeletePath("pay", "max"))   // delete $doc->{pay}{max}
-	fmt.Println(doc.DeletePath("v1.2", "note")) // keys are taken whole, dots and all
-	fmt.Println(doc.At("pay").HV().KeysSlice(), doc.DeletePath("pay", "bonus").Defined())
+	doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
+	fmt.Println(doc.DeletePath("depth", "error")) // delete $doc->{depth}{error}
+	fmt.Println(doc.DeletePath("v1.2", "note"))   // keys are taken whole, dots and all
+	fmt.Println(doc.At("depth").HV().KeysSlice(), doc.DeletePath("depth", "type").Defined())
 	// Output:
-	// 55000
+	// 2
 	// x
-	// [min] false
+	// [km] false
 }
 
 func ExampleSV_Undef() {
-	h := scalar.Hash("bonus", 5000)
-	fmt.Println(h.Get("bonus").Undef().Defined()) // undef $h{bonus}: returns it, now undef
-	fmt.Println(h.Exists("bonus"))                // the key stays, as in Perl; Delete removes it
+	h := scalar.Hash("felt", 1204)
+	fmt.Println(h.Get("felt").Undef().Defined()) // undef $h{felt}: returns it, now undef
+	fmt.Println(h.Exists("felt"))                // the key stays, as in Perl; Delete removes it
 	// Output:
 	// false
 	// true
@@ -634,25 +637,25 @@ func ExampleSV_Undef() {
 // panics, where it would have autovivified, and a misspelled key is caught
 // at once.
 func ExampleSV_Lock() {
-	doc, _ := scalar.FromJSON([]byte(`{"title": "Care worker", "pay": {"min": 25000}}`))
+	doc, _ := scalar.FromJSON([]byte(`{"place": "5 km W of Cobb, CA", "depth": {"km": 2}}`))
 	doc.Lock()
-	fmt.Println(doc.At("pay.min"))
-	fmt.Println(catch(func() { doc.At("pay.max").Set(30000) }))
-	fmt.Println(catch(func() { doc.At("titel") })) // misspelled
+	fmt.Println(doc.At("depth.km"))
+	fmt.Println(catch(func() { doc.At("depth.error").Set(0.5) }))
+	fmt.Println(catch(func() { doc.At("plcae") })) // misspelled
 	// Output:
-	// 25000
-	// scalar: Attempt to access disallowed key 'max' in a restricted hash
-	// scalar: Attempt to access disallowed key 'titel' in a restricted hash
+	// 2
+	// scalar: Attempt to access disallowed key 'error' in a restricted hash
+	// scalar: Attempt to access disallowed key 'plcae' in a restricted hash
 }
 
 // Unlock undoes Lock, all the way down.
 func ExampleSV_Unlock() {
-	doc, _ := scalar.FromJSON([]byte(`{"pay": {"min": 25000}}`))
+	doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": 2}}`))
 	doc.Lock().Unlock()
-	doc.At("pay.max").Set(30000)
-	fmt.Println(doc.At("pay.max"))
+	doc.At("depth.error").Set(0.5)
+	fmt.Println(doc.At("depth.error"))
 	// Output:
-	// 30000
+	// 0.5
 }
 
 // Locked reports whether Lock has made a value read-only; a Clone isn't.

@@ -1,7 +1,7 @@
 package scalar_test
 
 // Examples of regular expressions. They're run as tests, and they make up
-// the Reference section of README.md (see TestReference).
+// docs/EXAMPLES.md (see TestReference).
 
 import (
 	"fmt"

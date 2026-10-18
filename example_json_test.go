@@ -1,7 +1,7 @@
 package scalar_test
 
-// Examples of JSON and JSONPath. They're run as tests, and they make up the
-// Reference section of README.md (see TestReference).
+// Examples of JSON and JSONPath. They're run as tests, and they make up
+// docs/EXAMPLES.md (see TestReference).
 
 import (
 	"encoding/json"

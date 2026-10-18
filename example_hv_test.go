@@ -1,8 +1,8 @@
 package scalar_test
 
-// Examples of hashes. Hash order is random, as in Perl, so the examples
-// sort keys before printing them. They're run as tests, and they make up
-// the Reference section of README.md (see TestReference).
+// Examples of hashes. Hash order is random, as in Perl, so the examples sort
+// keys before printing them. They're run as tests, and they make up
+// docs/EXAMPLES.md (see TestReference).
 
 import (
 	"fmt"

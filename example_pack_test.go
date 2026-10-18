@@ -1,7 +1,7 @@
 package scalar_test
 
-// Examples of Pack and Unpack. They're run as tests, and they make up the
-// Reference section of README.md (see TestReference).
+// Examples of Pack and Unpack. They're run as tests, and they make up
+// docs/EXAMPLES.md (see TestReference).
 
 import (
 	"encoding/hex"

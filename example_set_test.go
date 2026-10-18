@@ -1,8 +1,7 @@
 package scalar_test
 
 // Examples of sets and bags, after CPAN's Set::Scalar and Set::Bag. They're
-// run as tests, and they make up the Reference section of README.md (see
-// TestReference).
+// run as tests, and they make up docs/EXAMPLES.md (see TestReference).
 
 import (
 	"encoding/json"
