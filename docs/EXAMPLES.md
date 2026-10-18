@@ -2,7 +2,8 @@
 
 Every function and method in [scalar](../README.md), each with a working
 example and the output it prints. For how the features fit together, see
-the [reference](REFERENCE.md); for tasks, see the [how-to guide](HOWTO.md).
+the [reference](REFERENCE.md); for tasks, see the [how-to guide](HOWTO.md);
+coming from Perl, see the [phrasebook](PERL.md).
 
 <!-- reference:start -->
 
@@ -931,7 +932,7 @@ true
 
 #### `SV.Lock`
 
-Lock makes s, and everything it refers to, read-only, all the way down, and returns s; see the README's Locking section.
+Lock makes s, and everything it refers to, read-only, all the way down, and returns s; see the reference's Locking section.
 
 Lock makes a structure read-only all the way down, as Perl's Hash::Util does a hash: its keys are fixed, so even reading one it hasn't got panics, where it would have autovivified, and a misspelled key is caught at once.
 

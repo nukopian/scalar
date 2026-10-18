@@ -4,7 +4,7 @@ package scalar
 const readOnlyMsg = "Modification of a read-only value attempted"
 
 // Lock makes s, and everything it refers to, read-only, all the way down,
-// and returns s; see the README's Locking section. Perl's Hash::Util is
+// and returns s; see the reference's Locking section. Perl's Hash::Util is
 // the model: a locked hash's keys are fixed, so reading or writing one it
 // hasn't got panics ("Attempt to access disallowed key 'x' in a
 // restricted hash"), as do deleting one and any change to a value

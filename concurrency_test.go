@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The patterns in the README's Concurrency section are race-free: run
+// The patterns in the reference's Concurrency section are race-free: run
 // with go test -race. Each goroutine reads (and so may write) only its own
 // Clone, and what's shared is a plain Go value from To.
 func TestSharingAcrossGoroutines(t *testing.T) {

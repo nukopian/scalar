@@ -3,7 +3,8 @@
 What each part of [scalar](../README.md) does, feature by feature: how it
 behaves, where it follows Perl or another source, and where it doesn't.
 For tasks, see the [how-to guide](HOWTO.md); for one example of every
-function and method, see the [examples](EXAMPLES.md).
+function and method, see the [examples](EXAMPLES.md); coming from Perl,
+see the [phrasebook](PERL.md).
 
 - [The types](#the-types)
 - [Scalars](#scalars)

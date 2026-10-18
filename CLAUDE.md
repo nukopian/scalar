@@ -9,18 +9,18 @@ comes with the reason for it.
 
 It aims to be easy to use, to give people a low barrier into Go, and to
 get a proof of concept to results quickly. Raw speed comes second. It's a
-half-way house for loosely shaped data (API and LLM JSON, YAML, messy
+halfway house for loosely shaped data (API and LLM JSON, YAML, messy
 text) on the way to typed Go. Prefer clearer, more forgiving APIs and
 good error messages over speed, unless a measurement shows a real cost.
 
 ## Perl is the baseline, and not the only source
 
 - **Where Perl has a feature, match Perl's behaviour.** Where Go can't
-  follow Perl, deviate pragmatically, and document each deviation in the
-  README, in the feature's section or under Caveats. Raise any new
+  follow Perl, deviate pragmatically, and document each deviation in
+  `docs/REFERENCE.md`, in the feature's section or under Caveats. Raise any new
   deviation with Iain before building it.
-- **Other features are borrowed from elsewhere**, as the README's "Why
-  scalar exists" describes:
+- **Other features are borrowed from elsewhere**, as the README's
+  Rationale describes:
   - `Then`, `When`, `Or` and `OrSet` adapt the Maybe/Option style of
     programming to scalar's undef. They don't copy any one language's API,
     Scala's included. `TestThenMonadLaws` checks the monad laws, the rules
@@ -30,7 +30,7 @@ good error messages over speed, unless a measurement shows a real cost.
   - CPAN modules for sets and bags.
   - Go's iterators and generics for `All` and `To`.
 
-  A new borrowing names its source in the README. Where the source is
+  A new borrowing names its source in the reference. Where the source is
   concrete, such as a spec or a module, follow its behaviour and test
   against it. Where it's a style of programming, keep to that style's
   rules.
@@ -54,9 +54,10 @@ else.
 ## Tests
 
 - Differential tests run the same cases through Perl and compare the
-  results. Each starts with `needPerl(t)`, which skips it with `-short`,
-  without Perl, or with a Perl older than 5.36, as macOS and Windows ship;
-  two also skip without List::UtilsBy or YAML::PP.
+  results. They skip through `needPerl(t)` with `-short`, without Perl, or
+  with a Perl older than 5.36, as macOS and Windows ship; two also skip
+  without List::UtilsBy or YAML::PP. `TestMappingMatchesPerl` checks
+  `PerlUnusable` instead, so that it still compares scalar with plain Go.
 - Fuzz targets: `FuzzReadJSON`, `FuzzNumericPrefix` and `FuzzFind`. Run
   the relevant one after changing the code it covers, for example
   `go test -run '^$' -fuzz FuzzFind -fuzztime 60s`.
@@ -117,8 +118,8 @@ and gaps found by reading them have led to real features.
   branch from a clean tree, record baseline benchmarks, and profile first,
   because the profile's share sets a ceiling on the gain. Put the change
   behind a switch with a differential test. Keep what pays, revert what
-  doesn't, and record reverted ideas and their numbers in the README so
-  they aren't retried blind. Predictions here have been wrong more than
+  doesn't, and record reverted ideas and their numbers in the reference
+  so they aren't retried blind. Predictions here have been wrong more than
   once.
 - **Wash-ups.** After a run of features, review them together for crashes,
   memory, correctness, inefficiency and slop. Reproduce each finding
@@ -133,8 +134,8 @@ and gaps found by reading them have led to real features.
 
 ## Commits
 
-- Conventional commits with a scope, e.g. `feat(scalar): ...` or
-  `docs(scalar): ...`. Say why as well as what.
+- Conventional commits, such as `feat: ...`, `fix: ...`, `docs: ...`,
+  `test: ...` or `ci: ...`. Say why as well as what.
 - Claude commits and pushes changes once they're done and checked, and
   Iain reviews them. Commits are signed.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model

@@ -25,11 +25,13 @@
 // # Documentation
 //
 // The [README] gives an overview, the [how-to guide] has recipes for
-// common tasks, the [reference] covers each feature in depth, and the
-// [examples] show every function and method with its output.
+// common tasks, the [reference] covers each feature in depth, the
+// [examples] show every function and method with its output, and the
+// [phrasebook] shows everyday tasks in Perl, with scalar and in plain Go.
 //
 // [README]: https://github.com/nukopian/scalar#readme
 // [how-to guide]: https://github.com/nukopian/scalar/blob/main/docs/HOWTO.md
 // [reference]: https://github.com/nukopian/scalar/blob/main/docs/REFERENCE.md
 // [examples]: https://github.com/nukopian/scalar/blob/main/docs/EXAMPLES.md
+// [phrasebook]: https://github.com/nukopian/scalar/blob/main/docs/PERL.md
 package scalar

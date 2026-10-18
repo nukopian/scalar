@@ -17,9 +17,9 @@ import (
 // empty and 7% ".".
 
 var (
-	windows  = []string{"day", "week", "month"}
-	networks = []string{"ak", "ci", "hv", "nc", "nn", "pr", "se", "us", "uw"}
-	statKeys = []string{"events", "mag_median", "mag_median_change", "mag_mean", "mag_mean_change",
+	statWindows  = []string{"day", "week", "month"}
+	statNetworks = []string{"ak", "ci", "hv", "nc", "nn", "pr", "se", "us", "uw"}
+	statKeys     = []string{"events", "mag_median", "mag_median_change", "mag_mean", "mag_mean_change",
 		"mag_p10", "mag_p20", "mag_p25", "mag_p30", "mag_p40", "mag_p60", "mag_p70", "mag_p75", "mag_p80", "mag_p90",
 		"err_events", "err_median", "err_median_change", "err_mean", "err_mean_change",
 		"err_p10", "err_p20", "err_p25", "err_p30", "err_p40", "err_p60", "err_p70", "err_p75", "err_p80", "err_p90"}
@@ -47,8 +47,8 @@ var statTable = sync.OnceValue(func() *SV {
 		}
 	}
 	root := Hash()
-	for _, w := range windows {
-		for _, net := range networks {
+	for _, w := range statWindows {
+		for _, net := range statNetworks {
 			for i := range 553 {
 				row := Hash("place", fmt.Sprintf("%d km %s of station %s, network %s", r.IntN(100), []string{"N", "NNE", "E", "SW", "W"}[r.IntN(5)], station(i), net))
 				for _, k := range statKeys {
