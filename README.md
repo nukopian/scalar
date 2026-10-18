@@ -211,10 +211,10 @@ and to the authors of the JSONPath Compliance Test Suite, which keeps
 
 Claude, Anthropic's AI model, wrote most of the code, tests and
 documentation, and every commit says so in a `Co-Authored-By` trailer. My
-part was deciding what `scalar` should do and
-what it shouldn't, setting the rules it's built by (they're in
-[CLAUDE.md](CLAUDE.md)), and reviewing the work. It has been a
-partnership, and I've learned a good deal of Go along the way.
+part was deciding what `scalar` should do and what it shouldn't, setting
+the rules it's built by (they're in [CLAUDE.md](CLAUDE.md)), and reviewing
+the work. It has been a partnership, and I've learned a good deal of Go
+along the way.
 
 `scalar` started inside a larger project and was extracted with its
 history, so some commit messages mention packages that stayed behind.
