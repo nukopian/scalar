@@ -191,11 +191,11 @@ func reference(t *testing.T, groups []Group) string {
 			}
 			fmt.Fprintf(&b, "\n%s %s\n\n", level, name)
 			if synopsis := docs[ex.Name]; synopsis != "" {
-				b.WriteString(goName.ReplaceAllString(escapeDollars(synopsis), "`$0`") + "\n\n")
+				b.WriteString(goName.ReplaceAllString(escapeProse(synopsis), "`$0`") + "\n\n")
 			}
 			// The example's own doc comment, if it has one, explains it.
 			if ex.Doc != "" {
-				b.WriteString(escapeDollars(string(exampleDoc(ex.Doc))))
+				b.WriteString(escapeProse(string(exampleDoc(ex.Doc))))
 				b.WriteString("\n")
 			}
 			fmt.Fprintf(&b, "```go\n%s```\n", body(fset, src, ex))
@@ -240,12 +240,13 @@ func words(suffix string) string {
 	return b.String()
 }
 
-// escapeDollars escapes each $ in Markdown prose as \$, leaving code spans,
-// fenced blocks and indented code alone. Perl in a doc comment, such as
-// "my $x = $s", is full of dollars, and GitHub, VS Code and others read
-// text between two of them as a LaTeX formula: it either renders as maths
-// or fails to parse.
-func escapeDollars(md string) string {
+// escapeProse escapes each $ and # in Markdown prose as \$ and \#, leaving
+// code spans, fenced blocks, indented code and headings alone. Perl in a
+// doc comment is full of both: GitHub, VS Code and others read the text
+// between two dollars, as in "my $x = $s", as a LaTeX formula, which
+// renders as maths or fails to parse; and some read the #a of $#a as a
+// tag. Escaped, each renders as itself.
+func escapeProse(md string) string {
 	lines := strings.Split(md, "\n")
 	fenced := false
 	for i, line := range lines {
@@ -253,7 +254,7 @@ func escapeDollars(md string) string {
 			fenced = !fenced
 			continue
 		}
-		if fenced || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "    ") {
+		if fenced || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "#") {
 			continue
 		}
 		var b strings.Builder
@@ -262,7 +263,7 @@ func escapeDollars(md string) string {
 			switch {
 			case r == '`':
 				inCode = !inCode
-			case r == '$' && !inCode:
+			case (r == '$' || r == '#') && !inCode:
 				b.WriteByte('\\')
 			}
 			b.WriteRune(r)

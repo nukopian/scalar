@@ -1730,7 +1730,7 @@ fmt.Println(scalar.Array("x", "y").Scalar()) // scalar(@a), the same as Length
 
 #### `AV.LastIndex`
 
-LastIndex is Perl's \$#a: Length() - 1, so -1 for an empty array.
+LastIndex is Perl's \$\#a: Length() - 1, so -1 for an empty array.
 
 ```go
 fmt.Println(scalar.Array(1, 2, 3).LastIndex()) // $#a
@@ -1744,7 +1744,7 @@ fmt.Println(scalar.Array().LastIndex())
 
 #### `AV.SetLastIndex`
 
-SetLastIndex is Perl's \$#a = n.
+SetLastIndex is Perl's \$\#a = n.
 
 ```go
 a := scalar.Array(1, 2, 3, 4)
