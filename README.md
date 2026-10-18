@@ -1,5 +1,7 @@
 # scalar
 
+[![test](https://github.com/nukopian/scalar/actions/workflows/test.yml/badge.svg)](https://github.com/nukopian/scalar/actions/workflows/test.yml)
+
 Read, clean and reshape messy data in Go, then get back to typed Go.
 
 Go is at its best when data has a known shape. Data from APIs, language

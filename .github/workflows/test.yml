@@ -1,0 +1,44 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The differential tests run the same cases through Perl (5.36 or
+      # later) and compare. These two modules aren't in Perl's core; without
+      # them, their tests skip.
+      - name: Perl modules
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libyaml-pp-perl liblist-utilsby-perl
+          perl -v | head -2
+          perl -MYAML::PP -MList::UtilsBy -e 'print "modules ok\n"'
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
+
+      - run: go vet ./...
+
+      - run: go test -race ./...
+
+      # Fail if a Perl differential test skipped, so a missing module can't
+      # quietly turn the comparison off.
+      - name: no Perl tests skipped
+        run: |
+          if go test -v -run 'Perl' . | grep -- '--- SKIP'; then exit 1; fi

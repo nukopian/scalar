@@ -66,6 +66,9 @@ else.
 - The lock benchmarks need the ONS ASHE pay table. Set `ASHE_PAY_TSV` to
   its path, or they skip.
 - Run `gofmt -l .`, `go vet ./...` and `go test ./...` before every commit.
+  CI (`.github/workflows/test.yml`) runs the same on every push, with the
+  race detector and the Perl modules installed, and fails if a Perl test
+  skips.
 
 ## Documentation keeps up with the code
 
