@@ -50,10 +50,19 @@ as a test: `Example_overview`, in `example_test.go`.
 The tools come from Perl, which has handled exactly this kind of data for
 decades: its nested paths, regular expressions, `//` operator, `map`, `grep`
 and list utilities, carried over faithfully and checked against Perl itself.
-You don't need to know Perl to use them. The comparisons with Perl in this
-README are there for readers who do.
+You don't need to know Perl to use them. The comparisons with Perl in these
+docs are there for readers who do.
 
-## Why scalar exists
+## Install
+
+```sh
+go get github.com/nukopian/scalar
+```
+
+It needs Go 1.26.9 or later, and brings in three modules: `regexp2` for
+Perl-compatible regular expressions, `yaml/v3`, and `x/text`.
+
+## Rationale
 
 Though, I'm relatively new to Go, I've been programming for nearly over
 three decades: C, REXX, Perl, Python, JavaScript, XSLT and Scala came
@@ -120,6 +129,44 @@ needs to be.
 For how each feature behaves, see the [reference](docs/REFERENCE.md); for
 a worked example of every function and method, see the
 [examples](docs/EXAMPLES.md).
+
+## When not to use it
+
+- **When you know the data's shape.** Declare a struct and use
+  `encoding/json`; `scalar` would only add cost. It belongs at the edges,
+  where data comes in, and `To` turns it into your own types as soon as
+  the shape is clear.
+- **When a misspelled key must fail to compile.** Dynamic values give up
+  compile-time checks: a wrong key just reads as undef.
+- **In hot paths.** Every value is boxed, so `scalar` is slower than plain
+  Go and allocates more. Measure before you use it in a tight loop.
+- **When a panic is unacceptable.** Like Perl, it stops on things such as an
+  invalid regex or division by zero, by panicking; the
+  [caveats](docs/REFERENCE.md#caveats) list every case, and the error-returning
+  alternatives.
+- **For data shared between goroutines,** unless it's
+  [locked](docs/REFERENCE.md#locking): some reads write, so share plain Go
+  values or a locked structure. See
+  [Concurrency](docs/REFERENCE.md#concurrency).
+
+[What it costs](docs/REFERENCE.md#what-it-costs) has the reasoning.
+
+## Documentation
+
+- [How-to guide](docs/HOWTO.md): a quick start, recipes for common tasks,
+  and two jobs done both in plain Go and with `scalar`.
+- [Reference](docs/REFERENCE.md): each feature in depth, how it behaves,
+  and where it follows Perl or another source.
+- [Examples](docs/EXAMPLES.md): every function and method, each with a
+  working example and its output, generated from the tests.
+
+Each has a PDF beside it. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
+developed: the rules, and the reasons for them.
+
+## Status
+
+Version 0: it works, and it's tested against Perl itself, the JSONPath
+compliance suite and fuzzing, but the API may still change before 1.0.
 
 ## Licence
 

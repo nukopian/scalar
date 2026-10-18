@@ -2113,8 +2113,8 @@ then dropped:
   If one bad record mustn't stop a batch, catch these with `recover` around
   the code that processes each record.
 - **Not for concurrent use, not even reading:** none of these types are safe
-  to share between goroutines without your own locking, as some reads write.
-  See [Concurrency](#concurrency).
+  to share between goroutines without your own locking, as some reads write,
+  unless the structure is [locked](#locking). See [Concurrency](#concurrency).
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.
