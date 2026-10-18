@@ -1,0 +1,80 @@
+/* Print styles for the package READMEs, for Prince (see scripts/readme-pdf.sh).
+   Page breaks live here rather than in the Markdown, so GitHub's rendering
+   is unaffected. */
+
+@page {
+  size: A4;
+  margin: 20mm 18mm;
+  @top-right {
+    content: string(section);
+    font-size: 8.5pt;
+    color: #666;
+  }
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 8.5pt;
+    color: #666;
+  }
+}
+
+@page:first {
+  @top-right { content: none; }
+}
+
+body {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-size: 10pt;
+  line-height: 1.45;
+}
+
+/* Each top-level section starts a page, except the first, which follows the
+   title. The section's name runs in the page header. */
+h2 {
+  break-before: page;
+  string-set: section content();
+}
+h2:first-of-type {
+  break-before: auto;
+}
+
+/* Keep a heading with what follows it. */
+h1, h2, h3, h4 {
+  break-after: avoid;
+}
+
+/* Don't split code blocks or table rows; a block taller than a page still
+   breaks. */
+pre, tr {
+  break-inside: avoid;
+}
+
+pre {
+  white-space: pre-wrap;
+  font-size: 8pt;
+  line-height: 1.35;
+  padding: 0.6em 0.8em;
+  background: #f6f8fa;
+  border-radius: 4px;
+}
+
+code {
+  font-size: 0.9em;
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+th, td {
+  border: 1px solid #d0d7de;
+  padding: 0.25em 0.5em;
+  vertical-align: top;
+}
+
+/* Links print as text: the README's links are mostly to its own sections. */
+a {
+  color: inherit;
+  text-decoration: none;
+}

@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 func ExamplePack() {

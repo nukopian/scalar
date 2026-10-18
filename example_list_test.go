@@ -6,7 +6,7 @@ package scalar_test
 import (
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 var isRemote = func(s *scalar.SV) bool { return s.M(`(?i)\bremote\b`) != nil }

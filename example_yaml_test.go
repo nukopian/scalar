@@ -6,7 +6,7 @@ package scalar_test
 import (
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 	"go.yaml.in/yaml/v3"
 )
 

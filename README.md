@@ -149,7 +149,7 @@ reads write. See [Concurrency](#concurrency).
 ## Quick start
 
 ```go
-import "github.com/nukopian/job-meta/internal/scalar"
+import "github.com/nukopian/scalar"
 
 resp, err := scalar.FromJSON(body)
 if err != nil {
@@ -2466,8 +2466,11 @@ tests first; and speed changes kept only when measured. He decided what
 to build and what not to, and reviewed and committed each change. Most of
 the code, tests and documentation were written by Claude, Anthropic's AI
 model, working to that direction, from the package's first commit on 11
-October 2026. Commits up to 15 October mostly don't record Claude's part
-in a `Co-Authored-By` trailer; later ones do.
+October 2026, and every commit credits Claude in a `Co-Authored-By`
+trailer.
+
+`scalar` was extracted, with its history, from a larger project, so some
+commit messages mention packages that stayed behind.
 
 ## Reference
 
@@ -2476,7 +2479,7 @@ One example for every function and method, with the output it prints.
 
 Generated from the examples in `example_*_test.go`, which `go test` runs, so every
 example here works and prints what it says. Edit the examples, not this section, then run
-`go test ./internal/scalar -run TestReference -update`.
+`go test . -run TestReference -update`.
 
 - [Scalars](#reference-scalars)
 - [Strings](#reference-strings)

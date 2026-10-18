@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/nukopian/job-meta/internal/scalar"
+	"github.com/nukopian/scalar"
 )
 
 func ExampleFromJSON() {

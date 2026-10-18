@@ -11,14 +11,15 @@ import (
 )
 
 // The benchmarks for what a lock might speed up (the README's Locking
-// section), on a realistic shape: the ASHE pay table (internal/ashe's
-// pay.tsv, 14,931 rows of 34 fields) as an import gives it, every field a
-// string, nested period → sheet → code → field.
+// section), on a realistic shape: the ONS's ASHE pay table (pay.tsv,
+// 14,931 rows of 34 fields) as an import gives it, every field a string,
+// nested period → sheet → code → field. It isn't in this repository; set
+// ASHE_PAY_TSV to its path to run them, or they skip.
 
 var payTable = sync.OnceValue(func() *SV {
-	f, err := os.Open("../ashe/data/pay.tsv")
+	f, err := os.Open(os.Getenv("ASHE_PAY_TSV"))
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	defer f.Close()
 	root := Hash()
@@ -41,7 +42,10 @@ var payTable = sync.OnceValue(func() *SV {
 })
 
 // table returns a fresh copy of the pay table, locked or not.
-func table(locked bool) *SV {
+func table(b *testing.B, locked bool) *SV {
+	if payTable() == nil {
+		b.Skip("set ASHE_PAY_TSV to the pay table's path")
+	}
 	t := payTable().Clone()
 	if locked {
 		t.Lock()
@@ -54,7 +58,7 @@ var numFields = []string{"median", "mean", "p10", "p20", "p25", "p30", "p40", "p
 // Reading numbers stored as strings, as an import gives them: every row's
 // median, mean and percentiles, as Num.
 func benchNums(b *testing.B, locked bool) {
-	t := table(locked)
+	t := table(b, locked)
 	var rows []*SV
 	for _, period := range t.HV().All() {
 		for _, sheet := range period.HV().All() {
@@ -83,7 +87,7 @@ func BenchmarkNumsLocked(b *testing.B)   { benchNums(b, true) }
 // Looking up the same paths again and again, as a lookup table is used:
 // 1,000 paths, each to a field of a row.
 func benchAt(b *testing.B, locked bool) {
-	t := table(locked)
+	t := table(b, locked)
 	var paths []string
 	r := rand.New(rand.NewPCG(1, 2))
 	var codes []string
@@ -109,7 +113,7 @@ func BenchmarkAtLocked(b *testing.B)   { benchAt(b, true) }
 
 // Comparing two copies of the table: alike, and differing in one field.
 func benchEqual(b *testing.B, locked, alike bool) {
-	x, y := table(locked), table(false)
+	x, y := table(b, locked), table(b, false)
 	if !alike {
 		y.At("hourly.Female Part-Time{9269}.median").Set("0")
 	}
