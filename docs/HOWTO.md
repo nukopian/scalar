@@ -4,7 +4,8 @@ How to get things done with [scalar](../README.md): getting started, then
 recipes for common tasks, then two jobs done in plain Go and with scalar,
 side by side. For how each feature behaves, see the
 [reference](REFERENCE.md); for one example of every function and method,
-see the [examples](EXAMPLES.md).
+see the [examples](EXAMPLES.md). Coming from Perl? The
+[phrasebook](PERL.md) shows each task in Perl, with scalar and in plain Go.
 
 - [Quick start](#quick-start)
 - [Recipes](#recipes)

@@ -213,6 +213,8 @@ a worked example of every function and method, see the
   and where it follows Perl or another source.
 - [Examples](docs/EXAMPLES.md): every function and method, each with a
   working example and its output, generated from the tests.
+- [From Perl to Go](docs/PERL.md): a phrasebook of everyday tasks in Perl,
+  with `scalar` and in plain Go, all three checked against each other.
 
 To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
 pandoc and Prince. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is

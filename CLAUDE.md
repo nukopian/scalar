@@ -82,8 +82,10 @@ else.
 A feature isn't done until its documentation is.
 
 The documents: `README.md` (what scalar is, a synopsis, the rationale),
-`docs/HOWTO.md` (tasks), `docs/REFERENCE.md` (each feature in depth) and
-`docs/EXAMPLES.md` (one generated example per function).
+`docs/HOWTO.md` (tasks), `docs/REFERENCE.md` (each feature in depth),
+`docs/EXAMPLES.md` (one generated example per function) and `docs/PERL.md`
+(a Perl → scalar → plain Go phrasebook, whose every row
+`TestMappingMatchesPerl` runs in all three and compares).
 
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
