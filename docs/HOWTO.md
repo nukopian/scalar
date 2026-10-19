@@ -33,10 +33,14 @@ mag := feed.At("features[0].properties.mag").Num()            // the same idea, 
 meta, err := scalar.To[Metadata](feed.At("metadata")) // into your own struct, checked
 ```
 
-If any step along the path is missing, you get undef back instead of a panic.
-`Str()` on undef is `""` and `Num()` is `0`. `Get` takes keys and indices
-as separate arguments; `At` takes the route as one string, in dot, bracket
-or Perl's brace form (see [A path as one string](REFERENCE.md#a-path-as-one-string-at)).
+If any step along the path is missing, you get undef back instead of a
+panic, though, as in Perl, a read creates the levels it goes through (see
+[What you might assume](REFERENCE.md#what-you-might-assume)). `Str()` on
+undef is `""` and `Num()` is `0`. `Get` takes keys and indices as
+separate arguments, as a route, one inside the other; for several fields
+at once, Perl's hash slice, use `HV().Values`. `At` takes the route as one
+string, in dot, bracket or Perl's brace form (see
+[A path as one string](REFERENCE.md#a-path-as-one-string-at)).
 
 ## Recipes
 

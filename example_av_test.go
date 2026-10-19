@@ -73,10 +73,15 @@ func ExampleAV_Get() {
 	fmt.Println(a.Get(10).Defined(), a.Length()) // reading doesn't create
 	a.Get(4).Set("new")                          // writing does, as $a[4] = "new"
 	fmt.Println(a.Length())
+
+	rows, _ := scalar.FromJSON([]byte(`[{"net": "ci", "stations": ["PAS", "GSC"]}]`))
+	r := rows.AV()
+	fmt.Println(r.Get(0, "stations", -1)) // $r[0]{stations}[-1]: a route
 	// Output:
 	// first last
 	// false 3
 	// 5
+	// GSC
 }
 
 func ExampleAV_Set() {
@@ -91,9 +96,11 @@ func ExampleAV_Exists() {
 	a := scalar.Array("a", nil)
 	fmt.Println(a.Exists(1)) // set, though undef
 	fmt.Println(a.Exists(5))
+	fmt.Println(a.Exists(3, "id"), a.Length()) // exists $a[3]{id}: creates $a[3], as in Perl
 	// Output:
 	// true
 	// false
+	// false 4
 }
 
 func ExampleAV_Defined() {
@@ -109,10 +116,13 @@ func ExampleAV_Delete() {
 	fmt.Println(a.Length(), a.Exists(1))
 	a.Delete(-1) // deleting the last element shrinks the array
 	fmt.Println(a.Length())
+	rows, _ := scalar.FromJSON([]byte(`[{"id": "ci40123456", "tmp": 1}]`))
+	fmt.Println(rows.AV().Delete(0, "tmp"), rows.At("[0]").HV().KeysSlice()) // delete $rows[0]{tmp}
 	// Output:
 	// b
 	// 3 false
 	// 1
+	// 1 [id]
 }
 
 func ExampleAV_Push() {

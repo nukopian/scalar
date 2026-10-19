@@ -403,14 +403,17 @@ first := a.Shift()             // shift @a
 
 a.Get(0)                       // $a[0]
 a.Get(-1)                      // $a[-1]
+a.Get(0, "tags", 1)            // $a[0]{tags}[1]   (a route, not a slice: @a[0, 1] is a.Values(0, 1))
 a.Set(5, "x")                  // $a[5] = "x"
 a.Length()                     // scalar(@a)
 a.Scalar()                     // scalar(@a), same as Length
 a.LastIndex()                  // $#a
 a.SetLastIndex(2)              // $#a = 2   (truncate or extend)
 a.Exists(3)                    // exists $a[3]
+a.Exists(0, "id")              // exists $a[0]{id}   (creates $a[0] on the way, as Perl does)
 a.Defined(3)                   // defined $a[3]
 a.Delete(3)                    // delete $a[3]
+a.Delete(0, "tmp")             // delete $a[0]{tmp}  (creates $a[0] on the way, as Perl does)
 a.Undef()                      // undef @a     (emptied in place: every reference to a sees it empty)
 a.Values()                     // values @a
 a.Values(0, -1)                // @a[0, -1]    (the elements themselves, as Perl aliases them)
@@ -690,11 +693,14 @@ h := scalar.Hash("name", "Ada", "age", 36)  // %h = (name => "Ada", age => 36)
 merged := scalar.Hash(defaults, "age", 37)   // %merged = (%defaults, age => 37)
 
 h.Get("name")          // $h{name}
+h.Get("depth", "km")   // $h{depth}{km}     (a route, not a slice: @h{qw(a b)} is h.Values("a", "b"))
 h.Set("lang", "Go")    // $h{lang} = "Go"
 h.Push("a", 1, "b", 2) // $h{a} = 1; $h{b} = 2   (pairs, another hash or a Go map; later keys win)
 h.Exists("age")        // exists $h{age}    (the key is there, even if its value is undef)
+h.Exists("depth", "km") // exists $h{depth}{km}  (creates $h{depth} on the way, as Perl does)
 h.Defined("age")       // defined $h{age}   (the key is there and its value isn't undef)
 h.Delete("age")        // delete $h{age}
+h.Delete("depth", "km") // delete $h{depth}{km}  (creates $h{depth} on the way, as Perl does)
 h.Undef()              // undef %h          (emptied in place: every reference to h sees it empty)
 h.Length()             // scalar(keys %h)
 h.Scalar()             // scalar(%h), same as Length
@@ -891,6 +897,30 @@ suits keys that come from data; or as one string with `At`, `AtOK` and
 `DeleteAt`, which suits routes written in the program. Keys can go in one
 call, `s.Get("a", 0, "b")`, or a step at a time,
 `s.Get("a").Get(0).Get("b")`, which is the same thing.
+
+### What you might assume
+
+This part of `scalar` follows Perl rather than Go, so some of what a Go
+programmer, or a Perl programmer reading Go, would expect isn't so:
+
+| You might expect | What happens | For what you expected |
+|---|---|---|
+| `h.Get("mag", "net")` fetches two keys, like Perl's hash slice `@h{qw(mag net)}` | It's a route, one key inside the other: `$h{mag}{net}`. Several keys to `Get`, `Exists` and `Delete` always mean a route | `h.Values("mag", "net")` is the slice; `a.Values(0, -1)` is `@a[0, -1]` |
+| A read never changes the data | Going *through* a missing level creates it, as Perl's autovivification does: `s.Get("origin", "depth")` adds `"origin"` as an empty hash. The last key is never created by a read | `s.GetOK("origin", "depth")` or `s.AtOK("origin.depth")`, which create nothing |
+| `Exists` only looks | It creates the levels on the way as `Get` does, an undef `s` becomes a hash or array, and it panics if what it looks in is something else, all as Perl's `exists` does | `_, ok := s.GetOK(...)`, which only looks |
+| Deleting something that isn't there does nothing | `Delete` creates and panics as `Exists` does | `s.DeletePath(...)` or `s.DeleteAt(...)`, which do nothing |
+| Any number can be an index | Only an `int`. A JSON number is a `float64`, and a `float64`, `int64` or `uint` key panics, as does any type but `string` and `int` | Convert first: `s.Get(int(n.Int()))` |
+| `"0"` is index 0 | A string is always a hash key, as `$h{0}` is in Perl | `s.Get(0)` for the index |
+| `s.Get()` with no keys is a mistake | It's `s` itself, so a route that might be empty works: `s.Get(route...)`. `Exists()` and `Delete()` with no keys panic | |
+| `h.Get(0)` on a hash | Doesn't compile: a hash's first key is a `string` and an array's an `int`. After that, keys are as for a scalar: `h.Get("stations", 0)` | Start from a scalar to choose at run time |
+
+Reading through creates, as in Perl:
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"properties": {"mag": 4.6}}`))
+doc.Get("origin", "depth")             // undef, but doc now has "origin": {}
+_, ok := doc.GetOK("products", "shakemap") // false, and doc is unchanged
+```
 
 ### Reaching in as Perl does
 

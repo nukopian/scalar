@@ -56,14 +56,14 @@ func (s *SV) At(path string) *SV {
 func (st atStep) walk(cur *SV) *SV {
 	switch st.kind {
 	case stepKey:
-		return cur.HV().Get(st.key)
+		return cur.HV().get(st.key)
 	case stepIndex:
-		return cur.AV().Get(st.index)
+		return cur.AV().get(st.index)
 	}
 	if _, isHash := cur.val().(*HV); isHash { // stepEither
-		return cur.HV().Get(st.key)
+		return cur.HV().get(st.key)
 	}
-	return cur.AV().Get(st.index) // an array, or nothing yet: an array
+	return cur.AV().get(st.index) // an array, or nothing yet: an array
 }
 
 // peek takes one step from cur, as GetOK does, without creating anything:

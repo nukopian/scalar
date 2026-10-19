@@ -1784,7 +1784,7 @@ fmt.Println(a.Length(), a.Exists(3))
 
 #### `AV.Get`
 
-Get returns element i; negative indices count from the end, as in Perl.
+Get is Perl's \$a[i]: it returns element i; negative indices count from the end, as in Perl.
 
 ```go
 a := scalar.Array("first", "second", "last")
@@ -1792,12 +1792,17 @@ fmt.Println(a.Get(0), a.Get(-1))             // $a[0], $a[-1]
 fmt.Println(a.Get(10).Defined(), a.Length()) // reading doesn't create
 a.Get(4).Set("new")                          // writing does, as $a[4] = "new"
 fmt.Println(a.Length())
+
+rows, _ := scalar.FromJSON([]byte(`[{"net": "ci", "stations": ["PAS", "GSC"]}]`))
+r := rows.AV()
+fmt.Println(r.Get(0, "stations", -1)) // $r[0]{stations}[-1]: a route
 ```
 
 ```
 first last
 false 3
 5
+GSC
 ```
 
 #### `AV.Set`
@@ -1822,11 +1827,13 @@ Exists is Perl's exists \$a[i]: whether element i has been set.
 a := scalar.Array("a", nil)
 fmt.Println(a.Exists(1)) // set, though undef
 fmt.Println(a.Exists(5))
+fmt.Println(a.Exists(3, "id"), a.Length()) // exists $a[3]{id}: creates $a[3], as in Perl
 ```
 
 ```
 true
 false
+false 4
 ```
 
 #### `AV.Defined`
@@ -1852,12 +1859,15 @@ fmt.Println(a.Delete(1)) // delete $a[1]: leaves a hole
 fmt.Println(a.Length(), a.Exists(1))
 a.Delete(-1) // deleting the last element shrinks the array
 fmt.Println(a.Length())
+rows, _ := scalar.FromJSON([]byte(`[{"id": "ci40123456", "tmp": 1}]`))
+fmt.Println(rows.AV().Delete(0, "tmp"), rows.At("[0]").HV().KeysSlice()) // delete $rows[0]{tmp}
 ```
 
 ```
 b
 3 false
 1
+1 [id]
 ```
 
 #### `AV.Push`
@@ -2506,7 +2516,7 @@ fmt.Println(scalar.Hash("a", 1).Scalar()) // scalar(%h), the same as Length
 
 #### `HV.Get`
 
-Get returns the value for key.
+Get is Perl's \$h{key}: it returns the value for key.
 
 ```go
 h := scalar.Hash("a", 1)
@@ -2514,12 +2524,19 @@ fmt.Println(h.Get("a"))
 fmt.Println(h.Get("b").Defined(), h.Exists("b")) // reading doesn't create
 h.Get("c").HV().Set("d", 1)                      // $h{c}{d} = 1 autovivifies
 fmt.Println(h.Get("c").Ref())
+
+quake, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2}, "mag": 4.6, "net": "ci"}`))
+q := quake.HV()
+fmt.Println(q.Get("depth", "km"))             // $q{depth}{km}: a route
+fmt.Println(q.Values("mag", "net").Join(" ")) // @q{qw(mag net)}: a slice is Values
 ```
 
 ```
 1
 false false
 HASH
+8.2
+4.6 ci
 ```
 
 #### `HV.Set`
@@ -2556,15 +2573,19 @@ felt,id,place,tsunami
 
 #### `HV.Exists`
 
-Exists is Perl's exists.
+Exists is Perl's exists \$h{key}: whether key is there, even if its value is undef.
 
 ```go
 h := scalar.Hash("felt", nil)
 fmt.Println(h.Exists("felt"), h.Exists("cdi")) // there, though undef
+fmt.Println(h.Exists("origin", "depth"))       // exists $h{origin}{depth}
+fmt.Println(h.Exists("origin"))                // which created $h{origin}, as in Perl
 ```
 
 ```
 true false
+false
+true
 ```
 
 #### `HV.Defined`
@@ -2582,17 +2603,21 @@ false true
 
 #### `HV.Delete`
 
-Delete is Perl's delete: removes key and returns its value, or undef.
+Delete is Perl's delete \$h{key}: it removes key and returns its value, or undef.
 
 ```go
 h := scalar.Hash("a", 1, "b", 2)
 fmt.Println(h.Delete("a"), h.Exists("a")) // returns the value it removed
 fmt.Println(h.Delete("missing").Defined())
+quake, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2, "error": 0.4}}`))
+q := quake.HV()
+fmt.Println(q.Delete("depth", "error"), q.Get("depth").HV().KeysSlice()) // delete $q{depth}{error}
 ```
 
 ```
 1 false
 false
+0.4 [km]
 ```
 
 #### `HV.Clone`

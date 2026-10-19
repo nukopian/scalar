@@ -60,10 +60,17 @@ func ExampleHV_Get() {
 	fmt.Println(h.Get("b").Defined(), h.Exists("b")) // reading doesn't create
 	h.Get("c").HV().Set("d", 1)                      // $h{c}{d} = 1 autovivifies
 	fmt.Println(h.Get("c").Ref())
+
+	quake, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2}, "mag": 4.6, "net": "ci"}`))
+	q := quake.HV()
+	fmt.Println(q.Get("depth", "km"))             // $q{depth}{km}: a route
+	fmt.Println(q.Values("mag", "net").Join(" ")) // @q{qw(mag net)}: a slice is Values
 	// Output:
 	// 1
 	// false false
 	// HASH
+	// 8.2
+	// 4.6 ci
 }
 
 func ExampleHV_Set() {
@@ -89,8 +96,12 @@ func ExampleHV_Push() {
 func ExampleHV_Exists() {
 	h := scalar.Hash("felt", nil)
 	fmt.Println(h.Exists("felt"), h.Exists("cdi")) // there, though undef
+	fmt.Println(h.Exists("origin", "depth"))       // exists $h{origin}{depth}
+	fmt.Println(h.Exists("origin"))                // which created $h{origin}, as in Perl
 	// Output:
 	// true false
+	// false
+	// true
 }
 
 func ExampleHV_Defined() {
@@ -104,9 +115,13 @@ func ExampleHV_Delete() {
 	h := scalar.Hash("a", 1, "b", 2)
 	fmt.Println(h.Delete("a"), h.Exists("a")) // returns the value it removed
 	fmt.Println(h.Delete("missing").Defined())
+	quake, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2, "error": 0.4}}`))
+	q := quake.HV()
+	fmt.Println(q.Delete("depth", "error"), q.Get("depth").HV().KeysSlice()) // delete $q{depth}{error}
 	// Output:
 	// 1 false
 	// false
+	// 0.4 [km]
 }
 
 func ExampleHV_Clone() {

@@ -370,7 +370,8 @@ distanceRe.ReplaceAllString(*p.Place, "")
 
 ## A hash slice
 
-Answer: `5.1 ci`.
+Answer: `5.1 ci`. Note that `p.Get("mag", "net")` would be
+`$p->{mag}{net}`, a route, not a slice: `Values` takes the slice.
 
 ```perl
 join " ", @{$p}{qw(mag net)}

@@ -61,13 +61,26 @@ func (h *HV) Scalar() int {
 	return h.Length()
 }
 
-// Get returns the value for key. A missing key reads as undef without being
-// created; writing through the returned SV (Set, or an autovivifying AV/HV
-// deref) creates it, so h.Get("a").HV().Set("b", 1) is $h{a}{b} = 1.
+// Get is Perl's $h{key}: it returns the value for key. A missing key reads
+// as undef without being created; writing through the returned SV (Set, or
+// an autovivifying AV/HV deref) creates it, so h.Get("a").Set(1) is
+// $h{a} = 1.
+//
+// More keys go on from there as a scalar's Get takes them, so
+// h.Get("a", 0, "b") is $h{a}[0]{b}, the same as h.Get("a").Get(0, "b").
+// That's a route, not a slice: Perl's @h{"a", "b"} is h.Values("a", "b").
 //
 // Get on a nil *HV (something that wasn't a hash) returns undef, but
 // writing to it panics, as Perl dies with "Not a HASH reference".
-func (h *HV) Get(key string) *SV {
+func (h *HV) Get(key string, more ...any) *SV {
+	if len(more) > 0 {
+		return h.get(key).Get(more...)
+	}
+	return h.get(key)
+}
+
+// get is Get with one key, for the package's own use on hot paths.
+func (h *HV) get(key string) *SV {
 	if h == nil {
 		return &SV{noCreate: "Not a HASH reference"}
 	}
@@ -133,8 +146,14 @@ func (h *HV) Push(kv ...any) *HV {
 	return h
 }
 
-// Exists is Perl's exists.
-func (h *HV) Exists(key string) bool {
+// Exists is Perl's exists $h{key}: whether key is there, even if its value
+// is undef. More keys go on from there as a scalar's Exists takes them, so
+// h.Exists("a", "b") is exists $h{a}{b}, which creates $h{a} on the way, as
+// Perl does.
+func (h *HV) Exists(key string, more ...any) bool {
+	if len(more) > 0 {
+		return h.get(key).Exists(more...)
+	}
 	if h == nil {
 		return false
 	}
@@ -151,8 +170,14 @@ func (h *HV) Defined(key string) bool {
 	return h.m[key].Defined() // a missing key is a nil *SV, which isn't defined
 }
 
-// Delete is Perl's delete: removes key and returns its value, or undef.
-func (h *HV) Delete(key string) *SV {
+// Delete is Perl's delete $h{key}: it removes key and returns its value, or
+// undef. More keys go on from there as a scalar's Delete takes them, so
+// h.Delete("a", "b") is delete $h{a}{b}, which creates $h{a} on the way,
+// as Perl does.
+func (h *HV) Delete(key string, more ...any) *SV {
+	if len(more) > 0 {
+		return h.get(key).Delete(more...)
+	}
 	if h != nil && h.locked {
 		what := "disallowed"
 		if _, ok := h.m[key]; ok {

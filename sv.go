@@ -457,6 +457,9 @@ func (s *SV) HV() *HV {
 //	s.Get("content").Get(0).Get("text")   // the same, a step at a time
 //	s.Get(route...)                       // a route built from data
 //
+// Several keys are always a route, one inside the other, never a slice:
+// for Perl's @h{"a", "b"}, use HV.Values.
+//
 // It needs no AV or HV between the steps, as Perl needs no arrow between
 // subscripts, and s.Get(key).Set(x) is $s->{key} = x, as HV.Set is
 // h.Get(key).Set(x). Each step is HV().Get or AV().Get, with the same
@@ -470,9 +473,9 @@ func (s *SV) Get(keys ...any) *SV {
 	if len(keys) == 1 { // the usual case, and with one key nothing to check first
 		switch k := keys[0].(type) {
 		case string:
-			return s.HV().Get(k)
+			return s.HV().get(k)
 		case int:
-			return s.AV().Get(k)
+			return s.AV().get(k)
 		}
 	}
 	for _, k := range keys {
@@ -482,9 +485,9 @@ func (s *SV) Get(keys ...any) *SV {
 	for _, k := range keys {
 		switch k := k.(type) {
 		case string:
-			cur = cur.HV().Get(k)
+			cur = cur.HV().get(k)
 		case int:
-			cur = cur.AV().Get(k)
+			cur = cur.AV().get(k)
 		}
 	}
 	return cur

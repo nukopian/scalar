@@ -585,3 +585,82 @@ func TestProbesDontAllocate(t *testing.T) {
 		}
 	}
 }
+
+// A hash's or an array's Get, Exists and Delete with more keys are the
+// first step, then a scalar's Get, Exists or Delete with the rest: the
+// same result, document and panic as the same keys on a scalar holding
+// the hash or array.
+func TestContainerKeys(t *testing.T) {
+	more := []any{"mag", "coordinates", "nope", "0", 0, 1, -1, -9}
+	try := func(f func() any) (got any, msg string) {
+		defer func() {
+			if r := recover(); r != nil {
+				msg = fmt.Sprint(r)
+			}
+		}()
+		return f(), ""
+	}
+	type call struct {
+		name                    string
+		viaContainer, viaScalar func(doc *SV, rest []any) any
+	}
+	hashCalls := func(first string) []call {
+		return []call{
+			{"Get", func(d *SV, r []any) any { return d.HV().Get(first, r...).Dump() }, func(d *SV, r []any) any { return d.Get(append([]any{first}, r...)...).Dump() }},
+			{"Get.Set", func(d *SV, r []any) any { return d.HV().Get(first, r...).Set(1).Dump() }, func(d *SV, r []any) any { return d.Get(append([]any{first}, r...)...).Set(1).Dump() }},
+			{"Exists", func(d *SV, r []any) any { return d.HV().Exists(first, r...) }, func(d *SV, r []any) any { return d.Exists(append([]any{first}, r...)...) }},
+			{"Delete", func(d *SV, r []any) any { return d.HV().Delete(first, r...).Dump() }, func(d *SV, r []any) any { return d.Delete(append([]any{first}, r...)...).Dump() }},
+		}
+	}
+	arrayCalls := func(first int) []call {
+		st := func(d *SV) *SV { return d.Get("stations") }
+		return []call{
+			{"Get", func(d *SV, r []any) any { return st(d).AV().Get(first, r...).Dump() }, func(d *SV, r []any) any { return st(d).Get(append([]any{first}, r...)...).Dump() }},
+			{"Get.Set", func(d *SV, r []any) any { return st(d).AV().Get(first, r...).Set(1).Dump() }, func(d *SV, r []any) any { return st(d).Get(append([]any{first}, r...)...).Set(1).Dump() }},
+			{"Exists", func(d *SV, r []any) any { return st(d).AV().Exists(first, r...) }, func(d *SV, r []any) any { return st(d).Exists(append([]any{first}, r...)...) }},
+			{"Delete", func(d *SV, r []any) any { return st(d).AV().Delete(first, r...).Dump() }, func(d *SV, r []any) any { return st(d).Delete(append([]any{first}, r...)...).Dump() }},
+		}
+	}
+	var calls []call
+	for _, first := range []string{"properties", "geometry", "tsunami", "products"} {
+		calls = append(calls, hashCalls(first)...)
+	}
+	for _, first := range []int{0, 1, -1, 5, -9} {
+		calls = append(calls, arrayCalls(first)...)
+	}
+	n := 0
+	for _, c := range calls {
+		for _, a := range append([]any{nil}, more...) {
+			for _, b := range append([]any{nil}, more...) {
+				var rest []any
+				if a != nil {
+					rest = append(rest, a)
+					if b != nil {
+						rest = append(rest, b)
+					}
+				} else if b != nil {
+					continue
+				}
+				doc1, doc2 := newSubscriptDoc(t), newSubscriptDoc(t)
+				got, gotMsg := try(func() any { return c.viaContainer(doc1, rest) })
+				want, wantMsg := try(func() any { return c.viaScalar(doc2, rest) })
+				if got != want || gotMsg != wantMsg || doc1.Dump() != doc2.Dump() {
+					t.Errorf("%s %v: %v %q, via a scalar %v %q", c.name, rest, got, gotMsg, want, wantMsg)
+				}
+				n++
+			}
+		}
+	}
+	if n < 500 {
+		t.Fatalf("only %d cases", n)
+	}
+
+	// A bad key among the rest panics before anything is created.
+	doc := newSubscriptDoc(t)
+	before := doc.Dump()
+	expectPanic(t, "HV.Get", "Get key must be a string or an int, got float64", func() { doc.HV().Get("products", "x", 1.5) })
+	expectPanic(t, "AV.Exists", "Exists key must be a string or an int, got bool", func() { doc.Get("stations").AV().Exists(5, "x", true) })
+	if doc.Dump() != before {
+		t.Errorf("a bad key created something: %s", doc.Dump())
+	}
+}

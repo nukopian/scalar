@@ -138,7 +138,11 @@ func (a *AV) index(i int) (int, bool) {
 	return i, i >= 0
 }
 
-// Get returns element i; negative indices count from the end, as in Perl.
+// Get is Perl's $a[i]: it returns element i; negative indices count from
+// the end, as in Perl. More keys go on from there as a scalar's Get takes
+// them, so a.Get(0, "tags", 1) is $a[0]{tags}[1], the same as
+// a.Get(0).Get("tags", 1). That's a route, not a slice: Perl's @a[0, 1] is
+// a.Values(0, 1).
 //
 // A missing element reads as undef without being created. Writing to it
 // (Set, Inc, or an autovivifying AV/HV deref) creates it, extending the
@@ -147,7 +151,15 @@ func (a *AV) index(i int) (int, bool) {
 // Perl can't create an element before the start of the array ($a[-10] on
 // a short array), or an element of something that isn't an array. Get
 // still returns undef for those, but writing to it panics, as Perl dies.
-func (a *AV) Get(i int) *SV {
+func (a *AV) Get(i int, more ...any) *SV {
+	if len(more) > 0 {
+		return a.get(i).Get(more...)
+	}
+	return a.get(i)
+}
+
+// get is Get with one index, for the package's own use on hot paths.
+func (a *AV) get(i int) *SV {
 	if a == nil {
 		return &SV{noCreate: notArrayRef}
 	}
@@ -178,8 +190,13 @@ func (a *AV) Set(i int, v any) *SV {
 }
 
 // Exists is Perl's exists $a[i]: whether element i has been set. Holes
-// and indices out of range don't exist.
-func (a *AV) Exists(i int) bool {
+// and indices out of range don't exist. More keys go on from there as a
+// scalar's Exists takes them, so a.Exists(0, "id") is exists $a[0]{id},
+// which creates $a[0] on the way, as Perl does.
+func (a *AV) Exists(i int, more ...any) bool {
+	if len(more) > 0 {
+		return a.get(i).Exists(more...)
+	}
 	idx, ok := a.index(i)
 	return ok && idx < a.Length() && a.items[idx] != nil
 }
@@ -193,8 +210,13 @@ func (a *AV) Defined(i int) bool {
 
 // Delete is Perl's delete $a[i]: it returns the element (undef if it
 // didn't exist) and leaves a hole. Deleting the last element shrinks the
-// array, along with any holes before it.
-func (a *AV) Delete(i int) *SV {
+// array, along with any holes before it. More keys go on from there as a
+// scalar's Delete takes them, so a.Delete(0, "tmp") is delete $a[0]{tmp},
+// which creates $a[0] on the way, as Perl does.
+func (a *AV) Delete(i int, more ...any) *SV {
+	if len(more) > 0 {
+		return a.get(i).Delete(more...)
+	}
 	a.mustWrite()
 	idx, ok := a.index(i)
 	if !ok || idx >= a.Length() || a.items[idx] == nil {
