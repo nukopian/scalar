@@ -907,8 +907,8 @@ programmer, or a Perl programmer reading Go, would expect isn't so:
 |---|---|---|
 | `h.Get("mag", "net")` fetches two keys, like Perl's hash slice `@h{qw(mag net)}` | It's a route, one key inside the other: `$h{mag}{net}`. Several keys to `Get`, `Exists` and `Delete` always mean a route | `h.Values("mag", "net")` is the slice; `a.Values(0, -1)` is `@a[0, -1]` |
 | A read never changes the data | Going *through* a missing level creates it, as Perl's autovivification does: `s.Get("origin", "depth")` adds `"origin"` as an empty hash. The last key is never created by a read | `s.GetOK("origin", "depth")` or `s.AtOK("origin.depth")`, which create nothing |
-| `Exists` only looks | It creates the levels on the way as `Get` does, an undef `s` becomes a hash or array, and it panics if what it looks in is something else, all as Perl's `exists` does | `_, ok := s.GetOK(...)`, which only looks |
-| Deleting something that isn't there does nothing | `Delete` creates and panics as `Exists` does | `s.DeleteOK(...)` or `s.DeleteAt(...)`, which do nothing |
+| `Exists` only looks | For a key or index that isn't there, it says false, and never panics (but see [locked hashes](#locking)). But, as Perl's `exists` does, it creates the levels on the way as `Get` does, makes an undef `s` a hash or array, and panics on a value of the wrong kind: a number or a string, a hash asked for an index, an array asked for a key | `_, ok := s.GetOK(...)`, which only looks, and never panics |
+| `Delete` only removes | For a key or index that isn't there, it removes nothing and returns undef, and never panics (but see [locked hashes](#locking)). But, as Perl's `delete` does, it creates the levels on the way, and panics on a value of the wrong kind, as `Exists` does | `s.DeleteOK(...)` or `s.DeleteAt(...)`, which create nothing and never panic |
 | Any number can be an index | Only an `int`. A JSON number is a `float64`, and a `float64`, `int64` or `uint` key panics, as does any type but `string` and `int` | Convert first: `s.Get(int(n.Int()))` |
 | `"0"` is index 0 | A string is always a hash key, as `$h{0}` is in Perl | `s.Get(0)` for the index |
 | `s.Get()` with no keys is a mistake | It's `s` itself, so a route that might be empty works: `s.Get(route...)`. `Exists()` and `Delete()` with no keys panic | |
@@ -983,8 +983,14 @@ The rules are the same as Perl's:
 `Exists` and `Delete` autovivify as Perl's `exists` and `delete` do: an
 undef `s` becomes the hash or array they look in, and
 `s.Exists("a", "b")` creates `$s->{a}`, though never `$s->{a}{b}`.
-Where `s` is something else, such as a number, or a hash given an index,
-Perl dies and they panic. To look or delete without either, see
+Something that isn't there is never a panic: `Exists` says false, and
+`Delete` removes nothing and returns undef, as in Perl. (A
+[locked](#locking) hash is the exception, again as in Perl: a key it
+doesn't allow panics if you delete it or go through it.) The panic is
+only for a value of the wrong kind: where what the last key looks in is a
+number or a string, a hash given an index, or an array given a key, Perl
+dies, and they panic. To look or delete without creating anything or
+panicking, see
 [Looking without creating anything](#looking-without-creating-anything).
 
 Reading a missing key does cost something: it gives a new undef scalar,
@@ -2260,9 +2266,11 @@ then dropped:
   - passing a key that's neither a string nor an int to `Get`, `GetOK`,
     `Exists`, `Delete` or `DeleteOK`, or something other than a string or
     function as an `S` replacement
-  - a scalar's `Exists` or `Delete` on something other than the hash (for
-    a string key) or array (for an int) it refers to, or an undef that
-    can create one
+  - a scalar's `Exists` or `Delete` on a value of the wrong kind:
+    something other than the hash (for a string key) or array (for an
+    int) the last key looks in, or an undef that can create one. A key or
+    index that isn't there is never a panic, except for a key a locked
+    hash doesn't allow, as in Perl
   - `Any()` on a reference that leads back to itself (encoding it as JSON
     returns an error instead)
 

@@ -521,10 +521,12 @@ func (s *SV) GetOK(keys ...any) (v *SV, ok bool) {
 //
 // As in Perl, the levels on the way autovivify as Get's do, and so does an
 // undef s, into the hash or array the last key looks in, though that key
-// itself is never created; GetOK asks without creating anything. If what
-// the last key looks in is anything else, such as a number, or a hash
-// asked for an index, Exists panics, as Perl dies; GetOK says false
-// instead. It needs at least one key.
+// itself is never created; GetOK asks without creating anything. A key
+// or index that isn't there is false, never a panic, except where a locked
+// hash doesn't allow a key on the way, as in Perl. Otherwise Exists panics
+// only on a value of the wrong kind: if what the last key looks in is a
+// number or a string, or a hash asked for an index, as Perl dies; GetOK
+// says false instead. It needs at least one key.
 func (s *SV) Exists(keys ...any) bool {
 	if len(keys) == 1 {
 		st := subscript("Exists", keys[0])
@@ -544,9 +546,12 @@ func (s *SV) Exists(keys ...any) bool {
 //
 // As in Perl, the levels on the way autovivify as Get's do, and so does an
 // undef s, into the hash or array it deletes from; DeleteOK deletes
-// without creating anything. If what the last key looks in is anything
-// else, Delete panics, as Perl dies; DeleteOK deletes nothing instead.
-// It needs at least one key.
+// without creating anything. A key or index that isn't there deletes
+// nothing and gives undef, never a panic, except where a locked hash
+// doesn't allow the key, as in Perl. Otherwise Delete panics only on a
+// value of the wrong kind, if what the last key looks in isn't the hash
+// or array the key asks for, as Perl dies; DeleteOK deletes nothing
+// instead. It needs at least one key.
 func (s *SV) Delete(keys ...any) *SV {
 	if len(keys) == 1 {
 		st := subscript("Delete", keys[0])
