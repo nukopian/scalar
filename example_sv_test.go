@@ -487,9 +487,51 @@ func ExampleSV_AV() {
 func ExampleSV_HV() {
 	var s scalar.SV
 	s.HV().Set("a", 1) // $s->{a} = 1
-	fmt.Println(s.Ref(), s.HV().Get("a"))
+	fmt.Println(s.Ref(), s.Get("a"))
 	// Output:
 	// HASH 1
+}
+
+func ExampleSV_Get() {
+	doc, _ := scalar.FromJSON([]byte(`{
+		"properties": {"place": "12 km SSW of Ridgecrest, CA", "mag": 4.6},
+		"geometry": {"coordinates": [-117.6, 35.7, 8.2]}
+	}`))
+	fmt.Println(doc.Get("properties").Get("place"))             // $doc->{properties}{place}
+	fmt.Println(doc.Get("geometry").Get("coordinates").Get(-1)) // $doc->{geometry}{coordinates}[-1]: depth
+	doc.Get("properties").Get("mag").Set(4.7)                   // the element itself, so this changes doc
+	doc.Get("products").Get("shakemap").Get(0).Set("reviewed")  // writing autovivifies
+	fmt.Println(doc.At("properties.mag"), doc.At("products.shakemap[0]"))
+	// Output:
+	// 12 km SSW of Ridgecrest, CA
+	// 8.2
+	// 4.7 reviewed
+}
+
+func ExampleSV_Exists() {
+	doc, _ := scalar.FromJSON([]byte(`{"felt": null, "stations": ["PAS", "GSC"]}`))
+	fmt.Println(doc.Exists("felt"), doc.Exists("cdi"))                        // null is there; cdi isn't
+	fmt.Println(doc.Get("stations").Exists(1), doc.Get("stations").Exists(2)) // exists $doc->{stations}[2]
+	var none scalar.SV
+	fmt.Println(none.Exists("felt"), none.Ref()) // as in Perl, an undef becomes a hash
+	// Output:
+	// true false
+	// true false
+	// false HASH
+}
+
+func ExampleSV_Delete() {
+	doc, _ := scalar.FromJSON([]byte(`{"mag": 4.6, "magError": 0.1, "stations": ["PAS", "GSC", "ISA"]}`))
+	fmt.Println(doc.Delete("magError"))         // delete $doc->{magError}: its value
+	fmt.Println(doc.Get("stations").Delete(-1)) // the last element: the array shrinks
+	fmt.Println(doc.Delete("cdi").Defined())    // nothing there: undef
+	out, _ := doc.MarshalJSON()
+	fmt.Println(string(out))
+	// Output:
+	// 0.1
+	// ISA
+	// false
+	// {"mag":4.6,"stations":["PAS","GSC"]}
 }
 
 func ExampleSV_Path() {
@@ -509,7 +551,7 @@ func ExampleSV_PathOK() {
 	_, ok := doc.PathOK("alert") // present, but null
 	fmt.Println(ok)
 	_, ok = doc.PathOK("felt") // missing: and nothing is created
-	fmt.Println(ok, doc.HV().Exists("felt"))
+	fmt.Println(ok, doc.Exists("felt"))
 	// Output:
 	// true
 	// false false
@@ -548,7 +590,7 @@ func ExampleSV_AtOK() {
 	_, ok := doc.AtOK("mag.error") // present, but null
 	fmt.Println(ok)
 	_, ok = doc.AtOK("mag.type") // missing: and nothing is created
-	fmt.Println(ok, doc.At("mag").HV().Exists("type"))
+	fmt.Println(ok, doc.At("mag").Exists("type"))
 	// Output:
 	// true
 	// false false

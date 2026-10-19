@@ -220,6 +220,9 @@ for _, station := range stations.All() {
   `HashRef`.
 - `Ref()` works like Perl's `ref()`: it returns `"ARRAY"`, `"HASH"` or `""`.
 - `Set(x)` assigns a new value and returns the scalar.
+- `Get(k)`, `Exists(k)` and `Delete(k)` subscript the array or hash a
+  scalar refers to, a string `k` being a hash key and an int an index. See
+  [Nesting and autovivification](#nesting-and-autovivification).
 - `Copy()` returns a copy of the scalar, and `Clone()` a deep copy, of the
   arrays and hashes it refers to as well. See
   [Copies, references and in-place changes](#copies-references-and-in-place-changes).
@@ -861,19 +864,37 @@ because Perl has no references to them: to store one in a hash, store its
 ## Nesting and autovivification
 
 Arrays and hashes hold scalars, so you nest them through references, as in
-Perl. `AV()` and `HV()` dereference a scalar:
+Perl. A scalar holding a reference takes subscripts itself, with `Get`,
+`Exists` and `Delete`: a string is a hash key and an int an array index,
+as `{...}` and `[...]` are in Perl. As Perl needs no arrow between
+subscripts, nothing goes between the steps:
+
+```go
+s.Get("properties").Get("place")           // $s->{properties}{place}
+s.Get("stations").Get(-1)                  // $s->{stations}[-1]
+s.Get("stations").Get(0).Get("code")       // $s->{stations}[0]{code}
+s.Get("properties").Get("felt").Set(1204)  // $s->{properties}{felt} = 1204
+s.Get("properties").Exists("felt")         // exists $s->{properties}{felt}
+s.Get("properties").Delete("felt")         // delete $s->{properties}{felt}
+```
+
+For what Perl writes with `@{...}` and `%{...}`, the whole array or hash,
+`AV()` and `HV()` dereference a scalar and give you the `AV` or `HV`
+itself:
 
 ```go
 h.Get("tags").AV().Push("go", "perl")  // push @{ $h{tags} }, "go", "perl"
+s.Get("properties").HV().Keys()        // keys %{ $s->{properties} }
+s.Get("stations").AV().Length()        // scalar @{ $s->{stations} }
 ```
 
-If the scalar is undef, `AV()` and `HV()` create a new array or hash on the
-spot. This is called autovivification. It lets you build deep structures in
-one line:
+If the scalar is undef, `Get`, `AV()` and `HV()` create a new array or
+hash on the spot. This is called autovivification. It lets you build deep
+structures in one line:
 
 ```go
-h := scalar.Hash()
-h.Get("x").HV().Get("y").AV().Get(2).HV().Set("z", 1)  // $h{x}{y}[2]{z} = 1
+var s scalar.SV
+s.Get("x").Get("y").Get(2).Get("z").Set(1)  // $s->{x}{y}[2]{z} = 1
 ```
 
 The rules are the same as Perl's:
@@ -881,24 +902,34 @@ The rules are the same as Perl's:
 - Reading a missing key or index gives undef and doesn't create anything.
 - Writing to it creates it.
 - Going *through* a missing key creates it, even if you are only reading.
-  `h.Get("a").HV().Get("b")` creates `$h{a}` but not `$h{a}{b}`.
+  `s.Get("a").Get("b")` creates `$s->{a}` but not `$s->{a}{b}`.
+
+`Exists` and `Delete` autovivify as Perl's `exists` and `delete` do: an
+undef `s` becomes the hash or array they look in, and
+`s.Get("a").Exists("b")` creates `$s->{a}`, though never `$s->{a}{b}`.
+To ask without creating anything, use `PathOK` or `AtOK`; to delete
+without creating anything, use `DeletePath` or `DeleteAt`. Where `s` holds
+something that isn't an array or hash, Perl dies; `Exists` says the key
+isn't there, and `Delete` deletes nothing and returns undef, as the
+`Path` family does.
 
 Reading a missing key does cost something: it gives a new undef scalar,
 ready to create the key if you write to it. To ask only whether a key is
-there, as in a loop over many records, `h.Exists(k)` costs nothing:
-`m.HV().Exists("k")` rather than `m.At("k").Defined()`.
+there, as in a loop over many records, `Exists` costs nothing:
+`m.Exists("k")` rather than `m.Get("k").Defined()`.
 
-`Path(...)` walks a mix of hash keys (strings) and array indexes (ints), and
-`At` takes the same route as one string. Both follow the same rules and
-replace a chain of `AV()` and `HV()`. They're methods of scalars, hashes
-and arrays alike, so `h.At("a.b")` is `$h{a}{b}` and `a.At("[0].name")` is
-`$a[0]{name}`; writing through one changes that hash or array:
+`Path(...)` walks a mix of hash keys (strings) and array indexes (ints), as
+a chain of `Get` does, and `At` takes the same route as one string. Both
+follow the same rules. They're methods of scalars, hashes and arrays alike,
+so `h.At("a.b")` is `$h{a}{b}` and `a.At("[0].name")` is `$a[0]{name}`;
+writing through one changes that hash or array:
 
 ```go
 var doc scalar.SV
-doc.Path("x", "y", 2, "z").Set(1)   // $doc->{x}{y}[2]{z} = 1
-doc.At("x.y[2].z").Set(1)           // the same
-doc.At("{x}{y}[2]{z}").Set(1)       // the same, written as in Perl
+doc.Path("x", "y", 2, "z").Set(1)            // $doc->{x}{y}[2]{z} = 1
+doc.Get("x").Get("y").Get(2).Get("z").Set(1) // the same
+doc.At("x.y[2].z").Set(1)                    // the same
+doc.At("{x}{y}[2]{z}").Set(1)                // the same, written as in Perl
 ```
 
 ### A path as one string: `At`
@@ -982,7 +1013,7 @@ default:
 `ok` is false if any step doesn't exist, including stepping through something
 that isn't an array or hash. Unlike `Path`, `PathOK` never creates anything.
 When `ok` is true, `v` is the stored value itself, as with `Path`. For a
-single key, `h.Exists(k)` does the same job.
+single key, `s.Exists(k)` or `h.Exists(k)` does the same job.
 
 There are two things Perl refuses to create, and `scalar` refuses them too:
 
@@ -992,7 +1023,7 @@ There are two things Perl refuses to create, and `scalar` refuses them too:
   string as if it were a hash.
 
 For both, reading gives undef, even if you read further through them with
-`AV()`, `HV()` or `Path`. Writing panics, just as Perl dies.
+`Get`, `AV()`, `HV()` or `Path`. Writing panics, just as Perl dies.
 
 Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
 on, because a read that can't panic is what makes `Path` safe on messy data.
@@ -1404,7 +1435,7 @@ for m := range s.Matches(`M(\d\.\d)`) {
 With `g`, `M` finds every match at once, and returns an array with one
 element per match: a reference to that match's array, as Perl's arrays of
 arrays hold references. Reach into it with a path, `all.At("[1][1]")`, or
-by dereferencing, `all.Get(1).AV().Get(1)`. If nothing matches, it returns
+by subscripting, `all.Get(1).Get(1)`. If nothing matches, it returns
 `nil` too, so `m != nil` means "matched" either way.
 
 `Named` returns the named groups of the first match as a hash, like Perl's
@@ -1895,9 +1926,9 @@ sake.
 
 ### Getting an element gives you the element itself
 
-`a.Get(i)`, `h.Get(k)`, `Path(...)`, `At(...)`, `All()`, the matches from
-`Find` and the elements of `Values()` give you the value that's actually stored, not a copy. Changing it changes
-the array or hash:
+`a.Get(i)`, `h.Get(k)`, `s.Get(k)`, `Path(...)`, `At(...)`, `All()`, the
+matches from `Find` and the elements of `Values()` give you the value that's
+actually stored, not a copy. Changing it changes the array or hash:
 
 ```go
 a.Get(0).Set("x")      // changes $a[0]
@@ -2108,8 +2139,10 @@ then dropped:
     `CompilePath` to get an error instead), or a malformed template in
     `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
     that's neither a string nor a `*Template`
-  - passing something other than a string, int or `*PathExpr` to `Path`, or
-    something other than a string or function as an `S` replacement
+  - passing something other than a string, int or `*PathExpr` to `Path`,
+    something other than a string or int to a scalar's `Get`, `Exists` or
+    `Delete`, or something other than a string or function as an `S`
+    replacement
   - `Any()` on a reference that leads back to itself (encoding it as JSON
     returns an error instead)
 

@@ -399,10 +399,12 @@ func (s *SV) Bool() bool {
 	return true
 }
 
-// AV dereferences s as an array. An undef s is autovivified into a new
-// array reference. Returns nil if s holds anything else, or is an undef
-// that can't be created (see AV.Get); reads through a nil *AV yield undef,
-// writes panic (Perl's "Not an ARRAY reference").
+// AV dereferences s as an array, as Perl's @$s does, for what works on the
+// whole array, such as Push or Length; for one element, s.Get(i) needs no
+// AV. An undef s is autovivified into a new array reference. Returns nil if
+// s holds anything else, or is an undef that can't be created (see
+// AV.Get); reads through a nil *AV yield undef, writes panic (Perl's "Not
+// an ARRAY reference").
 func (s *SV) AV() *AV {
 	if s == nil {
 		return nil
@@ -422,7 +424,9 @@ func (s *SV) AV() *AV {
 	return nil
 }
 
-// HV dereferences s as a hash, autovivifying undef like AV does.
+// HV dereferences s as a hash, as Perl's %$s does, for what works on the
+// whole hash, such as Keys or Length; for one key, s.Get(key) needs no HV.
+// It autovivifies undef, and returns nil for anything else, as AV does.
 func (s *SV) HV() *HV {
 	if s == nil {
 		return nil
@@ -442,10 +446,88 @@ func (s *SV) HV() *HV {
 	return nil
 }
 
+// Get is Perl's $s->{key} or $s->[i]: a string key looks up the hash s
+// refers to, and an int the array.
+//
+//	s.Get("content").Get(0).Get("text")  // $s->{content}[0]{text}
+//
+// It needs no AV or HV between the steps, as Perl needs no arrow between
+// subscripts. It's HV().Get or AV().Get in one step, with the same rules:
+// an undef s autovivifies, as Perl's $s->{key} does even when only read,
+// and a missing key or index reads as undef without being created, until
+// something is written to it. If s holds anything else, Get returns undef,
+// and writing to it panics. Any other type of key panics.
+func (s *SV) Get(key any) *SV {
+	switch k := key.(type) {
+	case string:
+		return s.HV().Get(k)
+	case int:
+		return s.AV().Get(k)
+	}
+	panic(badSubscript("Get", key))
+}
+
+// Exists is Perl's exists $s->{key} or exists $s->[i]: whether the hash or
+// array s refers to has that key or element, even if its value is undef. A
+// string key is a hash key and an int an array index, as for Get.
+//
+// As in Perl, an undef s autovivifies into the hash or array it looks in,
+// though the key itself is never created; PathOK asks without creating
+// anything. If s holds anything else, the key doesn't exist.
+func (s *SV) Exists(key any) bool {
+	st := subscript("Exists", key)
+	st.deref(s)
+	return s != nil && st.peek(s) != nil
+}
+
+// Delete is Perl's delete $s->{key} or delete $s->[i]: it removes the key
+// or element from the hash or array s refers to, and returns its value, or
+// undef if there was nothing there. A string key is a hash key and an int
+// an array index, as for Get, and an array keeps its holes as AV.Delete
+// says.
+//
+// As in Perl, an undef s autovivifies into the hash or array it deletes
+// from; DeletePath deletes without creating anything. Deleting from
+// something that isn't an array or hash deletes nothing, where Perl dies.
+func (s *SV) Delete(key any) *SV {
+	st := subscript("Delete", key)
+	st.deref(s)
+	return s.deleteSteps([]atStep{st})
+}
+
+// deref autovivifies an undef s into the hash or array that st looks in, as
+// Perl's exists and delete do.
+func (st atStep) deref(s *SV) {
+	if st.kind == stepKey {
+		s.HV()
+	} else {
+		s.AV()
+	}
+}
+
+// subscript is key as one step of a path, for Exists and Delete, whose
+// name method is.
+func subscript(method string, key any) atStep {
+	switch k := key.(type) {
+	case string:
+		return atStep{kind: stepKey, key: k}
+	case int:
+		return atStep{kind: stepIndex, index: k}
+	}
+	panic(badSubscript(method, key))
+}
+
+// badSubscript is the panic for a key to Get, Exists or Delete that's
+// neither a string nor an int.
+func badSubscript(method string, key any) string {
+	return fmt.Sprintf("scalar: %s key must be a string or an int, got %T", method, key)
+}
+
 // Path walks a chain of hash keys (string) and array indices (int), so
-// s.Path("content", 0, "text") is $s->{content}[0]{text}. Intermediate
-// levels autovivify, as they do in Perl; the final element does not. A key
-// may also be a compiled path (see MustPath), whose steps are taken in turn.
+// s.Path("content", 0, "text") is $s->{content}[0]{text}, as is
+// s.Get("content").Get(0).Get("text"). Intermediate levels autovivify, as
+// they do in Perl; the final element does not. A key may also be a compiled
+// path (see MustPath), whose steps are taken in turn.
 func (s *SV) Path(keys ...any) *SV {
 	cur := s
 	for _, k := range keys {

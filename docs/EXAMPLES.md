@@ -690,7 +690,7 @@ false false false false false true true true true
 
 #### `SV.AV`
 
-AV dereferences s as an array.
+AV dereferences s as an array, as Perl's @\$s does, for what works on the whole array, such as Push or Length; for one element, `s.Get`(i) needs no AV.
 
 ```go
 var s scalar.SV   // undef
@@ -706,21 +706,81 @@ true
 
 #### `SV.HV`
 
-HV dereferences s as a hash, autovivifying undef like AV does.
+HV dereferences s as a hash, as Perl's %\$s does, for what works on the whole hash, such as Keys or Length; for one key, `s.Get`(key) needs no HV.
 
 ```go
 var s scalar.SV
 s.HV().Set("a", 1) // $s->{a} = 1
-fmt.Println(s.Ref(), s.HV().Get("a"))
+fmt.Println(s.Ref(), s.Get("a"))
 ```
 
 ```
 HASH 1
 ```
 
+#### `SV.Get`
+
+Get is Perl's \$s->{key} or \$s->[i]: a string key looks up the hash s refers to, and an int the array.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{
+	"properties": {"place": "12 km SSW of Ridgecrest, CA", "mag": 4.6},
+	"geometry": {"coordinates": [-117.6, 35.7, 8.2]}
+}`))
+fmt.Println(doc.Get("properties").Get("place"))             // $doc->{properties}{place}
+fmt.Println(doc.Get("geometry").Get("coordinates").Get(-1)) // $doc->{geometry}{coordinates}[-1]: depth
+doc.Get("properties").Get("mag").Set(4.7)                   // the element itself, so this changes doc
+doc.Get("products").Get("shakemap").Get(0).Set("reviewed")  // writing autovivifies
+fmt.Println(doc.At("properties.mag"), doc.At("products.shakemap[0]"))
+```
+
+```
+12 km SSW of Ridgecrest, CA
+8.2
+4.7 reviewed
+```
+
+#### `SV.Exists`
+
+Exists is Perl's exists \$s->{key} or exists \$s->[i]: whether the hash or array s refers to has that key or element, even if its value is undef.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"felt": null, "stations": ["PAS", "GSC"]}`))
+fmt.Println(doc.Exists("felt"), doc.Exists("cdi"))                        // null is there; cdi isn't
+fmt.Println(doc.Get("stations").Exists(1), doc.Get("stations").Exists(2)) // exists $doc->{stations}[2]
+var none scalar.SV
+fmt.Println(none.Exists("felt"), none.Ref()) // as in Perl, an undef becomes a hash
+```
+
+```
+true false
+true false
+false HASH
+```
+
+#### `SV.Delete`
+
+Delete is Perl's delete \$s->{key} or delete \$s->[i]: it removes the key or element from the hash or array s refers to, and returns its value, or undef if there was nothing there.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"mag": 4.6, "magError": 0.1, "stations": ["PAS", "GSC", "ISA"]}`))
+fmt.Println(doc.Delete("magError"))         // delete $doc->{magError}: its value
+fmt.Println(doc.Get("stations").Delete(-1)) // the last element: the array shrinks
+fmt.Println(doc.Delete("cdi").Defined())    // nothing there: undef
+out, _ := doc.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+0.1
+ISA
+false
+{"mag":4.6,"stations":["PAS","GSC"]}
+```
+
 #### `SV.Path`
 
-Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is \$s->{content}[0]{text}.
+Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is \$s->{content}[0]{text}, as is `s.Get`("content").Get(0).Get("text").
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"items": [{"name": "first"}]}`))
@@ -745,7 +805,7 @@ doc, _ := scalar.FromJSON([]byte(`{"alert": null}`))
 _, ok := doc.PathOK("alert") // present, but null
 fmt.Println(ok)
 _, ok = doc.PathOK("felt") // missing: and nothing is created
-fmt.Println(ok, doc.HV().Exists("felt"))
+fmt.Println(ok, doc.Exists("felt"))
 ```
 
 ```
@@ -796,7 +856,7 @@ doc, _ := scalar.FromJSON([]byte(`{"mag": {"value": 5.1, "error": null}}`))
 _, ok := doc.AtOK("mag.error") // present, but null
 fmt.Println(ok)
 _, ok = doc.AtOK("mag.type") // missing: and nothing is created
-fmt.Println(ok, doc.At("mag").HV().Exists("type"))
+fmt.Println(ok, doc.At("mag").Exists("type"))
 ```
 
 ```
@@ -4020,7 +4080,7 @@ if err != nil {
 }
 fmt.Println(doc.Path("id")) // whole numbers stay exact
 fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
-fmt.Println(doc.HV().Exists("felt"), doc.Path("felt").Defined()) // null is undef
+fmt.Println(doc.Exists("felt"), doc.Get("felt").Defined()) // null is undef
 ```
 
 ```

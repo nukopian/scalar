@@ -72,7 +72,7 @@ if v, ok := event.PathOK("alert"); ok && !v.Defined() {
 if _, ok := event.PathOK("felt"); !ok {
 	fmt.Println("felt: missing")                    // left out entirely
 }
-event.HV().Get("felt").OrSet(0)                   // $event->{felt} //= 0
+event.Get("felt").OrSet(0)                        // $event->{felt} //= 0
 ```
 
 ### Cleaning a list of station codes

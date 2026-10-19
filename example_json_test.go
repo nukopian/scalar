@@ -18,7 +18,7 @@ func ExampleFromJSON() {
 	}
 	fmt.Println(doc.Path("id")) // whole numbers stay exact
 	fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
-	fmt.Println(doc.HV().Exists("felt"), doc.Path("felt").Defined()) // null is undef
+	fmt.Println(doc.Exists("felt"), doc.Get("felt").Defined()) // null is undef
 	// Output:
 	// 9007199254740993
 	// 8.25 ARRAY

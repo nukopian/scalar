@@ -110,7 +110,7 @@ func Example_readEvent() {
 	if _, ok := event.PathOK("felt"); !ok {
 		fmt.Println("felt: missing")
 	}
-	event.HV().Get("felt").OrSet(0) // $event->{felt} //= 0
+	event.Get("felt").OrSet(0) // $event->{felt} //= 0
 	fmt.Println(event.Path("felt"))
 
 	// Output:
