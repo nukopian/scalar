@@ -98,7 +98,7 @@ func TestSVGet(t *testing.T) {
 	}
 }
 
-// Exists is Perl's exists, without creating anything.
+// Exists is Perl's exists, autovivifying and dying where Perl does.
 func TestSVExists(t *testing.T) {
 	doc := newSubscriptDoc(t)
 	props, coords := doc.Get("properties"), doc.At("geometry.coordinates")
@@ -111,15 +111,11 @@ func TestSVExists(t *testing.T) {
 		{props, "felt", true}, // null is there, but undef
 		{props, "cdi", false},
 		{props, "0", true},
-		{props, 0, false}, // a hash isn't an array
 		{coords, 0, true},
 		{coords, -1, true},
 		{coords, -3, true},
 		{coords, -4, false}, // before the start
 		{coords, 3, false},  // past the end
-		{coords, "0", false},
-		{doc.Get("tsunami"), "x", false},
-		{doc.Get("tsunami"), 0, false},
 	} {
 		if got := c.s.Exists(c.key); got != c.want {
 			t.Errorf("Exists(%#v) on %s: %v, want %v", c.key, c.s.Dump(), got, c.want)
@@ -148,14 +144,26 @@ func TestSVExists(t *testing.T) {
 		t.Errorf("exists $doc->{products}{shakemap}: %s", doc.Dump())
 	}
 
-	// A value of the wrong kind is left alone: the key isn't there.
-	if doc.Get("tsunami").Exists("x") || doc.Get("tsunami").Int() != 0 {
-		t.Error("Exists changed a number")
+	// Anything else panics, as Perl dies, and is left as it was.
+	before = doc.Dump()
+	for _, c := range []struct {
+		name string
+		s    *SV
+		key  any
+		want string
+	}{
+		{"a number", doc.Get("tsunami"), "x", "Not a HASH reference"},
+		{"a number by index", doc.Get("tsunami"), 0, notArrayRef},
+		{"a hash by index", props, 0, notArrayRef},
+		{"an array by key", coords, "0", "Not a HASH reference"},
+		{"through a number", doc.Get("tsunami").Get("x"), "y", "Not a HASH reference"},
+		{"before the start", doc.Get("stations").Get(-10), 0, "non-creatable"},
+		{"a nil SV", nil, "x", "Not a HASH reference"},
+	} {
+		expectPanic(t, "Exists on "+c.name, c.want, func() { c.s.Exists(c.key) })
 	}
-
-	var nilSV *SV
-	if nilSV.Exists("x") || nilSV.Exists(0) {
-		t.Error("nil SV")
+	if doc.Dump() != before {
+		t.Errorf("a panicking Exists changed the document: %s", doc.Dump())
 	}
 
 	// A locked hash answers without panicking, as Perl's exists does.
@@ -166,10 +174,10 @@ func TestSVExists(t *testing.T) {
 	}
 
 	expectPanic(t, "Exists(float64)", "Exists key must be a string or an int, got float64", func() { doc.Exists(1.0) })
-	expectPanic(t, "nil SV, bad key", "Exists key must be", func() { nilSV.Exists(1.0) })
+	expectPanic(t, "nil SV, bad key", "Exists key must be", func() { (*SV)(nil).Exists(1.0) })
 }
 
-// Delete is Perl's delete, without creating anything.
+// Delete is Perl's delete, autovivifying and dying where Perl does.
 func TestSVDelete(t *testing.T) {
 	doc := newSubscriptDoc(t)
 	props := doc.Get("properties")
@@ -178,9 +186,6 @@ func TestSVDelete(t *testing.T) {
 	}
 	if got := props.Delete("cdi"); got.Defined() || props.Exists("cdi") {
 		t.Errorf("delete a missing key: %v", got)
-	}
-	if got := props.Delete(0); got.Defined() || !props.Exists("0") {
-		t.Error("an index into a hash deletes nothing")
 	}
 
 	// In the middle, a hole; at the end, the array shrinks past the holes.
@@ -214,13 +219,16 @@ func TestSVDelete(t *testing.T) {
 		t.Errorf("delete $doc->{products}{shakemap}: %s", doc.Dump())
 	}
 
-	// Nothing is created, and nothing panics, in a value of the wrong kind.
-	if doc.Get("tsunami").Delete("x").Defined() || doc.Get("tsunami").Delete(0).Defined() || doc.Get("tsunami").Int() != 0 {
-		t.Error("deleting from a number")
-	}
+	// Anything else panics, as Perl dies, and is left as it was.
+	before := doc.Dump()
+	expectPanic(t, "a number", "Not a HASH reference", func() { doc.Get("tsunami").Delete("x") })
+	expectPanic(t, "a hash by index", notArrayRef, func() { props.Delete(0) })
+	expectPanic(t, "an array by key", "Not a HASH reference", func() { coords.Delete("0") })
+	expectPanic(t, "before the start", "non-creatable", func() { doc.Get("stations").Get(-10).Delete("x") })
 	var nilSV *SV
-	if nilSV.Delete("x").Defined() {
-		t.Error("nil SV")
+	expectPanic(t, "a nil SV", notArrayRef, func() { nilSV.Delete(0) })
+	if doc.Dump() != before || !props.Exists("0") || doc.Get("tsunami").Int() != 0 {
+		t.Errorf("a panicking Delete changed the document: %s", doc.Dump())
 	}
 
 	// A locked hash panics, as HV.Delete and Perl do.
@@ -233,7 +241,8 @@ func TestSVDelete(t *testing.T) {
 
 // Get, Exists and Delete are the one-step forms of Path, PathOK and
 // DeletePath, on every kind of value and key, once Get has autovivified s
-// as Exists and Delete would.
+// as Exists and Delete would. Where s is the wrong kind, Exists and Delete
+// panic, and PathOK and DeletePath find nothing.
 func TestSVSubscriptMatchesPath(t *testing.T) {
 	keys := []any{"properties", "mag", "felt", "0", "nope", 0, 1, -1, -2, 2, 5, -9}
 	for _, at := range []string{"", "properties", "properties.felt", "geometry.coordinates", "stations", "stations[1]", "tsunami", "missing"} {
@@ -242,6 +251,15 @@ func TestSVSubscriptMatchesPath(t *testing.T) {
 			s1, s2 := doc1.At(at), doc2.At(at)
 			if d := s1.Get(k).Diff(s2.Path(k)); d != "" || doc1.Dump() != doc2.Dump() {
 				t.Errorf("%q Get(%v) vs Path: %s", at, k, d)
+			}
+			_, isIndex := k.(int)
+			if s1.Ref() != map[bool]string{false: "HASH", true: "ARRAY"}[isIndex] {
+				expectPanic(t, fmt.Sprintf("%q Exists(%v)", at, k), "Not a", func() { s1.Exists(k) })
+				expectPanic(t, fmt.Sprintf("%q Delete(%v)", at, k), "Not a", func() { s1.Delete(k) })
+				if _, ok := s2.PathOK(k); ok || s2.DeletePath(k).Defined() || doc1.Dump() != doc2.Dump() {
+					t.Errorf("%q PathOK or DeletePath(%v) found something", at, k)
+				}
+				continue
 			}
 			_, ok := s2.PathOK(k)
 			if s1.Exists(k) != ok {
@@ -255,10 +273,10 @@ func TestSVSubscriptMatchesPath(t *testing.T) {
 }
 
 // A chain of Get, ending in a read, a write, Exists or Delete, does what
-// the same subscripts do in Perl, to the value and to the document. It
-// leaves out paths that go through the wrong kind of value, where Perl
-// dies, and scalar reads undef, as documented. It needs perl, and is
-// skipped without it.
+// the same subscripts do in Perl, to the value and to the document, and
+// panics where Perl dies. It leaves out reads that go through the wrong
+// kind of value, where Perl dies and scalar reads undef, as documented. It
+// needs perl, and is skipped without it.
 func TestSVSubscriptMatchesPerl(t *testing.T) {
 	needPerl(t)
 	type step struct {
@@ -282,13 +300,17 @@ func TestSVSubscriptMatchesPerl(t *testing.T) {
 		}
 		return st
 	}
-	// fits says whether Perl walks path without dying.
+	// fits says whether a get is one Perl does without dying; scalar's
+	// reads carry on where Perl dies, as documented. Anything else fits.
 	fits := func(op string, path []any) bool {
+		if op != "get" {
+			return true
+		}
 		cur, curOK := newSubscriptDoc(t), true // cur exists so far
 		for i, k := range path {
 			last := i == len(path)-1
 			if !curOK || !cur.Defined() {
-				if n, isInt := k.(int); isInt && n < 0 && (!last || op == "set") {
+				if n, isInt := k.(int); isInt && n < 0 && !last {
 					return false // $a[-1] of an empty array can't be created
 				}
 				curOK = false
@@ -305,9 +327,6 @@ func TestSVSubscriptMatchesPerl(t *testing.T) {
 				}
 				if !last && (k < -cur.AV().Length()) {
 					return false // going through an element Perl can't create
-				}
-				if last && op == "set" && k < -cur.AV().Length() {
-					return false
 				}
 			}
 			cur, curOK = cur.PathOK(k)
@@ -350,16 +369,19 @@ for my $c (@{ $in->{cases} }) {
 	my $s = $json->decode($json->encode($in->{doc})); # a fresh copy
 	my @path = @{ $c->{path} };
 	my $last = pop @path;
-	my $ref = \$s;
-	# \ on an element creates it, as going through it would anyway
-	$ref = $_->{i} ? \ $$ref->[$_->{k}] : \ $$ref->{$_->{k}} for @path;
 	my ($k, $i) = ($last->{k}, $last->{i});
 	my $got;
-	if    ($c->{op} eq 'get')    { $got = $i ? $$ref->[$k] : $$ref->{$k} }
-	elsif ($c->{op} eq 'set')    { $got = ($i ? $$ref->[$k] : $$ref->{$k}) = "set" }
-	elsif ($c->{op} eq 'exists') { $got = ($i ? exists $$ref->[$k] : exists $$ref->{$k}) ? JSON::PP::true : JSON::PP::false }
-	else                         { $got = $i ? delete $$ref->[$k] : delete $$ref->{$k} }
-	push @out, [$got, $s];
+	my $lived = eval {
+		my $ref = \$s;
+		# \ on an element creates it, as going through it would anyway
+		$ref = $_->{i} ? \ $$ref->[$_->{k}] : \ $$ref->{$_->{k}} for @path;
+		if    ($c->{op} eq 'get')    { $got = $i ? $$ref->[$k] : $$ref->{$k} }
+		elsif ($c->{op} eq 'set')    { $got = ($i ? $$ref->[$k] : $$ref->{$k}) = "set" }
+		elsif ($c->{op} eq 'exists') { $got = ($i ? exists $$ref->[$k] : exists $$ref->{$k}) ? JSON::PP::true : JSON::PP::false }
+		else                         { $got = $i ? delete $$ref->[$k] : delete $$ref->{$k} }
+		1;
+	};
+	push @out, $lived ? [$got, $s, 0] : [undef, $s, 1];
 }
 print $json->encode(\@out);
 `
@@ -373,7 +395,7 @@ print $json->encode(\@out);
 		}
 		t.Fatalf("perl: %v: %s", err, stderr)
 	}
-	var want [][2]any
+	var want [][3]any
 	if err := json.Unmarshal(out, &want); err != nil {
 		t.Fatal(err)
 	}
@@ -396,16 +418,20 @@ print $json->encode(\@out);
 		}
 		k := path[len(path)-1]
 		var got any
-		switch c.Op {
-		case "get":
-			got = cur.Get(k)
-		case "set":
-			got = cur.Get(k).Set("set")
-		case "exists":
-			got = cur.Exists(k)
-		case "delete":
-			got = cur.Delete(k)
-		}
+		died := func() (died bool) {
+			defer func() { died = recover() != nil }()
+			switch c.Op {
+			case "get":
+				got = cur.Get(k)
+			case "set":
+				got = cur.Get(k).Set("set")
+			case "exists":
+				got = cur.Exists(k)
+			case "delete":
+				got = cur.Delete(k)
+			}
+			return false
+		}()
 		gotJSON, err := json.Marshal(got)
 		if err != nil {
 			t.Fatal(err)
@@ -414,13 +440,18 @@ print $json->encode(\@out);
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(asAny(gotJSON), want[n][0]) || !reflect.DeepEqual(asAny(docJSON), want[n][1]) {
+		if perlDied := want[n][2] == 1.0; died != perlDied {
+			t.Errorf("%s %v: panicked %v, Perl died %v", c.Op, path, died, perlDied)
+		} else if !reflect.DeepEqual(asAny(gotJSON), want[n][0]) || !reflect.DeepEqual(asAny(docJSON), want[n][1]) {
 			t.Errorf("%s %v:\n got %s, %s\nwant %v, %v", c.Op, path, gotJSON, docJSON, want[n][0], want[n][1])
 		}
 	}
 	counts := map[string]int{}
-	for _, c := range cases {
+	for n, c := range cases {
 		counts[c.Op]++
+		if want[n][2] == 1.0 {
+			counts[c.Op+" dies"]++
+		}
 	}
 	t.Logf("%d cases: %v", len(cases), counts)
 }

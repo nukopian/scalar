@@ -473,11 +473,12 @@ func (s *SV) Get(key any) *SV {
 //
 // As in Perl, an undef s autovivifies into the hash or array it looks in,
 // though the key itself is never created; PathOK asks without creating
-// anything. If s holds anything else, the key doesn't exist.
+// anything. If s is anything else, such as a number, or a hash asked for
+// an index, Exists panics, as Perl dies; PathOK says false instead.
 func (s *SV) Exists(key any) bool {
 	st := subscript("Exists", key)
 	st.deref(s)
-	return s != nil && st.peek(s) != nil
+	return st.peek(s) != nil
 }
 
 // Delete is Perl's delete $s->{key} or delete $s->[i]: it removes the key
@@ -487,8 +488,8 @@ func (s *SV) Exists(key any) bool {
 // says.
 //
 // As in Perl, an undef s autovivifies into the hash or array it deletes
-// from; DeletePath deletes without creating anything. Deleting from
-// something that isn't an array or hash deletes nothing, where Perl dies.
+// from; DeletePath deletes without creating anything. If s is anything
+// else, Delete panics, as Perl dies; DeletePath deletes nothing instead.
 func (s *SV) Delete(key any) *SV {
 	st := subscript("Delete", key)
 	st.deref(s)
@@ -496,13 +497,21 @@ func (s *SV) Delete(key any) *SV {
 }
 
 // deref autovivifies an undef s into the hash or array that st looks in, as
-// Perl's exists and delete do.
+// Perl's exists and delete do, and panics, as Perl dies, if s is anything
+// else, or an undef that can't be created.
 func (st atStep) deref(s *SV) {
+	msg := "Not a HASH reference"
 	if st.kind == stepKey {
-		s.HV()
-	} else {
-		s.AV()
+		if s.HV() != nil {
+			return
+		}
+	} else if msg = notArrayRef; s.AV() != nil {
+		return
 	}
+	if s != nil && s.v == nil {
+		s.vivify() // read-only, or can't be created: panics with why
+	}
+	panic("scalar: " + msg)
 }
 
 // subscript is key as one step of a path, for Exists and Delete, whose

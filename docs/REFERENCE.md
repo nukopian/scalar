@@ -908,10 +908,11 @@ The rules are the same as Perl's:
 undef `s` becomes the hash or array they look in, and
 `s.Get("a").Exists("b")` creates `$s->{a}`, though never `$s->{a}{b}`.
 To ask without creating anything, use `PathOK` or `AtOK`; to delete
-without creating anything, use `DeletePath` or `DeleteAt`. Where `s` holds
-something that isn't an array or hash, Perl dies; `Exists` says the key
-isn't there, and `Delete` deletes nothing and returns undef, as the
-`Path` family does.
+without creating anything, use `DeletePath` or `DeleteAt`. Where `s` is
+something else, such as a number, or a hash given an index, Perl dies and
+`Exists` and `Delete` panic. On data whose shape you're unsure of, the
+`Path` family carries on instead: `PathOK` says the key isn't there, and
+`DeletePath` deletes nothing.
 
 Reading a missing key does cost something: it gives a new undef scalar,
 ready to create the key if you write to it. To ask only whether a key is
@@ -1027,6 +1028,8 @@ For both, reading gives undef, even if you read further through them with
 
 Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
 on, because a read that can't panic is what makes `Path` safe on messy data.
+`Exists` and `Delete` on a scalar are the exception: they say which kind of
+container they expect, so they die where Perl does.
 
 ## Finding values with JSONPath
 
@@ -2143,6 +2146,9 @@ then dropped:
     something other than a string or int to a scalar's `Get`, `Exists` or
     `Delete`, or something other than a string or function as an `S`
     replacement
+  - a scalar's `Exists` or `Delete` on something other than the hash (for
+    a string key) or array (for an int) it refers to, or an undef that
+    can create one
   - `Any()` on a reference that leads back to itself (encoding it as JSON
     returns an error instead)
 
