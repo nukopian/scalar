@@ -25,6 +25,7 @@ for tasks in more depth, the [how-to guide](HOWTO.md).
 - [Variables in a string](#variables-in-a-string)
 - [Substitute](#substitute)
 - [A hash slice](#a-hash-slice)
+- [A whole array or hash](#a-whole-array-or-hash)
 - [When to switch](#when-to-switch)
 
 ## The feed
@@ -385,6 +386,29 @@ p.HV().Values("mag", "net").Join(" ")
 ```go
 // plain Go
 fmt.Sprint(p.Mag, " ", p.Net)
+```
+
+## A whole array or hash
+
+Perl's `@{ X }` and `%{ X }` take what `X` refers to as a whole array or
+hash. In scalar, the sigil moves to the end: `X.AV()` and `X.HV()`. The
+number of quakes, and the first one's fields. Answer:
+`4 felt,mag,net,place,stations`.
+
+```perl
+scalar(@{ $feed->{features} }) . " " . join ",", sort keys %{ $feed->{features}[0]{properties} }
+```
+
+```go
+// scalar: @{ X } is X.AV(), and %{ X } is X.HV()
+fmt.Sprint(feed.Get("features").AV().Length(), " ",
+	feed.Get("features", 0, "properties").HV().Keys().Sort(nil).Join(","))
+```
+
+```go
+// plain Go: a struct has no keys to list, so they come from the raw JSON
+props := raw["features"].([]any)[0].(map[string]any)["properties"].(map[string]any)
+fmt.Sprint(len(feed.Features), " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
 ```
 
 ## When to switch

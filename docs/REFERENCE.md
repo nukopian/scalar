@@ -956,7 +956,8 @@ autovivifying, extending arrays, and panicking where Perl dies.
 
 For what Perl writes with `@{...}` and `%{...}`, the whole array or hash,
 `AV()` and `HV()` dereference a scalar and give you the `AV` or `HV`
-itself:
+itself. The sigil moves to the end: Perl's `@{ X }` is `X.AV()`, and
+`%{ X }` is `X.HV()`, as on each line here:
 
 ```go
 h.Get("tags").AV().Push("go", "perl")  // push @{ $h{tags} }, "go", "perl"

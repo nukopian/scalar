@@ -42,6 +42,7 @@ var mappingWant = map[string]string{
 	"interpolate": "M5.1 near 12 km NNE of Ridgecrest, CA",
 	"substitute":  "Ridgecrest, CA",
 	"slice":       "5.1 ci",
+	"deref":       "4 felt,mag,net,place,stations",
 }
 
 // mappingPerl is each task in Perl, printing "task<TAB>answer".
@@ -83,6 +84,8 @@ $out{interpolate} = "M$p->{mag} near $p->{place}";
 $out{substitute} = $p->{place} =~ s/^\d+ km \w+ of //r;
 
 $out{slice} = join " ", @{$p}{qw(mag net)};
+
+$out{deref} = scalar(@{ $feed->{features} }) . " " . join ",", sort keys %{ $feed->{features}[0]{properties} };
 
 say "$_\t$out{$_}" for sort keys %out;
 `
@@ -144,6 +147,9 @@ func mappingScalar(feed *scalar.SV) map[string]string {
 	out["substitute"] = p.At("place").S(`^\d+ km \w+ of `, "", "r").Str()
 
 	out["slice"] = p.HV().Values("mag", "net").Join(" ")
+
+	out["deref"] = fmt.Sprint(feed.Get("features").AV().Length(), " ",
+		feed.Get("features", 0, "properties").HV().Keys().Sort(nil).Join(","))
 
 	return out
 }
@@ -260,6 +266,9 @@ func mappingPlain(feed plainFeed, raw map[string]any) map[string]string {
 	out["substitute"] = distanceRe.ReplaceAllString(*p.Place, "")
 
 	out["slice"] = fmt.Sprint(p.Mag, " ", p.Net)
+
+	props := raw["features"].([]any)[0].(map[string]any)["properties"].(map[string]any)
+	out["deref"] = fmt.Sprint(len(feed.Features), " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
 
 	return out
 }
