@@ -158,7 +158,7 @@ the data has settled, `To` hands that data back as ordinary typed Go.
 
 | For | Use | Perl |
 |---|---|---|
-| Reading nested data | `Get("content").Get(0).Get("text")` a step at a time, with `Get(k).Set(x)`, `Exists` and `Delete`; `Path("content", 0, "text")`, or the whole route as one string: `At("content[0].text")`, `At("{content}[0]{text}")`; `PathOK` and `AtOK` to tell missing from null; `DeleteAt` to remove what a route leads to; `CheckPath` to check a route from outside the program | `$r->{content}[0]{text}` |
+| Reading nested data | As Perl does: `Get("content").Get(0).Get("text")`, with `Get(k).Set(x)`, `Exists` and `Delete`, or the whole route as `Path("content", 0, "text")` or `At("content[0].text")`. Without creating anything, for data you aren't sure of: `PathOK` and `AtOK`, which tell missing from null, and `DeletePath` and `DeleteAt`. `CheckPath` checks a route from outside the program | `$r->{content}[0]{text}` |
 | Searching nested data | `Find("$..stations[*]")`, `Find("$.features[?@.properties.mag >= 4.5]")`, JSONPath (RFC 9535, all of it); `QuoteJSONPath` to put a Go value into a query | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |

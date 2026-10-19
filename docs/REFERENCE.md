@@ -865,10 +865,45 @@ because Perl has no references to them: to store one in a hash, store its
 ## Nesting and autovivification
 
 Arrays and hashes hold scalars, so you nest them through references, as in
-Perl. A scalar holding a reference takes subscripts itself, with `Get`,
+Perl. There are two ways to reach into nested data, and which to use
+depends on how sure you are of its shape:
+
+- **As Perl does.** `Get`, `Exists` and `Delete` take one step, and `Path`
+  and `At` a whole route. They create what they go through, as Perl does,
+  and panic where Perl dies. Use them as you'd write the Perl.
+- **Looking without creating anything.** `PathOK` and `AtOK` read,
+  `DeletePath` and `DeleteAt` delete, and `Find` searches. They never
+  create anything, and data of the wrong shape just means there's nothing
+  there. Use them on data you aren't sure of.
+
+| | As Perl does | Looking without creating anything |
+|---|---|---|
+| read | `s.Get(k)`, `s.Path(k1, k2)`, `s.At("a.b")` | `s.PathOK(k1, k2)`, `s.AtOK("a.b")`, which tell missing from null |
+| assign | `s.Get(k).Set(x)`, `s.At("a.b").Set(x)` | |
+| is it there? | `s.Exists(k)` | the `ok` of `PathOK` or `AtOK` |
+| delete | `s.Delete(k)` | `s.DeletePath(k1, k2)`, `s.DeleteAt("a.b")` |
+| search | | `s.Find("$..mag")`: see [Finding values with JSONPath](#finding-values-with-jsonpath) |
+
+In either mode, the route is spelt one of three ways: a step at a time
+with `Get`; as keys, each taken whole, with `Path`, `PathOK` and
+`DeletePath`, which suits keys that come from data; or as one string with
+`At`, `AtOK` and `DeleteAt`, which suits routes written in the program.
+
+### Reaching in as Perl does
+
+A scalar holding a reference takes subscripts itself, with `Get`,
 `Exists` and `Delete`: a string is a hash key and an int an array index,
 as `{...}` and `[...]` are in Perl. As Perl needs no arrow between
 subscripts, nothing goes between the steps:
+
+```go
+s.Get("properties").Get("place")           // $s->{properties}{place}
+s.Get("stations").Get(-1)                  // $s->{stations}[-1]
+s.Get("stations").Get(0).Get("code")       // $s->{stations}[0]{code}
+s.Get("properties").Get("felt").Set(1204)  // $s->{properties}{felt} = 1204
+s.Get("properties").Exists("felt")         // exists $s->{properties}{felt}
+s.Get("properties").Delete("felt")         // delete $s->{properties}{felt}
+```
 
 Arrays, hashes and scalars share four operations on one element:
 
@@ -884,15 +919,6 @@ subscripts first, as Perl does: `$s->{k} = x` is `$s->{k}`, then `= x`.
 `a.Set(i, x)` and `h.Set(k, x)` are the same two steps, `a.Get(i).Set(x)`
 and `h.Get(k).Set(x)`, written as one, so all three behave alike:
 autovivifying, extending arrays, and panicking where Perl dies.
-
-```go
-s.Get("properties").Get("place")           // $s->{properties}{place}
-s.Get("stations").Get(-1)                  // $s->{stations}[-1]
-s.Get("stations").Get(0).Get("code")       // $s->{stations}[0]{code}
-s.Get("properties").Get("felt").Set(1204)  // $s->{properties}{felt} = 1204
-s.Get("properties").Exists("felt")         // exists $s->{properties}{felt}
-s.Get("properties").Delete("felt")         // delete $s->{properties}{felt}
-```
 
 For what Perl writes with `@{...}` and `%{...}`, the whole array or hash,
 `AV()` and `HV()` dereference a scalar and give you the `AV` or `HV`
@@ -923,12 +949,9 @@ The rules are the same as Perl's:
 `Exists` and `Delete` autovivify as Perl's `exists` and `delete` do: an
 undef `s` becomes the hash or array they look in, and
 `s.Get("a").Exists("b")` creates `$s->{a}`, though never `$s->{a}{b}`.
-To ask without creating anything, use `PathOK` or `AtOK`; to delete
-without creating anything, use `DeletePath` or `DeleteAt`. Where `s` is
-something else, such as a number, or a hash given an index, Perl dies and
-`Exists` and `Delete` panic. On data whose shape you're unsure of, the
-`Path` family carries on instead: `PathOK` says the key isn't there, and
-`DeletePath` deletes nothing.
+Where `s` is something else, such as a number, or a hash given an index,
+Perl dies and they panic. To look or delete without either, see
+[Looking without creating anything](#looking-without-creating-anything).
 
 Reading a missing key does cost something: it gives a new undef scalar,
 ready to create the key if you write to it. To ask only whether a key is
@@ -966,12 +989,6 @@ v, ok := doc.AtOK("depth.km")    // as PathOK: present? without creating anythin
 doc.DeleteAt("depth.error")      // delete $doc->{depth}{error}
 ```
 
-`DeletePath` is `DeleteAt` with the route as `Path` takes it, for keys that
-come from data and might contain dots or brackets:
-`doc.DeletePath(section, key)` is `delete $doc->{$section}{$key}`. Both
-remove only the last step, and create nothing on the way, so a missing
-path deletes nothing.
-
 | Step | Means |
 |---|---|
 | `name` | a hash key |
@@ -985,13 +1002,6 @@ backslash escapes the next character in a key, as in `["say \"hi\""]` or
 `{a\}b}`, and the forms mix freely: `content[0]{tags}.1`. A leading `$` is
 allowed, as in JSONPath (`$.content[0]`), and an empty path is the scalar
 itself. A malformed path panics, as a bad regex does.
-
-`DeleteAt` removes what a path leads to, and returns its value, or undef if
-there was nothing there. As with `HV.Delete` and `AV.Delete`, an element in
-the middle of an array leaves a hole, and deleting the last shrinks the
-array. Unlike Perl, which creates the levels on the way to what it deletes,
-`DeleteAt` never creates anything, so deleting a path that isn't there leaves
-the data exactly as it was.
 
 `Path` itself never splits strings: `doc.Path("log.level")` is the single
 key `log.level`, as it should be, since real keys contain dots.
@@ -1028,10 +1038,11 @@ and a `Get` chain does better than a compiled path there. So `MustPath`,
 `CompilePath` and their `PathExpr` were removed in v0.4.0, leaving
 `CheckPath` for checking a path.
 
-### Missing or null?
+### Looking without creating anything
 
-Both a missing key and a JSON `null` read as undef. To tell them apart, use
-`PathOK`, which adds Go's comma-ok:
+`PathOK` and `AtOK` read without creating anything, and add Go's comma-ok,
+so they also tell a missing key from a JSON `null`, which both read as
+undef:
 
 ```go
 v, ok := event.PathOK("depth", "km")
@@ -1045,10 +1056,25 @@ default:
 }
 ```
 
-`ok` is false if any step doesn't exist, including stepping through something
-that isn't an array or hash. Unlike `Path`, `PathOK` never creates anything.
-When `ok` is true, `v` is the stored value itself, as with `Path`. For a
-single key, `s.Exists(k)` or `h.Exists(k)` does the same job.
+`ok` is false if any step doesn't exist, including stepping through
+something that isn't an array or hash. When `ok` is true, `v` is the
+stored value itself, as with `Path`. With one key, `s.PathOK(k)` is the
+forgiving form of `s.Exists(k)`: it creates nothing, and it doesn't panic
+when `s` turns out not to be a hash.
+
+`DeleteAt` removes what a path leads to, and returns its value, or undef if
+there was nothing there. `DeletePath` is the same with the route as `Path`
+takes it, for keys that come from data and might contain dots or brackets:
+`doc.DeletePath(section, key)` is `delete $doc->{$section}{$key}`. As with
+`HV.Delete` and `AV.Delete`, an element in the middle of an array leaves a
+hole, and deleting the last shrinks the array. Unlike Perl, which creates
+the levels on the way to what it deletes, neither creates anything, so
+deleting a path that isn't there leaves the data exactly as it was.
+
+`Find` searches with JSONPath, and creates nothing either: see
+[Finding values with JSONPath](#finding-values-with-jsonpath).
+
+### What Perl won't create
 
 There are two things Perl refuses to create, and `scalar` refuses them too:
 
