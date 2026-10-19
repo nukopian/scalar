@@ -37,6 +37,26 @@ func plainHash(kv []any) (*HV, bool) {
 	return h, true
 }
 
+// setNew is Set for a key h doesn't have yet, storing a new scalar
+// directly, without the placeholder Get makes for a missing key and the
+// closure it vivifies through. As Set's general code does, it stores the
+// scalar before converting v, so a conversion that panics leaves the key
+// there, holding undef. It reports false, having done nothing, for a key h
+// already has, which must keep its scalar, and for a locked or nil hash,
+// whose panics the general code gives.
+func (h *HV) setNew(key string, v any) (*SV, bool) {
+	if !fastPaths || h == nil || h.locked {
+		return nil, false
+	}
+	if _, ok := h.m[key]; ok {
+		return nil, false
+	}
+	s := &SV{}
+	h.store(key, s)
+	s.v = normalize(v)
+	return s, true
+}
+
 // plainValues reports whether no value in vals flattens, so that Push can
 // append copies of them directly, as flatten would, without the list it
 // builds.

@@ -3,6 +3,7 @@ package scalar
 import (
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -102,6 +103,77 @@ func TestLiteralPattern(t *testing.T) {
 	} {
 		if got := literalPattern(pat); got != want {
 			t.Errorf("literalPattern(%q) = %v, want %v", pat, got, want)
+		}
+	}
+}
+
+// HV.Set gives the same hash with or without its fast path: for new keys
+// and existing ones, keeping an existing key's scalar, with the new key
+// among the keys at once (their order is random, as Perl's is, so it's
+// compared sorted), and with the same panics, including a value that contains itself,
+// which leaves its key there, holding undef, either way.
+func TestSetFastPathSame(t *testing.T) {
+	type cyclic struct{ Self *cyclic }
+	loop := &cyclic{}
+	loop.Self = loop
+	try := func(f func() string) (s string) {
+		defer func() {
+			if r := recover(); r != nil {
+				s = fmt.Sprint("panic: ", r)
+			}
+		}()
+		return f()
+	}
+	cases := map[string]func() string{
+		"new keys": func() string {
+			h := Hash()
+			for i, v := range []any{1, "two", 3.5, true, nil, []int{1, 2}, map[string]any{"a": 1}, Value(Array(1)), &SV{}} {
+				h.Set(fmt.Sprint("k", i), v)
+			}
+			return h.Dump() + strings.Join(slices.Sorted(slices.Values(h.KeysSlice())), ",")
+		},
+		"existing key keeps its scalar": func() string {
+			h := Hash("mag", 4.6)
+			kept := h.Get("mag")
+			h.Set("mag", 4.7)
+			return fmt.Sprint(kept.Num(), kept == h.Get("mag"), h.Dump())
+		},
+		"keys after new keys": func() string {
+			h := Hash("b", 1)
+			h.KeysSlice() // works out the order, which a new key must reset
+			h.Set("a", 2)
+			h.Set("c", 3)
+			return strings.Join(slices.Sorted(slices.Values(h.KeysSlice())), ",")
+		},
+		"returns the stored scalar": func() string {
+			h := Hash()
+			s := h.Set("depth", 8.2)
+			return fmt.Sprint(s == h.Get("depth"), s.Num())
+		},
+		"locked hash, new key": func() string {
+			h := Hash("mag", 4.6)
+			h.Lock()
+			return try(func() string { return h.Set("depth", 1).Str() })
+		},
+		"locked hash, existing key": func() string {
+			h := Hash("mag", 4.6)
+			h.Lock()
+			return try(func() string { return h.Set("mag", 1).Str() })
+		},
+		"nil hash": func() string {
+			var h *HV
+			return try(func() string { return h.Set("mag", 1).Str() })
+		},
+		"a value that contains itself": func() string {
+			h := Hash()
+			r := try(func() string { return h.Set("loop", loop).Str() })
+			return r + " | exists " + fmt.Sprint(h.Exists("loop"), h.Get("loop").Defined())
+		},
+	}
+	for name, f := range cases {
+		fast, slow := withFastPaths(f)
+		if fast != slow {
+			t.Errorf("%s:\nfast %s\nslow %s", name, fast, slow)
 		}
 	}
 }

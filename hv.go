@@ -113,6 +113,9 @@ func (h *HV) store(key string, s *SV) {
 // SV. It's h.Get(key).Set(v) in one step, as a scalar's s.Get(key).Set(v)
 // is $s->{key} = v.
 func (h *HV) Set(key string, v any) *SV {
+	if s, ok := h.setNew(key, v); ok {
+		return s
+	}
 	return h.Get(key).Set(v)
 }
 
