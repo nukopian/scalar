@@ -1,0 +1,21 @@
+# The process
+
+Over the course of developing the [scalar](../README.md) and [grammar](https://github.com/nukopian/grammar) libraries, I found myself working in a way that is quite different from both traditional programming and what people now call "vibe coding". The process was a genuine partnership between myself and AI tools, but one in which responsibility for direction, design and judgement remained firmly with me.
+
+Claude was used extensively as a collaborator. It could rapidly turn ideas into working code, explore alternatives, explain unfamiliar concepts, review implementations and suggest improvements. That speed made it possible to investigate far more ideas than I could comfortably have explored alone. Many features, experiments and refinements would simply have taken longer, or perhaps never happened, without that assistance.
+
+However, the important decisions were not delegated. Throughout the project I regularly challenged recommendations, rejected proposals, redirected designs, simplified APIs, and insisted on evidence where trade-offs were unclear. Features were often implemented as experiments rather than assumptions. Sometimes ideas I liked did not survive contact with measurement. Sometimes Claude's did not. That was the point.
+
+Over time, this evolved into a repeatable process. New ideas were validated against tests, benchmarks, external references such as Perl and Raku, practical use within real software, and dedicated review passes whose sole purpose was to look for mistakes, inconsistencies and unnecessary complexity. Some of those reviews uncovered problems introduced by Claude. Others exposed mistaken assumptions of my own. Both outcomes were equally valuable.
+
+Two practices earned their keep time and again. One was the wash-up: a deliberate pause after a burst of development to chase down inconsistencies, inefficiencies, edge cases and general slop. The other was dogfooding. Whenever the libraries were used to solve a real problem, any friction became feedback. Both repeatedly turned up issues that had survived earlier reviews, and both became standard parts of the workflow.
+
+One example involved a question I raised about whether removing scalar from grammar would make parsing significantly faster. Rather than speculate, we measured it. The results showed that scalar was not the main bottleneck, and profiling pointed elsewhere. Subsequent optimisation work made grammar about 26 percent faster with no change to any result, but it also disproved one of Claude's own performance predictions. The slower change was reverted, the successful ones were kept, and the outcome was documented. That episode neatly captured the philosophy that emerged throughout the project: measure first, decide afterwards.
+
+Another particularly useful practice was involving more than one model. Claude did most of the implementation work, but GitHub Copilot was periodically invited to critique designs, documentation and future plans. Those reviews often highlighted assumptions, blind spots or weaknesses that neither Claude nor I had considered. In effect, the models became reviewers of one another as well as collaborators with me. Agreement increased confidence. Disagreement triggered investigation.
+
+AI did not replace engineering judgement. If anything, it made judgement more important. Claude provided speed, breadth of exploration and implementation support. Copilot provided an additional critical perspective. My role was to provide goals, domain knowledge, scepticism, prioritisation and final judgement. Every significant decision ultimately passed through that filter.
+
+Looking back, the interesting part is not that AI helped write code. Lots of people can say that now. What mattered was the process that grew around it. Claude would propose things. I'd challenge them. Copilot would occasionally critique them. Tests, benchmarks, Perl, Raku and real-world use would keep all of us honest. Sometimes the answer was "yes". Sometimes it was "no". Sometimes it was "we were all wrong".
+
+The libraries are products of that collaboration. Not automation, not vibe coding, and not AI operating unattended. Just a new kind of engineering partnership, with judgement remaining very much in the loop.

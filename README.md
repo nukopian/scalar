@@ -215,6 +215,9 @@ a worked example of every function and method, see the
   working example and its output, generated from the tests.
 - [From Perl to Go](docs/PERL.md): a phrasebook of everyday tasks in Perl,
   with `scalar` and in plain Go, all three checked against each other.
+- [The process](docs/PROCESS.md): how `scalar` and
+  [`grammar`](https://github.com/nukopian/grammar) were made, as a
+  partnership with Claude in which judgement stayed with me.
 
 To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
 pandoc and Prince. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
@@ -246,7 +249,7 @@ documentation, and every commit says so in a `Co-Authored-By` trailer. My
 part was deciding what `scalar` should do and what it shouldn't, setting
 the rules it's built by (they're in [CLAUDE.md](CLAUDE.md)), and reviewing
 the work. It has been a partnership, and I've learned a good deal of Go
-along the way.
+along the way. How it worked is in [The process](docs/PROCESS.md).
 
 The `scalar` package started inside a larger proof-of-concept and was
 extracted with its history, so some commit messages mention packages
