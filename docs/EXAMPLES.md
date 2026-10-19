@@ -730,16 +730,21 @@ doc, _ := scalar.FromJSON([]byte(`{
 	"properties": {"place": "12 km SSW of Ridgecrest, CA", "mag": 4.6},
 	"geometry": {"coordinates": [-117.6, 35.7, 8.2]}
 }`))
-fmt.Println(doc.Get("properties").Get("place"))             // $doc->{properties}{place}
-fmt.Println(doc.Get("geometry").Get("coordinates").Get(-1)) // $doc->{geometry}{coordinates}[-1]: depth
-doc.Get("properties").Get("mag").Set(4.7)                   // the element itself, so this changes doc
-doc.Get("products").Get("shakemap").Get(0).Set("reviewed")  // writing autovivifies
+fmt.Println(doc.Get("properties", "place"))         // $doc->{properties}{place}
+fmt.Println(doc.Get("geometry", "coordinates", -1)) // $doc->{geometry}{coordinates}[-1]: depth
+fmt.Println(doc.Get("properties").Get("mag"))       // the same, a step at a time
+route := []any{"geometry", "coordinates", 0}        // a route built from data
+fmt.Println(doc.Get(route...))
+doc.Get("properties", "mag").Set(4.7)              // the element itself, so this changes doc
+doc.Get("products", "shakemap", 0).Set("reviewed") // writing autovivifies
 fmt.Println(doc.At("properties.mag"), doc.At("products.shakemap[0]"))
 ```
 
 ```
 12 km SSW of Ridgecrest, CA
 8.2
+4.6
+-117.6
 4.7 reviewed
 ```
 
@@ -749,8 +754,8 @@ Exists is Perl's exists \$s->{key} or exists \$s->[i]: whether the hash or array
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"felt": null, "stations": ["PAS", "GSC"]}`))
-fmt.Println(doc.Exists("felt"), doc.Exists("cdi"))                        // null is there; cdi isn't
-fmt.Println(doc.Get("stations").Exists(1), doc.Get("stations").Exists(2)) // exists $doc->{stations}[2]
+fmt.Println(doc.Exists("felt"), doc.Exists("cdi"))                // null is there; cdi isn't
+fmt.Println(doc.Exists("stations", 1), doc.Exists("stations", 2)) // exists $doc->{stations}[2]
 var none scalar.SV
 fmt.Println(none.Exists("felt"), none.Ref()) // as in Perl, an undef becomes a hash
 ```
@@ -767,9 +772,9 @@ Delete is Perl's delete \$s->{key} or delete \$s->[i]: it removes the key or ele
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"mag": 4.6, "magError": 0.1, "stations": ["PAS", "GSC", "ISA"]}`))
-fmt.Println(doc.Delete("magError"))         // delete $doc->{magError}: its value
-fmt.Println(doc.Get("stations").Delete(-1)) // the last element: the array shrinks
-fmt.Println(doc.Delete("cdi").Defined())    // nothing there: undef
+fmt.Println(doc.Delete("magError"))      // delete $doc->{magError}: its value
+fmt.Println(doc.Delete("stations", -1))  // delete $doc->{stations}[-1]: the array shrinks
+fmt.Println(doc.Delete("cdi").Defined()) // nothing there: undef
 out, _ := doc.MarshalJSON()
 fmt.Println(string(out))
 ```
@@ -781,33 +786,15 @@ false
 {"mag":4.6,"stations":["PAS","GSC"]}
 ```
 
-#### `SV.Path`
+#### `SV.GetOK`
 
-Path walks a chain of hash keys (string) and array indices (int), so `s.Path`("content", 0, "text") is \$s->{content}[0]{text}, as is `s.Get`("content").Get(0).Get("text").
-
-```go
-doc, _ := scalar.FromJSON([]byte(`{"items": [{"name": "first"}]}`))
-fmt.Println(doc.Path("items", 0, "name"))  // $doc->{items}[0]{name}
-fmt.Println(doc.Path("items", -1, "name")) // negative indices count from the end
-doc.Path("meta", "count").Set(1)           // writing autovivifies
-fmt.Println(doc.Path("meta", "count"))
-```
-
-```
-first
-first
-1
-```
-
-#### `SV.PathOK`
-
-PathOK is Path with Go's comma-ok: ok reports whether every step exists, so a value that's present but null (undef) gives ok true, while a missing key or index, or a step through something that isn't an array or hash, gives ok false and an undef scalar.
+GetOK is Get with Go's comma-ok: ok reports whether every step exists, so a value that's present but null (undef) gives ok true, while a missing key or index, or a step through something that isn't an array or hash, gives ok false and an undef scalar.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"alert": null}`))
-_, ok := doc.PathOK("alert") // present, but null
+_, ok := doc.GetOK("alert") // present, but null
 fmt.Println(ok)
-_, ok = doc.PathOK("felt") // missing: and nothing is created
+_, ok = doc.GetOK("felt") // missing: and nothing is created
 fmt.Println(ok, doc.Exists("felt"))
 ```
 
@@ -818,7 +805,7 @@ false false
 
 #### `SV.At`
 
-At is Path with the route as one string, in dot, bracket or Perl's brace form:
+At is Get with the route as one string, in dot, bracket or Perl's brace form:
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{
@@ -852,7 +839,7 @@ debug
 
 #### `SV.AtOK`
 
-AtOK is PathOK with the route as one string, written as for At: ok reports whether every step exists, so a value that's present but null gives ok true.
+AtOK is GetOK with the route as one string, written as for At: ok reports whether every step exists, so a value that's present but null gives ok true.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"mag": {"value": 5.1, "error": null}}`))
@@ -935,7 +922,7 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 
 #### `SV.DeletePath`
 
-DeletePath is DeleteAt with the route as Path takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete \$s->{\$section}{\$key} does in Perl.
+DeletePath is DeleteAt with the route as Get takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete \$s->{\$section}{\$key} does in Perl.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
@@ -2349,28 +2336,14 @@ c 2
 a 2
 ```
 
-#### `AV.Path`
+#### `AV.GetOK`
 
-Path is `SV.Path`, starting at a.
-
-```go
-a := scalar.Array()
-a.Path(0, "tags", 1).Set("go") // $a[0]{tags}[1] = "go"
-fmt.Println(a.Path(0, "tags", 1), a.At("[0].tags").AV().Length())
-```
-
-```
-go 2
-```
-
-#### `AV.PathOK`
-
-PathOK is `SV.PathOK`, starting at a.
+GetOK is `SV.GetOK`, starting at a.
 
 ```go
 a := scalar.Array(scalar.Value(scalar.Hash("id", 7)))
-v, ok := a.PathOK(0, "id")
-_, missing := a.PathOK(0, "name")
+v, ok := a.GetOK(0, "id")
+_, missing := a.GetOK(0, "name")
 fmt.Println(v, ok, missing)
 ```
 
@@ -2880,28 +2853,14 @@ fmt.Println(h.At("depth").HV().KeysSlice())
 [km]
 ```
 
-#### `HV.Path`
+#### `HV.GetOK`
 
-Path is `SV.Path`, starting at h.
-
-```go
-h := scalar.Hash()
-h.Path("a.b", "c").Set(1) // $h{"a.b"}{c} = 1: Path keys are taken whole, dots and all
-fmt.Println(h.Path("a.b", "c"), h.At(`["a.b"].c`))
-```
-
-```
-1 1
-```
-
-#### `HV.PathOK`
-
-PathOK is `SV.PathOK`, starting at h.
+GetOK is `SV.GetOK`, starting at h.
 
 ```go
 h := scalar.Hash("tags", scalar.Value(scalar.Array("go")))
-v, ok := h.PathOK("tags", 0)
-_, past := h.PathOK("tags", 5)
+v, ok := h.GetOK("tags", 0)
+_, past := h.GetOK("tags", 5)
 fmt.Println(v, ok, past)
 ```
 
@@ -4087,8 +4046,8 @@ if err != nil {
 	fmt.Println(err)
 	return
 }
-fmt.Println(doc.Path("id")) // whole numbers stay exact
-fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
+fmt.Println(doc.Get("id")) // whole numbers stay exact
+fmt.Println(doc.Get("depth"), doc.Get("stations").Ref())
 fmt.Println(doc.Exists("felt"), doc.Get("felt").Defined()) // null is undef
 ```
 
@@ -4152,7 +4111,7 @@ var record struct {
 	Data *scalar.SV `json:"data"` // any shape at all
 }
 _ = json.Unmarshal([]byte(`{"id": 1, "data": {"tags": ["a", "b"]}}`), &record)
-fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
+fmt.Println(record.ID, record.Data.Get("tags").AV().Join(","))
 ```
 
 ```

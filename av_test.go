@@ -17,7 +17,7 @@ func TestNegativeIndexReads(t *testing.T) {
 		t.Error("indices before the start should read as undef")
 	}
 	// Reading through them, even with an autovivifying deref, stays safe.
-	if a.Get(-4).HV().Get("x").Defined() || Value(a).Path(-10, "x", 0).Defined() {
+	if a.Get(-4).HV().Get("x").Defined() || Value(a).Get(-10, "x", 0).Defined() {
 		t.Error("reads through a non-creatable element should be undef")
 	}
 	if a.Length() != 3 {
@@ -51,12 +51,12 @@ func TestWritesThroughNonReferences(t *testing.T) {
 	expectPanic(t, "Push on a string", "Not an ARRAY reference", func() { s.AV().Push(1) })
 	expectPanic(t, "hash element of a string", "Not a HASH reference", func() { s.HV().Get("k").Set(1) })
 	expectPanic(t, "HV.Set on a string", "Not a HASH reference", func() { s.HV().Set("k", 1) })
-	expectPanic(t, "write via Path", "Not a HASH reference", func() { s.Path("k").Set(1) })
+	expectPanic(t, "write via Path", "Not a HASH reference", func() { s.Get("k").Set(1) })
 	if s.Str() != "str" {
 		t.Errorf("s changed to %q", s)
 	}
 	// Reads are still fine.
-	if s.Path("k", 0).Defined() || s.AV().Get(0).Defined() || s.AV().Length() != 0 {
+	if s.Get("k", 0).Defined() || s.AV().Get(0).Defined() || s.AV().Length() != 0 {
 		t.Error("reads through a non-reference should be undef")
 	}
 }
@@ -299,7 +299,7 @@ func TestListFlattening(t *testing.T) {
 	// A list of records: push @rows, \%row
 	rows := Array()
 	rows.Push(Value(Hash("name", "Ann")), Value(Hash("name", "Bob")))
-	if rows.Length() != 2 || rows.Get(1).Path("name").Str() != "Bob" {
+	if rows.Length() != 2 || rows.Get(1).Get("name").Str() != "Bob" {
 		t.Errorf("records = %s", mustJSON(t, rows))
 	}
 }
@@ -307,7 +307,7 @@ func TestListFlattening(t *testing.T) {
 func TestScalarAndJSONKeepNesting(t *testing.T) {
 	// Value of a slice is an array reference, as before.
 	s := Value([]any{1, []any{2, 3}})
-	if s.AV().Length() != 2 || s.Path(1).AV().Length() != 2 {
+	if s.AV().Length() != 2 || s.Get(1).AV().Length() != 2 {
 		t.Errorf("Value(nested slice) = %s", mustJSON(t, s))
 	}
 	// JSON arrays stay nested.
@@ -367,7 +367,7 @@ func TestAny(t *testing.T) {
 
 	// It shares nothing with the original.
 	got["list"].([]any)[0] = "changed"
-	if doc.Path("list", 0).Int() != 1 {
+	if doc.Get("list", 0).Int() != 1 {
 		t.Error("Any should copy")
 	}
 
@@ -430,8 +430,8 @@ func TestInPlace(t *testing.T) {
 
 	// Stable: equal elements keep their order.
 	rows := Array(Value(Hash("k", 1, "id", "a")), Value(Hash("k", 0, "id", "b")), Value(Hash("k", 1, "id", "c")))
-	rows.SortInPlace(func(x, y *SV) int { return NumCmp(x.Path("k"), y.Path("k")) })
-	if got := rows.Map(func(r *SV) any { return r.Path("id") }).Join(","); got != "b,a,c" {
+	rows.SortInPlace(func(x, y *SV) int { return NumCmp(x.Get("k"), y.Get("k")) })
+	if got := rows.Map(func(r *SV) any { return r.Get("id") }).Join(","); got != "b,a,c" {
 		t.Errorf("stable sort = %s", got)
 	}
 

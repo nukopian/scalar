@@ -44,7 +44,7 @@ func TestSVGet(t *testing.T) {
 	}
 
 	// The element itself, not a copy: the same *SV as HV().Get and Path.
-	if doc.Get("properties") != doc.HV().Get("properties") || doc.Get("stations").Get(0) != doc.Path("stations", 0) {
+	if doc.Get("properties") != doc.HV().Get("properties") || doc.Get("stations").Get(0) != doc.Get("stations", 0) {
 		t.Error("Get should give the stored element")
 	}
 	doc.Get("properties").Get("mag").Set(4.7)
@@ -239,36 +239,114 @@ func TestSVDelete(t *testing.T) {
 	expectPanic(t, "Delete(bool)", "Delete key must be a string or an int, got bool", func() { doc.Delete(true) })
 }
 
-// Get, Exists and Delete are the one-step forms of Path, PathOK and
-// DeletePath, on every kind of value and key, once Get has autovivified s
-// as Exists and Delete would. Where s is the wrong kind, Exists and Delete
-// panic, and PathOK and DeletePath find nothing.
-func TestSVSubscriptMatchesPath(t *testing.T) {
+// With one key, Get is HV().Get or AV().Get, and Exists and Delete are
+// the one-step forms of GetOK and DeletePath, on every kind of value and
+// key, once Get has autovivified s as Exists and Delete would. Where s is
+// the wrong kind, Exists and Delete panic, and GetOK and DeletePath find
+// nothing.
+func TestSVSubscriptOneStep(t *testing.T) {
 	keys := []any{"properties", "mag", "felt", "0", "nope", 0, 1, -1, -2, 2, 5, -9}
 	for _, at := range []string{"", "properties", "properties.felt", "geometry.coordinates", "stations", "stations[1]", "tsunami", "missing"} {
 		for _, k := range keys {
 			doc1, doc2 := newSubscriptDoc(t), newSubscriptDoc(t)
 			s1, s2 := doc1.At(at), doc2.At(at)
-			if d := s1.Get(k).Diff(s2.Path(k)); d != "" || doc1.Dump() != doc2.Dump() {
-				t.Errorf("%q Get(%v) vs Path: %s", at, k, d)
+			want := func() *SV {
+				if i, isIndex := k.(int); isIndex {
+					return s2.AV().Get(i)
+				}
+				return s2.HV().Get(k.(string))
+			}()
+			if d := s1.Get(k).Diff(want); d != "" || doc1.Dump() != doc2.Dump() {
+				t.Errorf("%q Get(%v) vs HV().Get or AV().Get: %s", at, k, d)
 			}
 			_, isIndex := k.(int)
 			if s1.Ref() != map[bool]string{false: "HASH", true: "ARRAY"}[isIndex] {
 				expectPanic(t, fmt.Sprintf("%q Exists(%v)", at, k), "Not a", func() { s1.Exists(k) })
 				expectPanic(t, fmt.Sprintf("%q Delete(%v)", at, k), "Not a", func() { s1.Delete(k) })
-				if _, ok := s2.PathOK(k); ok || s2.DeletePath(k).Defined() || doc1.Dump() != doc2.Dump() {
-					t.Errorf("%q PathOK or DeletePath(%v) found something", at, k)
+				if _, ok := s2.GetOK(k); ok || s2.DeletePath(k).Defined() || doc1.Dump() != doc2.Dump() {
+					t.Errorf("%q GetOK or DeletePath(%v) found something", at, k)
 				}
 				continue
 			}
-			_, ok := s2.PathOK(k)
+			_, ok := s2.GetOK(k)
 			if s1.Exists(k) != ok {
-				t.Errorf("%q Exists(%v) = %v, PathOK %v", at, k, !ok, ok)
+				t.Errorf("%q Exists(%v) = %v, GetOK %v", at, k, !ok, ok)
 			}
 			if d := s1.Delete(k).Diff(s2.DeletePath(k)); d != "" || doc1.Dump() != doc2.Dump() {
 				t.Errorf("%q Delete(%v) vs DeletePath: %s\n%s\n%s", at, k, d, doc1.Dump(), doc2.Dump())
 			}
 		}
+	}
+}
+
+// Several keys are the same as a chain of one-key steps, for Get, Exists
+// and Delete, in the result, the document and any panic; a key of the
+// wrong type panics before anything is created; no keys is s itself for
+// Get, and a panic for Exists and Delete.
+func TestSVSubscriptKeys(t *testing.T) {
+	keys := []any{"properties", "geometry", "coordinates", "stations", "tsunami", "mag", "nope", 0, 1, -1, -9}
+	try := func(f func() any) (got any, msg string) {
+		defer func() {
+			if r := recover(); r != nil {
+				msg = fmt.Sprint(r)
+			}
+		}()
+		return f(), ""
+	}
+	for _, a := range keys {
+		for _, b := range keys {
+			for _, c := range keys {
+				route := []any{a, b, c}
+				for _, op := range []string{"get", "set", "exists", "delete"} {
+					doc1, doc2 := newSubscriptDoc(t), newSubscriptDoc(t)
+					run := func(doc *SV, chain bool) (any, string) {
+						return try(func() any {
+							cur, rest := doc, route
+							if chain {
+								cur, rest = doc.Get(a).Get(b), route[2:]
+							}
+							switch op {
+							case "get":
+								return cur.Get(rest...).Dump()
+							case "set":
+								return cur.Get(rest...).Set(1).Dump()
+							case "exists":
+								return cur.Exists(rest...)
+							}
+							return cur.Delete(rest...).Dump()
+						})
+					}
+					got, gotMsg := run(doc1, false)
+					want, wantMsg := run(doc2, true)
+					if got != want || gotMsg != wantMsg || doc1.Dump() != doc2.Dump() {
+						t.Errorf("%s %v: %v %q, chain %v %q\n%s\n%s", op, route, got, gotMsg, want, wantMsg, doc1.Dump(), doc2.Dump())
+					}
+				}
+			}
+		}
+	}
+
+	doc := newSubscriptDoc(t)
+	if doc.Get() != doc || doc.Get([]any{}...) != doc {
+		t.Error("Get() should be s itself")
+	}
+	if got, _ := doc.GetOK(); got != doc {
+		t.Error("GetOK() should be s itself")
+	}
+	expectPanic(t, "Exists()", "Exists needs a key", func() { doc.Exists() })
+	expectPanic(t, "Delete()", "Delete needs a key", func() { doc.Delete() })
+
+	// A bad key anywhere panics before the first step creates anything.
+	before := doc.Dump()
+	for _, f := range []func(){
+		func() { doc.Get("products", "shakemap", 1.5) },
+		func() { doc.Exists("products", 1.5, "x") },
+		func() { doc.Delete("products", "shakemap", true) },
+	} {
+		expectPanic(t, "bad key", "key must be a string or an int", f)
+	}
+	if doc.Dump() != before {
+		t.Errorf("a bad key created something: %s", doc.Dump())
 	}
 }
 
@@ -360,7 +438,7 @@ func TestSVSubscriptMatchesPerl(t *testing.T) {
 					return false // going through an element Perl can't create
 				}
 			}
-			cur, curOK = cur.PathOK(k)
+			cur, curOK = cur.GetOK(k)
 		}
 		return true
 	}
@@ -442,39 +520,45 @@ print $json->encode(\@out);
 	}
 	for n, c := range cases {
 		path := paths[n]
-		doc := newSubscriptDoc(t)
-		cur := doc
-		for _, k := range path[:len(path)-1] {
-			cur = cur.Get(k)
-		}
-		k := path[len(path)-1]
-		var got any
-		died := func() (died bool) {
-			defer func() { died = recover() != nil }()
-			switch c.Op {
-			case "get":
-				got = cur.Get(k)
-			case "set":
-				got = cur.Get(k).Set("set")
-			case "exists":
-				got = cur.Exists(k)
-			case "delete":
-				got = cur.Delete(k)
+		// Each case runs twice: as a chain of one-key steps, and as one call
+		// with every key, which should be the same thing.
+		for _, form := range []string{"chain", "keys"} {
+			doc := newSubscriptDoc(t)
+			cur, rest := doc, path
+			if form == "chain" {
+				for _, k := range path[:len(path)-1] {
+					cur = cur.Get(k)
+				}
+				rest = path[len(path)-1:]
 			}
-			return false
-		}()
-		gotJSON, err := json.Marshal(got)
-		if err != nil {
-			t.Fatal(err)
-		}
-		docJSON, err := doc.MarshalJSON()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if perlDied := want[n][2] == 1.0; died != perlDied {
-			t.Errorf("%s %v: panicked %v, Perl died %v", c.Op, path, died, perlDied)
-		} else if !reflect.DeepEqual(asAny(gotJSON), want[n][0]) || !reflect.DeepEqual(asAny(docJSON), want[n][1]) {
-			t.Errorf("%s %v:\n got %s, %s\nwant %v, %v", c.Op, path, gotJSON, docJSON, want[n][0], want[n][1])
+			var got any
+			died := func() (died bool) {
+				defer func() { died = recover() != nil }()
+				switch c.Op {
+				case "get":
+					got = cur.Get(rest...)
+				case "set":
+					got = cur.Get(rest...).Set("set")
+				case "exists":
+					got = cur.Exists(rest...)
+				case "delete":
+					got = cur.Delete(rest...)
+				}
+				return false
+			}()
+			gotJSON, err := json.Marshal(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			docJSON, err := doc.MarshalJSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if perlDied := want[n][2] == 1.0; died != perlDied {
+				t.Errorf("%s %v, as %s: panicked %v, Perl died %v", c.Op, path, form, died, perlDied)
+			} else if !reflect.DeepEqual(asAny(gotJSON), want[n][0]) || !reflect.DeepEqual(asAny(docJSON), want[n][1]) {
+				t.Errorf("%s %v, as %s:\n got %s, %s\nwant %v, %v", c.Op, path, form, gotJSON, docJSON, want[n][0], want[n][1])
+			}
 		}
 	}
 	counts := map[string]int{}

@@ -21,7 +21,7 @@ type atStep struct {
 	index int    // for stepIndex and stepEither
 }
 
-// At is Path with the route as one string, in dot, bracket or Perl's brace
+// At is Get with the route as one string, in dot, bracket or Perl's brace
 // form:
 //
 //	s.At("content[0].rule_set")     // $s->{content}[0]{rule_set}
@@ -40,7 +40,7 @@ type atStep struct {
 // that looks like a number: ["0"]. A leading $ is allowed, so $.a[0] works,
 // as in JSONPath. An empty path is s itself. A name ends at a ., [ or {.
 //
-// It walks as Path does: intermediate levels autovivify, the final element
+// It walks as Get does: intermediate levels autovivify, the final element
 // doesn't until it's written to, and a missing step reads as undef. A
 // malformed path panics, as a bad regex does.
 func (s *SV) At(path string) *SV {
@@ -51,7 +51,7 @@ func (s *SV) At(path string) *SV {
 	return cur
 }
 
-// walk takes one step from cur, as Path does: through a hash or an array,
+// walk takes one step from cur, as Get does: through a hash or an array,
 // autovivifying cur if it's undef.
 func (st atStep) walk(cur *SV) *SV {
 	switch st.kind {
@@ -66,7 +66,7 @@ func (st atStep) walk(cur *SV) *SV {
 	return cur.AV().Get(st.index) // an array, or nothing yet: an array
 }
 
-// peek takes one step from cur, as PathOK does, without creating anything:
+// peek takes one step from cur, as GetOK does, without creating anything:
 // nil if the step doesn't exist.
 func (st atStep) peek(cur *SV) *SV {
 	switch v := cur.v.(type) {
@@ -84,15 +84,15 @@ func (st atStep) peek(cur *SV) *SV {
 	return nil
 }
 
-// AtOK is PathOK with the route as one string, written as for At: ok
+// AtOK is GetOK with the route as one string, written as for At: ok
 // reports whether every step exists, so a value that's present but null
-// gives ok true. Like PathOK, it never creates anything, and when ok is true,
+// gives ok true. Like GetOK, it never creates anything, and when ok is true,
 // v is the stored value itself.
 func (s *SV) AtOK(path string) (v *SV, ok bool) {
 	return s.peekSteps(compileAt(path))
 }
 
-// peekSteps walks steps without creating anything, for PathOK and AtOK:
+// peekSteps walks steps without creating anything, for GetOK and AtOK:
 // the value at the end, and whether every step exists.
 func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
 	cur := s
@@ -121,13 +121,13 @@ func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
 // hash, there's nothing to delete. A malformed path panics, as for At.
 func (s *SV) DeleteAt(path string) *SV { return s.deleteSteps(compileAt(path)) }
 
-// DeletePath is DeleteAt with the route as Path takes it: keys taken whole,
+// DeletePath is DeleteAt with the route as Get takes it: keys taken whole,
 // dots and all, so it suits keys that come from data, as
 // delete $s->{$section}{$key} does in Perl.
 //
 //	doc.DeletePath("depth", "error")  // delete $doc->{depth}{error}
 //	doc.DeletePath("stations", -1)    // delete $doc->{stations}[-1]
-func (s *SV) DeletePath(keys ...any) *SV { return s.deleteSteps(pathSteps(keys)) }
+func (s *SV) DeletePath(keys ...any) *SV { return s.deleteSteps(pathSteps("DeletePath", keys)) }
 
 // deleteSteps removes what the last of steps leads to, walking the others
 // without creating anything, for DeleteAt and DeletePath.
@@ -341,11 +341,8 @@ func (h *HV) DeleteAt(path string) *SV { return h.ref().DeleteAt(path) }
 // DeletePath is SV.DeletePath, starting at h.
 func (h *HV) DeletePath(keys ...any) *SV { return h.ref().DeletePath(keys...) }
 
-// Path is SV.Path, starting at h.
-func (h *HV) Path(keys ...any) *SV { return h.ref().Path(keys...) }
-
-// PathOK is SV.PathOK, starting at h.
-func (h *HV) PathOK(keys ...any) (v *SV, ok bool) { return h.ref().PathOK(keys...) }
+// GetOK is SV.GetOK, starting at h.
+func (h *HV) GetOK(keys ...any) (v *SV, ok bool) { return h.ref().GetOK(keys...) }
 
 // Find is SV.Find, with $ standing for h.
 func (h *HV) Find(path string) *AV { return h.ref().Find(path) }
@@ -362,11 +359,8 @@ func (a *AV) DeleteAt(path string) *SV { return a.ref().DeleteAt(path) }
 // DeletePath is SV.DeletePath, starting at a.
 func (a *AV) DeletePath(keys ...any) *SV { return a.ref().DeletePath(keys...) }
 
-// Path is SV.Path, starting at a.
-func (a *AV) Path(keys ...any) *SV { return a.ref().Path(keys...) }
-
-// PathOK is SV.PathOK, starting at a.
-func (a *AV) PathOK(keys ...any) (v *SV, ok bool) { return a.ref().PathOK(keys...) }
+// GetOK is SV.GetOK, starting at a.
+func (a *AV) GetOK(keys ...any) (v *SV, ok bool) { return a.ref().GetOK(keys...) }
 
 // Find is SV.Find, with $ standing for a.
 func (a *AV) Find(path string) *AV { return a.ref().Find(path) }

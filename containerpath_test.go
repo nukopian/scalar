@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// At, AtOK, DeleteAt, Path and PathOK on a hash or array give what the same
+// At, AtOK, DeleteAt and GetOK on a hash or array give what the same
 // call on a scalar holding it gives, and write to the container itself.
 func TestContainerPaths(t *testing.T) {
 	newDoc := func() *SV {
@@ -23,28 +23,28 @@ func TestContainerPaths(t *testing.T) {
 	}
 	for _, keys := range [][]any{{"a", "b", 1, "c"}, {"list", 1, 0}, {"a", "nope"}} {
 		doc := newDoc()
-		want, wantOK := doc.PathOK(keys...)
-		got, gotOK := doc.HV().PathOK(keys...)
-		if d := got.Diff(want); d != "" || gotOK != wantOK || doc.HV().Path(keys...).Diff(doc.Path(keys...)) != "" {
-			t.Errorf("HV.Path(%v): %s", keys, d)
+		want, wantOK := doc.GetOK(keys...)
+		got, gotOK := doc.HV().GetOK(keys...)
+		if d := got.Diff(want); d != "" || gotOK != wantOK || doc.HV().Get(keys[0].(string)).Get(keys[1:]...).Diff(doc.Get(keys...)) != "" {
+			t.Errorf("HV.Get(%v): %s", keys, d)
 		}
 	}
 	arr := newDoc().At("list").AV()
-	if arr.At("[1][1]").Int() != 3 || arr.Path(1, 0).Int() != 2 || arr.At("[0]").Int() != 1 {
-		t.Errorf("AV paths: %v %v", arr.At("[1][1]"), arr.Path(1, 0))
+	if arr.At("[1][1]").Int() != 3 || arr.Get(1).Get(0).Int() != 2 || arr.At("[0]").Int() != 1 {
+		t.Errorf("AV paths: %v %v", arr.At("[1][1]"), arr.Get(1).Get(0))
 	}
 	if v, ok := arr.AtOK("[5]"); ok || v.Defined() {
 		t.Error("AV.AtOK past the end")
 	}
-	if _, ok := arr.PathOK(1, 0); !ok {
-		t.Error("AV.PathOK")
+	if _, ok := arr.GetOK(1, 0); !ok {
+		t.Error("AV.GetOK")
 	}
 
 	// Writing through creates in the container, as autovivification does.
 	h := Hash()
 	h.At("tally.right").Inc()
 	h.At("tally.right").Inc()
-	h.Path("tally", "wrong").Set(1)
+	h.Get("tally").Get("wrong").Set(1)
 	if h.Get("tally").HV().Get("right").Int() != 2 || h.At("tally.wrong").Int() != 1 {
 		t.Errorf("writing through a hash: %s", h.Dump())
 	}
@@ -80,13 +80,13 @@ func TestContainerPaths(t *testing.T) {
 func TestContainerPathsNil(t *testing.T) {
 	var h *HV
 	var a *AV
-	if h.At("a").Defined() || a.At("[0]").Defined() || h.Path("a").Defined() || a.Path(0).Defined() {
+	if h.At("a").Defined() || a.At("[0]").Defined() || h.Get("a").Defined() || a.Get(0).Defined() {
 		t.Error("nil read wasn't undef")
 	}
 	if _, ok := h.AtOK("a"); ok {
 		t.Error("nil AtOK")
 	}
-	if _, ok := a.PathOK(0); ok {
+	if _, ok := a.GetOK(0); ok {
 		t.Error("nil PathOK")
 	}
 	if h.DeleteAt("a").Defined() || a.DeleteAt("[0]").Defined() {

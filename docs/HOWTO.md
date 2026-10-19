@@ -27,14 +27,14 @@ if err != nil {
 	return err
 }
 
-place := feed.Path("features", 0, "properties", "place").Str() // $feed->{features}[0]{properties}{place}
+place := feed.Get("features", 0, "properties", "place").Str()  // $feed->{features}[0]{properties}{place}
 mag := feed.At("features[0].properties.mag").Num()            // the same idea, as one string
 
 meta, err := scalar.To[Metadata](feed.At("metadata")) // into your own struct, checked
 ```
 
 If any step along the path is missing, you get undef back instead of a panic.
-`Str()` on undef is `""` and `Num()` is `0`. `Path` takes keys and indices
+`Str()` on undef is `""` and `Num()` is `0`. `Get` takes keys and indices
 as separate arguments; `At` takes the route as one string, in dot, bracket
 or Perl's brace form (see [A path as one string](REFERENCE.md#a-path-as-one-string-at)).
 
@@ -60,16 +60,16 @@ if err != nil {
 }
 
 event := feed.Find("$.features[*]").FirstMatch(func(f *scalar.SV) bool {
-	return f.Path("id").Eq("ci40123456")
-}).Path("properties")
+	return f.Get("id").Eq("ci40123456")
+}).Get("properties")
 
-fmt.Println(event.Path("place"))                  // 12 km NNE of Ridgecrest, CA
+fmt.Println(event.Get("place"))                   // 12 km NNE of Ridgecrest, CA
 fmt.Println(event.At("cdi").Or("no reports"))     // $event->{cdi} // "no reports"
 
-if v, ok := event.PathOK("alert"); ok && !v.Defined() {
+if v, ok := event.GetOK("alert"); ok && !v.Defined() {
 	fmt.Println("alert: null")                      // present, but null
 }
-if _, ok := event.PathOK("felt"); !ok {
+if _, ok := event.GetOK("felt"); !ok {
 	fmt.Println("felt: missing")                    // left out entirely
 }
 event.Get("felt").OrSet(0)                        // $event->{felt} //= 0
@@ -152,7 +152,7 @@ for _, id := range []string{"ci40123456", "nc75012345"} {
 	row := scalar.Hash(defaults, "id", id)     // %row = (%defaults, id => $id)
 	rows.Push(scalar.Value(row))               // push @rows, \%row
 }
-rows.Get(1).Path("status").Set("reviewed")   // changes only the second row
+rows.Get(1).Get("status").Set("reviewed")    // changes only the second row
 
 out, _ := json.Marshal(rows)
 // [{"id":"ci40123456","status":"automatic","tsunami":false},
@@ -208,7 +208,7 @@ Skip a check and the program panics on the first unexpected response. With
 ```go
 feed, err := scalar.FromJSON(body)
 if err != nil { ... }
-place := feed.At("features[0].properties.place").Str()   // or feed.Path("features", 0, "properties", "place")
+place := feed.At("features[0].properties.place").Str()   // or feed.Get("features", 0, "properties", "place")
 ```
 
 If anything along the path is missing, null or the wrong type, `place` is

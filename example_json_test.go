@@ -16,8 +16,8 @@ func ExampleFromJSON() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(doc.Path("id")) // whole numbers stay exact
-	fmt.Println(doc.Path("depth"), doc.Path("stations").Ref())
+	fmt.Println(doc.Get("id")) // whole numbers stay exact
+	fmt.Println(doc.Get("depth"), doc.Get("stations").Ref())
 	fmt.Println(doc.Exists("felt"), doc.Get("felt").Defined()) // null is undef
 	// Output:
 	// 9007199254740993
@@ -57,7 +57,7 @@ func ExampleSV_UnmarshalJSON() {
 		Data *scalar.SV `json:"data"` // any shape at all
 	}
 	_ = json.Unmarshal([]byte(`{"id": 1, "data": {"tags": ["a", "b"]}}`), &record)
-	fmt.Println(record.ID, record.Data.Path("tags").AV().Join(","))
+	fmt.Println(record.ID, record.Data.Get("tags").AV().Join(","))
 	// Output:
 	// 1 a,b
 }

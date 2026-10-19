@@ -129,7 +129,7 @@ func TestFindReturnsStoredValues(t *testing.T) {
 	for _, s := range config.Find("$.stations[*]").All() {
 		s.Set(s.Trim())
 	}
-	if got := strs(config.Path("stations").AV()); !slices.Equal(got, []string{"PAS", "GSC"}) {
+	if got := strs(config.Get("stations").AV()); !slices.Equal(got, []string{"PAS", "GSC"}) {
 		t.Errorf("changes through Find didn't reach config: %q", got)
 	}
 
@@ -139,9 +139,9 @@ func TestFindReturnsStoredValues(t *testing.T) {
 		{"type": "Feature", "properties": {"place": "12 km NNE of Ridgecrest, CA"}}
 	]}`)
 	props := feed.Find("$.features[*]").FirstMatch(func(f *SV) bool {
-		return f.Path("type").Eq("Feature")
-	}).Path("properties")
-	if props.Path("place").Str() != "12 km NNE of Ridgecrest, CA" {
+		return f.Get("type").Eq("Feature")
+	}).Get("properties")
+	if props.Get("place").Str() != "12 km NNE of Ridgecrest, CA" {
 		t.Errorf("feature properties = %s", mustJSON(t, props))
 	}
 }

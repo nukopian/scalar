@@ -70,9 +70,9 @@ func TestAt(t *testing.T) {
 	s.At("list.0").Set("first")
 	s.At(`h["0"]`).Set("key")
 	s.At("{g}{0}[0]").Set("braced") // {0} makes a hash, as $s->{g}{0}[0] does
-	if s.Path("a", "b", 1, "c").Int() != 1 || s.Path("list").Ref() != "ARRAY" ||
-		s.Path("list", 0).Str() != "first" || s.Path("h").Ref() != "HASH" || s.Path("h", "0").Str() != "key" ||
-		s.Path("g").Ref() != "HASH" || s.Path("g", "0", 0).Str() != "braced" {
+	if s.Get("a", "b", 1, "c").Int() != 1 || s.Get("list").Ref() != "ARRAY" ||
+		s.Get("list", 0).Str() != "first" || s.Get("h").Ref() != "HASH" || s.Get("h", "0").Str() != "key" ||
+		s.Get("g").Ref() != "HASH" || s.Get("g", "0", 0).Str() != "braced" {
 		out, _ := s.MarshalJSON()
 		t.Errorf("after writing: %s", out)
 	}

@@ -98,20 +98,20 @@ func Example_readEvent() {
 	}
 
 	event := feed.Find("$.features[*]").FirstMatch(func(f *scalar.SV) bool {
-		return f.Path("id").Eq("ci40123456")
-	}).Path("properties")
+		return f.Get("id").Eq("ci40123456")
+	}).Get("properties")
 
-	fmt.Println(event.Path("place"))
+	fmt.Println(event.Get("place"))
 	fmt.Println(event.At("cdi").Or("no reports")) // $event->{cdi} // "no reports"
 
-	if v, ok := event.PathOK("alert"); ok && !v.Defined() {
+	if v, ok := event.GetOK("alert"); ok && !v.Defined() {
 		fmt.Println("alert: null")
 	}
-	if _, ok := event.PathOK("felt"); !ok {
+	if _, ok := event.GetOK("felt"); !ok {
 		fmt.Println("felt: missing")
 	}
 	event.Get("felt").OrSet(0) // $event->{felt} //= 0
-	fmt.Println(event.Path("felt"))
+	fmt.Println(event.Get("felt"))
 
 	// Output:
 	// 12 km NNE of Ridgecrest, CA
@@ -195,7 +195,7 @@ func Example_buildRecords() {
 		row := scalar.Hash(defaults, "id", id) // %row = (%defaults, id => $id)
 		rows.Push(scalar.Value(row))           // push @rows, \%row
 	}
-	rows.Get(1).Path("status").Set("reviewed") // changes only the second row
+	rows.Get(1).Get("status").Set("reviewed") // changes only the second row
 
 	out, _ := json.Marshal(rows)
 	fmt.Println(string(out))

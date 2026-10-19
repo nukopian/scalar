@@ -95,11 +95,11 @@ exists, with an undef value. `Delete` removes it.
 
 Undef is how `scalar` says "nothing here". A read that finds nothing returns
 undef rather than failing, and undef passes along a chain of reads, so
-`resp.Path("usage", "output_tokens")` is undef if any step is missing. Two
+`resp.Get("usage", "output_tokens")` is undef if any step is missing. Two
 methods supply a default, using Perl's defined-or operators:
 
 ```go
-tokens := resp.Path("usage", "output_tokens").Or(0).Int()   // ... // 0
+tokens := resp.Get("usage", "output_tokens").Or(0).Int()    // ... // 0
 meta.Get("location").OrSet("Unknown")                       // $meta{location} //= "Unknown"
 ```
 
@@ -643,8 +643,8 @@ with `or` in Perl:
 // sort { $a->{net} cmp $b->{net} or $b->{mag} <=> $a->{mag} } @quakes
 sorted := quakes.AV().Sort(func(x, y *scalar.SV) int {
 	return cmp.Or(
-		scalar.StrCmp(x.Path("net"), y.Path("net")), // by network,
-		scalar.NumCmp(y.Path("mag"), x.Path("mag")), // then strongest first
+		scalar.StrCmp(x.Get("net"), y.Get("net")), // by network,
+		scalar.NumCmp(y.Get("mag"), x.Get("mag")), // then strongest first
 	)
 })
 ```
@@ -868,26 +868,28 @@ Arrays and hashes hold scalars, so you nest them through references, as in
 Perl. There are two ways to reach into nested data, and which to use
 depends on how sure you are of its shape:
 
-- **As Perl does.** `Get`, `Exists` and `Delete` take one step, and `Path`
-  and `At` a whole route. They create what they go through, as Perl does,
+- **As Perl does.** `Get`, `Exists` and `Delete` take one key or a
+  whole route of them, and `At` a route as one string. They create what they go through, as Perl does,
   and panic where Perl dies. Use them as you'd write the Perl.
-- **Looking without creating anything.** `PathOK` and `AtOK` read,
+- **Looking without creating anything.** `GetOK` and `AtOK` read,
   `DeletePath` and `DeleteAt` delete, and `Find` searches. They never
   create anything, and data of the wrong shape just means there's nothing
   there. Use them on data you aren't sure of.
 
 | | As Perl does | Looking without creating anything |
 |---|---|---|
-| read | `s.Get(k)`, `s.Path(k1, k2)`, `s.At("a.b")` | `s.PathOK(k1, k2)`, `s.AtOK("a.b")`, which tell missing from null |
-| assign | `s.Get(k).Set(x)`, `s.At("a.b").Set(x)` | |
-| is it there? | `s.Exists(k)` | the `ok` of `PathOK` or `AtOK` |
-| delete | `s.Delete(k)` | `s.DeletePath(k1, k2)`, `s.DeleteAt("a.b")` |
+| read | `s.Get(k1, k2)`, `s.At("a.b")` | `s.GetOK(k1, k2)`, `s.AtOK("a.b")`, which tell missing from null |
+| assign | `s.Get(k1, k2).Set(x)`, `s.At("a.b").Set(x)` | |
+| is it there? | `s.Exists(k1, k2)` | the `ok` of `GetOK` or `AtOK` |
+| delete | `s.Delete(k1, k2)` | `s.DeletePath(k1, k2)`, `s.DeleteAt("a.b")` |
 | search | | `s.Find("$..mag")`: see [Finding values with JSONPath](#finding-values-with-jsonpath) |
 
-In either mode, the route is spelt one of three ways: a step at a time
-with `Get`; as keys, each taken whole, with `Path`, `PathOK` and
-`DeletePath`, which suits keys that come from data; or as one string with
-`At`, `AtOK` and `DeleteAt`, which suits routes written in the program.
+In either mode, the route is spelt one of two ways: as keys, each taken
+whole, with `Get`, `Exists`, `Delete`, `GetOK` and `DeletePath`, which
+suits keys that come from data; or as one string with `At`, `AtOK` and
+`DeleteAt`, which suits routes written in the program. Keys can go in one
+call, `s.Get("a", 0, "b")`, or a step at a time,
+`s.Get("a").Get(0).Get("b")`, which is the same thing.
 
 ### Reaching in as Perl does
 
@@ -958,16 +960,18 @@ ready to create the key if you write to it. To ask only whether a key is
 there, as in a loop over many records, `Exists` costs nothing:
 `m.Exists("k")` rather than `m.Get("k").Defined()`.
 
-`Path(...)` walks a mix of hash keys (strings) and array indexes (ints), as
-a chain of `Get` does, and `At` takes the same route as one string. Both
-follow the same rules. They're methods of scalars, hashes and arrays alike,
+`Get` with several keys walks a mix of hash keys (strings) and array
+indexes (ints) in turn, as a chain of one-key `Get`s does, and `At` takes
+the same route as one string. Both follow the same rules. A route built
+from data goes in whole, as `s.Get(route...)`, and `s.Get()` with no keys
+is `s` itself. `At` is a method of hashes and arrays as well as scalars,
 so `h.At("a.b")` is `$h{a}{b}` and `a.At("[0].name")` is `$a[0]{name}`;
 writing through one changes that hash or array:
 
 ```go
 var doc scalar.SV
-doc.Path("x", "y", 2, "z").Set(1)            // $doc->{x}{y}[2]{z} = 1
-doc.Get("x").Get("y").Get(2).Get("z").Set(1) // the same
+doc.Get("x", "y", 2, "z").Set(1)             // $doc->{x}{y}[2]{z} = 1
+doc.Get("x").Get("y").Get(2).Get("z").Set(1) // the same, a step at a time
 doc.At("x.y[2].z").Set(1)                    // the same
 doc.At("{x}{y}[2]{z}").Set(1)                // the same, written as in Perl
 ```
@@ -975,7 +979,7 @@ doc.At("{x}{y}[2]{z}").Set(1)                // the same, written as in Perl
 ### A path as one string: `At`
 
 `At` takes the whole route as one string, in dot, bracket or Perl's brace
-form, and walks it exactly as `Path` does:
+form, and walks it exactly as `Get` with several keys does:
 
 ```go
 doc.At("content[0].rule_set")    // $doc->{content}[0]{rule_set}
@@ -985,7 +989,7 @@ doc.At("items[-1].name")         // negative indices count from the end
 doc.At("meta{log.level}")        // a key with dots in it, in braces
 doc.At(`meta["log.level"]`)      // or quoted
 doc.At("rules[0].name").Set("x") // writing autovivifies
-v, ok := doc.AtOK("depth.km")    // as PathOK: present? without creating anything
+v, ok := doc.AtOK("depth.km")    // as GetOK: present? without creating anything
 doc.DeleteAt("depth.error")      // delete $doc->{depth}{error}
 ```
 
@@ -1003,7 +1007,7 @@ backslash escapes the next character in a key, as in `["say \"hi\""]` or
 allowed, as in JSONPath (`$.content[0]`), and an empty path is the scalar
 itself. A malformed path panics, as a bad regex does.
 
-`Path` itself never splits strings: `doc.Path("log.level")` is the single
+`Get` never splits strings: `doc.Get("log.level")` is the single
 key `log.level`, as it should be, since real keys contain dots.
 
 A path that comes from outside the program, such as a config file or a
@@ -1022,7 +1026,7 @@ week.Get(station).Get(field)          // not doc.At(fmt.Sprintf("week.ci{%s}.%s"
 ```
 
 **Compiled paths were measured, then dropped.** `MustPath` compiled an
-`At` path once, for `Path` to take among its keys, as `qr//` is taken by a
+`At` path once, for `Path` (now `Get`) to take among its keys, as `qr//` is taken by a
 match. Once `At` cached its parsing, that no longer paid. On the generated
 station table the lock benchmarks use, with an Apple M2, in ns per lookup:
 
@@ -1036,16 +1040,17 @@ The 12 ns on one path was within the spread of the runs. Past what the
 cache keeps, `At` parses every path again, which is the case to avoid,
 and a `Get` chain does better than a compiled path there. So `MustPath`,
 `CompilePath` and their `PathExpr` were removed in v0.4.0, leaving
-`CheckPath` for checking a path.
+`CheckPath` for checking a path. `Path` went too, as `Get` came to take
+several keys, and `PathOK` became `GetOK`.
 
 ### Looking without creating anything
 
-`PathOK` and `AtOK` read without creating anything, and add Go's comma-ok,
+`GetOK` and `AtOK` read without creating anything, and add Go's comma-ok,
 so they also tell a missing key from a JSON `null`, which both read as
 undef:
 
 ```go
-v, ok := event.PathOK("depth", "km")
+v, ok := event.GetOK("depth", "km")
 switch {
 case !ok:
 	// the feed left the field out (or something on the way is missing)
@@ -1058,12 +1063,12 @@ default:
 
 `ok` is false if any step doesn't exist, including stepping through
 something that isn't an array or hash. When `ok` is true, `v` is the
-stored value itself, as with `Path`. With one key, `s.PathOK(k)` is the
+stored value itself, as with `Get`. With one key, `s.GetOK(k)` is the
 forgiving form of `s.Exists(k)`: it creates nothing, and it doesn't panic
 when `s` turns out not to be a hash.
 
 `DeleteAt` removes what a path leads to, and returns its value, or undef if
-there was nothing there. `DeletePath` is the same with the route as `Path`
+there was nothing there. `DeletePath` is the same with the route as `Get`
 takes it, for keys that come from data and might contain dots or brackets:
 `doc.DeletePath(section, key)` is `delete $doc->{$section}{$key}`. As with
 `HV.Delete` and `AV.Delete`, an element in the middle of an array leaves a
@@ -1084,16 +1089,16 @@ There are two things Perl refuses to create, and `scalar` refuses them too:
   string as if it were a hash.
 
 For both, reading gives undef, even if you read further through them with
-`Get`, `AV()`, `HV()` or `Path`. Writing panics, just as Perl dies.
+`Get`, `AV()` or `HV()`. Writing panics, just as Perl dies.
 
 Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
-on, because a read that can't panic is what makes `Path` safe on messy data.
+on, because a read that can't panic is what makes `Get` and `At` safe on messy data.
 `Exists` and `Delete` on a scalar are the exception: they say which kind of
 container they expect, so they die where Perl does.
 
 ## Finding values with JSONPath
 
-`Path` reads one value at a location you know. `Find` searches with a
+`Get` and `At` read one value at a location you know. `Find` searches with a
 JSONPath query ([RFC 9535](https://www.rfc-editor.org/rfc/rfc9535)) and
 returns every match as an array, or `nil` if nothing matched:
 
@@ -1121,9 +1126,9 @@ hash itself, so `h.Find("$.ci[*]")` needs no scalar around `h`.
 
 Each match is a scalar. Strings, numbers, booleans and nulls come back as plain
 values. Objects and arrays come back as references, so you can continue from
-them with `HV()`, `AV()`, `Path` or `Find`.
+them with `Get`, `HV()`, `AV()` or `Find`.
 
-Like `Get` and `Path`, the matches are the stored values themselves, so you
+Like `Get` and `At`, the matches are the stored values themselves, so you
 can change data where it sits:
 
 ```go
@@ -1204,12 +1209,12 @@ plain Go:
 ```go
 event := feed.Find("$.features[*]").FirstMatch(func(f *scalar.SV) bool {
 	return f.At("properties.place").M(`(?i)\boffshore\b`) != nil && f.At("properties.felt").Defined()
-}).Path("properties")
+}).Get("properties")
 ```
 
 ### Things to know
 
-- **`Find` never creates anything.** Unlike `Path`, a missing key or index
+- **`Find` never creates anything.** Unlike `Get` and `At`, a missing key or index
   simply matches nothing.
 - **A hole in an array is undef,** as `MarshalJSON` writes it (`null`): `[*]`
   finds it, `?@ == null` matches it. The undef found is a fresh one, so the
@@ -1992,7 +1997,7 @@ sake.
 
 ### Getting an element gives you the element itself
 
-`a.Get(i)`, `h.Get(k)`, `s.Get(k)`, `Path(...)`, `At(...)`, `All()`, the
+`a.Get(i)`, `h.Get(k)`, `s.Get(k, ...)`, `At(...)`, `All()`, the
 matches from `Find` and the elements of `Values()` give you the value that's
 actually stored, not a copy. Changing it changes the array or hash:
 
@@ -2077,7 +2082,7 @@ includes reading them.** Several things that look like reads write:
 
 | What you call | What it writes |
 |---|---|
-| `At("a.b")`, `Path(...)` on a missing route | the levels on the way, as Perl's autovivification does: reading `x.y` of `{"a": 1}` adds `x` |
+| `At("a.b")`, `Get(k1, k2)` on a missing route | the levels on the way, as Perl's autovivification does: reading `x.y` of `{"a": 1}` adds `x` |
 | `Keys`, `Values()`, `Pairs`, `Each` on a hash | its cached key order, and `Each`'s position |
 
 So two goroutines reading one structure can race, as two writing a Go map
@@ -2205,7 +2210,7 @@ then dropped:
     an error instead), or a malformed template in
     `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
     that's neither a string nor a `*Template`
-  - passing something other than a string or int to `Path`, `PathOK`,
+  - passing something other than a string or int to `GetOK`,
     `DeletePath`, or a scalar's `Get`, `Exists` or `Delete`, or something other than a string or function as an `S`
     replacement
   - a scalar's `Exists` or `Delete` on something other than the hash (for

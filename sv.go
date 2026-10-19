@@ -80,7 +80,7 @@ func (s *SV) Set(x any) *SV {
 func (s *SV) Undef() *SV { return s.Set(nil) }
 
 // Copy returns a new scalar holding s's value, as Perl's my $x = $s does.
-// Elements returned by Get, Path, All and Values are the stored values
+// Elements returned by Get, At, All and Values are the stored values
 // themselves; Copy gives you one you can change without affecting the
 // container. Like Perl's assignment, the copy is shallow: a copied
 // reference points at the same array or hash. For a deep copy, use Clone.
@@ -450,54 +450,101 @@ func (s *SV) HV() *HV {
 }
 
 // Get is Perl's $s->{key} or $s->[i]: a string key looks up the hash s
-// refers to, and an int the array.
+// refers to, and an int the array. With several keys, it walks them in
+// turn, as Perl's subscripts do:
 //
-//	s.Get("content").Get(0).Get("text")  // $s->{content}[0]{text}
+//	s.Get("content", 0, "text")           // $s->{content}[0]{text}
+//	s.Get("content").Get(0).Get("text")   // the same, a step at a time
+//	s.Get(route...)                       // a route built from data
 //
 // It needs no AV or HV between the steps, as Perl needs no arrow between
 // subscripts, and s.Get(key).Set(x) is $s->{key} = x, as HV.Set is
-// h.Get(key).Set(x). It's HV().Get or AV().Get in one step, with the same rules:
-// an undef s autovivifies, as Perl's $s->{key} does even when only read,
-// and a missing key or index reads as undef without being created, until
-// something is written to it. If s holds anything else, Get returns undef,
-// and writing to it panics. Any other type of key panics.
-func (s *SV) Get(key any) *SV {
-	switch k := key.(type) {
-	case string:
-		return s.HV().Get(k)
-	case int:
-		return s.AV().Get(k)
+// h.Get(key).Set(x). Each step is HV().Get or AV().Get, with the same
+// rules: an undef s, or a level on the way, autovivifies, as Perl's
+// $s->{key} does even when only read, and the last key or index reads as
+// undef without being created, until something is written to it. Going
+// through something that isn't an array or hash reads as undef, and
+// writing to it panics. With no keys, Get returns s. A key that's neither
+// a string nor an int panics, before any step is taken.
+func (s *SV) Get(keys ...any) *SV {
+	if len(keys) == 1 { // the usual case, and with one key nothing to check first
+		switch k := keys[0].(type) {
+		case string:
+			return s.HV().Get(k)
+		case int:
+			return s.AV().Get(k)
+		}
 	}
-	panic(badSubscript("Get", key))
+	for _, k := range keys {
+		subscript("Get", k) // check every key before taking a step
+	}
+	cur := s
+	for _, k := range keys {
+		switch k := k.(type) {
+		case string:
+			cur = cur.HV().Get(k)
+		case int:
+			cur = cur.AV().Get(k)
+		}
+	}
+	return cur
+}
+
+// GetOK is Get with Go's comma-ok: ok reports whether every step exists,
+// so a value that's present but null (undef) gives ok true, while a missing
+// key or index, or a step through something that isn't an array or hash,
+// gives ok false and an undef scalar. Unlike Get, it never creates
+// anything. When ok is true, v is the stored value itself, as with Get.
+// With no keys, it's s, and ok is true unless s is nil.
+func (s *SV) GetOK(keys ...any) (v *SV, ok bool) {
+	return s.peekSteps(pathSteps("GetOK", keys))
 }
 
 // Exists is Perl's exists $s->{key} or exists $s->[i]: whether the hash or
-// array s refers to has that key or element, even if its value is undef. A
-// string key is a hash key and an int an array index, as for Get.
+// array s refers to has that key or element, even if its value is undef.
+// Keys are as for Get, so s.Exists("a", 0, "b") is exists $s->{a}[0]{b}.
 //
-// As in Perl, an undef s autovivifies into the hash or array it looks in,
-// though the key itself is never created; PathOK asks without creating
-// anything. If s is anything else, such as a number, or a hash asked for
-// an index, Exists panics, as Perl dies; PathOK says false instead.
-func (s *SV) Exists(key any) bool {
-	st := subscript("Exists", key)
-	st.deref(s)
-	return st.peek(s) != nil
+// As in Perl, the levels on the way autovivify as Get's do, and so does an
+// undef s, into the hash or array the last key looks in, though that key
+// itself is never created; GetOK asks without creating anything. If what
+// the last key looks in is anything else, such as a number, or a hash
+// asked for an index, Exists panics, as Perl dies; GetOK says false
+// instead. It needs at least one key.
+func (s *SV) Exists(keys ...any) bool {
+	cur, st := s.subscripts("Exists", keys)
+	st.deref(cur)
+	return st.peek(cur) != nil
 }
 
 // Delete is Perl's delete $s->{key} or delete $s->[i]: it removes the key
 // or element from the hash or array s refers to, and returns its value, or
-// undef if there was nothing there. A string key is a hash key and an int
-// an array index, as for Get, and an array keeps its holes as AV.Delete
-// says.
+// undef if there was nothing there. Keys are as for Get, so
+// s.Delete("a", 0, "b") is delete $s->{a}[0]{b}, and an array keeps its
+// holes as AV.Delete says.
 //
-// As in Perl, an undef s autovivifies into the hash or array it deletes
-// from; DeletePath deletes without creating anything. If s is anything
+// As in Perl, the levels on the way autovivify as Get's do, and so does an
+// undef s, into the hash or array it deletes from; DeletePath deletes
+// without creating anything. If what the last key looks in is anything
 // else, Delete panics, as Perl dies; DeletePath deletes nothing instead.
-func (s *SV) Delete(key any) *SV {
-	st := subscript("Delete", key)
-	st.deref(s)
-	return s.deleteSteps([]atStep{st})
+// It needs at least one key.
+func (s *SV) Delete(keys ...any) *SV {
+	cur, st := s.subscripts("Delete", keys)
+	st.deref(cur)
+	return cur.deleteSteps([]atStep{st})
+}
+
+// subscripts checks keys for Exists and Delete, whose name method is,
+// walks all but the last as Get does, and returns where that leads and the
+// last key as a step.
+func (s *SV) subscripts(method string, keys []any) (*SV, atStep) {
+	if len(keys) == 0 {
+		panic("scalar: " + method + " needs a key")
+	}
+	for _, k := range keys {
+		subscript(method, k)
+	}
+	last := len(keys) - 1
+	return s.Get(keys[:last]...), subscript(method, keys[last])
 }
 
 // deref autovivifies an undef s into the hash or array that st looks in, as
@@ -518,8 +565,8 @@ func (st atStep) deref(s *SV) {
 	panic("scalar: " + msg)
 }
 
-// subscript is key as one step of a path, for Exists and Delete, whose
-// name method is.
+// subscript is key as one step of a path, for the method named, which
+// panics if it's neither a string nor an int.
 func subscript(method string, key any) atStep {
 	switch k := key.(type) {
 	case string:
@@ -527,56 +574,15 @@ func subscript(method string, key any) atStep {
 	case int:
 		return atStep{kind: stepIndex, index: k}
 	}
-	panic(badSubscript(method, key))
+	panic(fmt.Sprintf("scalar: %s key must be a string or an int, got %T", method, key))
 }
 
-// badSubscript is the panic for a key to Get, Exists or Delete that's
-// neither a string nor an int.
-func badSubscript(method string, key any) string {
-	return fmt.Sprintf("scalar: %s key must be a string or an int, got %T", method, key)
-}
-
-// Path walks a chain of hash keys (string) and array indices (int), so
-// s.Path("content", 0, "text") is $s->{content}[0]{text}, as is
-// s.Get("content").Get(0).Get("text"). Intermediate levels autovivify, as
-// they do in Perl; the final element does not. Any other type of key panics.
-func (s *SV) Path(keys ...any) *SV {
-	cur := s
-	for _, k := range keys {
-		switch k := k.(type) {
-		case string:
-			cur = cur.HV().Get(k)
-		case int:
-			cur = cur.AV().Get(k)
-		default:
-			panic(fmt.Sprintf("scalar: Path key must be a string or an int, got %T", k))
-		}
-	}
-	return cur
-}
-
-// PathOK is Path with Go's comma-ok: ok reports whether every step exists,
-// so a value that's present but null (undef) gives ok true, while a missing
-// key or index, or a step through something that isn't an array or hash,
-// gives ok false and an undef scalar. Unlike Path, it never creates
-// anything. When ok is true, v is the stored value itself, as with Path.
-func (s *SV) PathOK(keys ...any) (v *SV, ok bool) {
-	return s.peekSteps(pathSteps(keys))
-}
-
-// pathSteps turns Path's keys into the steps At takes: a string is a hash
-// key, taken whole, and an int an array index.
-func pathSteps(keys []any) []atStep {
-	var steps []atStep
-	for _, k := range keys {
-		switch k := k.(type) {
-		case string:
-			steps = append(steps, atStep{kind: stepKey, key: k})
-		case int:
-			steps = append(steps, atStep{kind: stepIndex, index: k})
-		default:
-			panic(fmt.Sprintf("scalar: Path key must be a string or an int, got %T", k))
-		}
+// pathSteps turns keys, as Get takes them, into the steps At takes, for
+// GetOK and DeletePath, whose name method is.
+func pathSteps(method string, keys []any) []atStep {
+	steps := make([]atStep, len(keys))
+	for i, k := range keys {
+		steps[i] = subscript(method, k)
 	}
 	return steps
 }

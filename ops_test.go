@@ -128,7 +128,7 @@ func TestIncDec(t *testing.T) {
 		t.Errorf("$h{count}++ twice = %s", h.Get("count"))
 	}
 	h.Get("words").HV().Get("perl").Inc()
-	if h.Get("words").Path("perl").Int() != 1 {
+	if h.Get("words").Get("perl").Int() != 1 {
 		t.Error("$h{words}{perl}++ didn't autovivify")
 	}
 }

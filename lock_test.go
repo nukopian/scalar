@@ -181,7 +181,7 @@ func TestLockedConcurrentReads(t *testing.T) {
 				_ = doc.Find("$..b")
 				_ = doc.HV().Exists("x")
 				_, _ = doc.AtOK("x.y")
-				_, _ = doc.PathOK("x", 1)
+				_, _ = doc.GetOK("x", 1)
 
 				list := doc.At("list").AV()
 				_ = list.Get(3).Defined() || list.Get(40).Defined() // a hole, past the end

@@ -271,18 +271,10 @@ func ExampleHV_DeleteAt() {
 	// [km]
 }
 
-func ExampleHV_Path() {
-	h := scalar.Hash()
-	h.Path("a.b", "c").Set(1) // $h{"a.b"}{c} = 1: Path keys are taken whole, dots and all
-	fmt.Println(h.Path("a.b", "c"), h.At(`["a.b"].c`))
-	// Output:
-	// 1 1
-}
-
-func ExampleHV_PathOK() {
+func ExampleHV_GetOK() {
 	h := scalar.Hash("tags", scalar.Value(scalar.Array("go")))
-	v, ok := h.PathOK("tags", 0)
-	_, past := h.PathOK("tags", 5)
+	v, ok := h.GetOK("tags", 0)
+	_, past := h.GetOK("tags", 5)
 	fmt.Println(v, ok, past)
 	// Output:
 	// go true false

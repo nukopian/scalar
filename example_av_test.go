@@ -399,18 +399,10 @@ func ExampleAV_DeleteAt() {
 	// a 2
 }
 
-func ExampleAV_Path() {
-	a := scalar.Array()
-	a.Path(0, "tags", 1).Set("go") // $a[0]{tags}[1] = "go"
-	fmt.Println(a.Path(0, "tags", 1), a.At("[0].tags").AV().Length())
-	// Output:
-	// go 2
-}
-
-func ExampleAV_PathOK() {
+func ExampleAV_GetOK() {
 	a := scalar.Array(scalar.Value(scalar.Hash("id", 7)))
-	v, ok := a.PathOK(0, "id")
-	_, missing := a.PathOK(0, "name")
+	v, ok := a.GetOK(0, "id")
+	_, missing := a.GetOK(0, "name")
 	fmt.Println(v, ok, missing)
 	// Output:
 	// 7 true false

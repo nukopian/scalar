@@ -162,22 +162,22 @@ func TestHashAutoviv(t *testing.T) {
 	}
 }
 
-func TestPath(t *testing.T) {
+func TestGetRoute(t *testing.T) {
 	resp, err := FromJSON([]byte(`{"content":[{"type":"text","text":"hi"}],"usage":{"output_tokens":12}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := resp.Path("content", 0, "text").Str(); got != "hi" {
+	if got := resp.Get("content", 0, "text").Str(); got != "hi" {
 		t.Errorf("text = %q", got)
 	}
-	if got := resp.Path("content", -1, "type").Str(); got != "text" {
+	if got := resp.Get("content", -1, "type").Str(); got != "text" {
 		t.Errorf("type = %q", got)
 	}
-	if got := resp.Path("usage", "output_tokens").Int(); got != 12 {
+	if got := resp.Get("usage", "output_tokens").Int(); got != 12 {
 		t.Errorf("output_tokens = %d", got)
 	}
 	// A string can't be dereferenced: reads yield undef rather than panicking.
-	if resp.Path("content", 0, "text", "nope").Defined() {
+	if resp.Get("content", 0, "text", "nope").Defined() {
 		t.Error("deref of a string should be undef")
 	}
 }
@@ -286,13 +286,13 @@ func TestJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Path("big").Kind() != Int || s.Path("big").Int() != 9007199254740993 {
+	if s.Get("big").Kind() != Int || s.Get("big").Int() != 9007199254740993 {
 		t.Error("large integer lost precision")
 	}
-	if s.Path("f").Kind() != Float {
+	if s.Get("f").Kind() != Float {
 		t.Error("1.5 should be a float")
 	}
-	if s.Path("n").Defined() || !s.HV().Exists("n") {
+	if s.Get("n").Defined() || !s.HV().Exists("n") {
 		t.Error("null should be an existing undef")
 	}
 	if got := mustJSON(t, s); got != in {
@@ -543,12 +543,12 @@ func TestJSONEdges(t *testing.T) {
 			t.Errorf("FromJSON(%q) should fail", bad)
 		}
 	}
-	if s, err := FromJSON([]byte("  {\"a\":1}\n\t ")); err != nil || s.Path("a").Int() != 1 {
+	if s, err := FromJSON([]byte("  {\"a\":1}\n\t ")); err != nil || s.Get("a").Int() != 1 {
 		t.Errorf("surrounding whitespace should be fine: %v", err)
 	}
 
 	var holder struct{ S *SV }
-	if err := json.Unmarshal([]byte(`{"S":{"x":[1,2]}}`), &holder); err != nil || holder.S.Path("x", 1).Int() != 2 {
+	if err := json.Unmarshal([]byte(`{"S":{"x":[1,2]}}`), &holder); err != nil || holder.S.Get("x", 1).Int() != 2 {
 		t.Errorf("SV as a struct field: %v", err)
 	}
 }
@@ -731,7 +731,7 @@ func TestOr(t *testing.T) {
 
 	// Reading a missing path with a default.
 	resp := mustFromJSON(t, `{"usage": {"input_tokens": 10}}`)
-	if resp.Path("usage", "output_tokens").Or(0).Int() != 0 || resp.Path("usage", "input_tokens").Or(0).Int() != 10 {
+	if resp.Get("usage", "output_tokens").Or(0).Int() != 0 || resp.Get("usage", "input_tokens").Or(0).Int() != 10 {
 		t.Error("Or on a path")
 	}
 
@@ -762,7 +762,7 @@ func TestOrSet(t *testing.T) {
 	expectPanic(t, "write before the start", "non-creatable", func() { Array().Get(-1).OrSet(1) })
 }
 
-func TestPathOK(t *testing.T) {
+func TestGetOK(t *testing.T) {
 	doc := mustFromJSON(t, `{"usage": {"output_tokens": 12, "stop": null}, "content": [{"text": "hi"}], "s": "str"}`)
 	tests := []struct {
 		name    string
@@ -785,7 +785,7 @@ func TestPathOK(t *testing.T) {
 		{"no keys", nil, "HASH", true, true},
 	}
 	for _, tt := range tests {
-		v, ok := doc.PathOK(tt.keys...)
+		v, ok := doc.GetOK(tt.keys...)
 		got := v.Str()
 		if v.Ref() != "" {
 			got = v.Ref()
@@ -797,7 +797,7 @@ func TestPathOK(t *testing.T) {
 
 	// It never creates anything, unlike Path.
 	h := Value(Hash())
-	h.PathOK("a", "b", 0)
+	h.GetOK("a", "b", 0)
 	if h.HV().Length() != 0 {
 		t.Error("PathOK shouldn't autovivify")
 	}
@@ -805,22 +805,22 @@ func TestPathOK(t *testing.T) {
 	// Holes don't exist.
 	a := Array()
 	a.Set(2, "c")
-	if _, ok := Value(a).PathOK(0); ok {
+	if _, ok := Value(a).GetOK(0); ok {
 		t.Error("a hole doesn't exist")
 	}
 
 	// The value is the stored one.
-	v, _ := doc.PathOK("usage", "output_tokens")
+	v, _ := doc.GetOK("usage", "output_tokens")
 	v.Inc()
-	if doc.Path("usage", "output_tokens").Int() != 13 {
+	if doc.Get("usage", "output_tokens").Int() != 13 {
 		t.Error("PathOK should return the stored value")
 	}
 
 	var nilSV *SV
-	if v, ok := nilSV.PathOK(); ok || v == nil {
+	if v, ok := nilSV.GetOK(); ok || v == nil {
 		t.Error("nil *SV: not ok, but a usable undef")
 	}
-	expectPanic(t, "bad key type", "Path key must be a string or an int", func() { doc.PathOK(1.5) })
+	expectPanic(t, "bad key type", "GetOK key must be a string or an int", func() { doc.GetOK(1.5) })
 }
 
 func TestHashFlattening(t *testing.T) {

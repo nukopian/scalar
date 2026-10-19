@@ -2,7 +2,7 @@ package scalar
 
 // Then calls f with s if s is defined, and returns what f returns as a new
 // scalar; if s is undef, f isn't called, and Then returns undef. So a chain
-// of steps stops quietly at the first one that gives undef, as Path does:
+// of steps stops quietly at the first one that gives undef, as Get does:
 //
 //	km := event.At("depth.text").
 //		Then(parseFigure). // undef if there's no figure
