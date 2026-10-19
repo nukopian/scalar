@@ -272,6 +272,37 @@ func TestSVSubscriptMatchesPath(t *testing.T) {
 	}
 }
 
+// s.Get(k).Set(x) is HV().Set or AV().Set, as Get is HV().Get or AV().Get:
+// the same result, the same document, and a panic in the same places.
+func TestSVGetSetMatchesSet(t *testing.T) {
+	keys := []any{"properties", "mag", "felt", "0", "nope", 0, 1, -1, -3, 3, 5, -9}
+	values := []any{nil, 4.7, "reviewed", []any{1, 2}, map[string]any{"cdi": 3.4}, Value(Array(1))}
+	try := func(f func() *SV) (got *SV, msg any) {
+		defer func() { msg = recover() }()
+		return f(), nil
+	}
+	for _, at := range []string{"", "properties", "properties.felt", "geometry.coordinates", "stations", "stations[1]", "tsunami", "missing"} {
+		for _, k := range keys {
+			for _, x := range values {
+				doc1, doc2 := newSubscriptDoc(t), newSubscriptDoc(t)
+				s1, s2 := doc1.At(at), doc2.At(at)
+				got, gotPanic := try(func() *SV { return s1.Get(k).Set(x) })
+				want, wantPanic := try(func() *SV {
+					if i, isIndex := k.(int); isIndex {
+						return s2.AV().Set(i, x)
+					}
+					return s2.HV().Set(k.(string), x)
+				})
+				if fmt.Sprint(gotPanic) != fmt.Sprint(wantPanic) {
+					t.Errorf("%q Get(%v).Set(%v) panicked %v, Set %v", at, k, x, gotPanic, wantPanic)
+				} else if gotPanic == nil && got.Diff(want) != "" || doc1.Dump() != doc2.Dump() {
+					t.Errorf("%q Get(%v).Set(%v):\n%s\n%s", at, k, x, doc1.Dump(), doc2.Dump())
+				}
+			}
+		}
+	}
+}
+
 // A chain of Get, ending in a read, a write, Exists or Delete, does what
 // the same subscripts do in Perl, to the value and to the document, and
 // panics where Perl dies. It leaves out reads that go through the wrong

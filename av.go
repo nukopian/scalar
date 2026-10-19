@@ -169,8 +169,10 @@ func (a *AV) store(i int, s *SV) {
 	a.items[i] = s
 }
 
-// Set assigns v to element i, extending the array if needed. It panics
-// where Get's result can't be written (see Get).
+// Set is Perl's $a[i] = v: it assigns v to element i, extending the array
+// if needed, and returns the stored SV. It's a.Get(i).Set(v) in one step,
+// as a scalar's s.Get(i).Set(v) is $s->[i] = v. It panics where Get's
+// result can't be written (see Get).
 func (a *AV) Set(i int, v any) *SV {
 	return a.Get(i).Set(v)
 }

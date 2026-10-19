@@ -52,7 +52,10 @@ func Value(x any) *SV {
 	return &SV{v: normalize(x)}
 }
 
-// Set assigns x to s and returns s. Go values are converted as follows:
+// Set is Perl's $s = x: it assigns x to s and returns s. To assign to what
+// s refers to, $s->{key} = x or $s->[i] = x, subscript first, as Perl
+// does: s.Get(key).Set(x), as HV.Set and AV.Set do. Go values are
+// converted as follows:
 // integers become IVs, floats become NVs, slices become array references,
 // maps become hash references (with their keys in string context, as Perl
 // stores them), structs become hash references too, keyed as encoding/json
@@ -452,7 +455,8 @@ func (s *SV) HV() *HV {
 //	s.Get("content").Get(0).Get("text")  // $s->{content}[0]{text}
 //
 // It needs no AV or HV between the steps, as Perl needs no arrow between
-// subscripts. It's HV().Get or AV().Get in one step, with the same rules:
+// subscripts, and s.Get(key).Set(x) is $s->{key} = x, as HV.Set is
+// h.Get(key).Set(x). It's HV().Get or AV().Get in one step, with the same rules:
 // an undef s autovivifies, as Perl's $s->{key} does even when only read,
 // and a missing key or index reads as undef without being created, until
 // something is written to it. If s holds anything else, Get returns undef,

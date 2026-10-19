@@ -96,7 +96,9 @@ func (h *HV) store(key string, s *SV) {
 	h.m[key] = s
 }
 
-// Set assigns v to key and returns the stored SV.
+// Set is Perl's $h{key} = v: it assigns v to key and returns the stored
+// SV. It's h.Get(key).Set(v) in one step, as a scalar's s.Get(key).Set(v)
+// is $s->{key} = v.
 func (h *HV) Set(key string, v any) *SV {
 	return h.Get(key).Set(v)
 }

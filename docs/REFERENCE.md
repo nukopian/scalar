@@ -219,9 +219,10 @@ for _, station := range stations.All() {
   `String`, `Bytes` (a [byte string](#byte-strings)), `ArrayRef` or
   `HashRef`.
 - `Ref()` works like Perl's `ref()`: it returns `"ARRAY"`, `"HASH"` or `""`.
-- `Set(x)` assigns a new value and returns the scalar.
+- `Set(x)` is `$s = x`: it assigns a new value and returns the scalar.
 - `Get(k)`, `Exists(k)` and `Delete(k)` subscript the array or hash a
-  scalar refers to, a string `k` being a hash key and an int an index. See
+  scalar refers to, a string `k` being a hash key and an int an index, and
+  `Get(k).Set(x)` assigns to it. See
   [Nesting and autovivification](#nesting-and-autovivification).
 - `Copy()` returns a copy of the scalar, and `Clone()` a deep copy, of the
   arrays and hashes it refers to as well. See
@@ -868,6 +869,21 @@ Perl. A scalar holding a reference takes subscripts itself, with `Get`,
 `Exists` and `Delete`: a string is a hash key and an int an array index,
 as `{...}` and `[...]` are in Perl. As Perl needs no arrow between
 subscripts, nothing goes between the steps:
+
+Arrays, hashes and scalars share four operations on one element:
+
+| Perl | Array | Hash | Scalar holding a reference |
+|---|---|---|---|
+| read | `a.Get(i)` | `h.Get(k)` | `s.Get(k)` |
+| assign | `a.Set(i, x)` | `h.Set(k, x)` | `s.Get(k).Set(x)` |
+| `exists` | `a.Exists(i)` | `h.Exists(k)` | `s.Exists(k)` |
+| `delete` | `a.Delete(i)` | `h.Delete(k)` | `s.Delete(k)` |
+
+A scalar's `Set(x)` is already `$s = x`, so assigning to an element
+subscripts first, as Perl does: `$s->{k} = x` is `$s->{k}`, then `= x`.
+`a.Set(i, x)` and `h.Set(k, x)` are the same two steps, `a.Get(i).Set(x)`
+and `h.Get(k).Set(x)`, written as one, so all three behave alike:
+autovivifying, extending arrays, and panicking where Perl dies.
 
 ```go
 s.Get("properties").Get("place")           // $s->{properties}{place}

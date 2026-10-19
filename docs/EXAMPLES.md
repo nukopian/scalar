@@ -65,7 +65,7 @@ HASH PAS false
 
 #### `SV.Set`
 
-Set assigns x to s and returns s.
+Set is Perl's \$s = x: it assigns x to s and returns s.
 
 ```go
 s := scalar.Value("old")
@@ -73,11 +73,14 @@ s.Set(10)                     // $s = 10
 fmt.Println(s.Add(1))         // it's a number now
 s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
 fmt.Println(s.Ref())
+s.Get("a").Set(2) // $s->{a} = 2: subscript, then assign
+fmt.Println(s.Get("a"))
 ```
 
 ```
 11
 HASH
+2
 ```
 
 #### `SV.Copy`
@@ -1840,7 +1843,7 @@ false 3
 
 #### `AV.Set`
 
-Set assigns v to element i, extending the array if needed.
+Set is Perl's \$a[i] = v: it assigns v to element i, extending the array if needed, and returns the stored SV.
 
 ```go
 a := scalar.Array()
@@ -2558,7 +2561,7 @@ HASH
 
 #### `HV.Set`
 
-Set assigns v to key and returns the stored SV.
+Set is Perl's \$h{key} = v: it assigns v to key and returns the stored SV.
 
 ```go
 h := scalar.Hash()

@@ -43,9 +43,12 @@ func ExampleSV_Set() {
 	fmt.Println(s.Add(1))         // it's a number now
 	s.Set(map[string]any{"a": 1}) // a map becomes a hash reference
 	fmt.Println(s.Ref())
+	s.Get("a").Set(2) // $s->{a} = 2: subscript, then assign
+	fmt.Println(s.Get("a"))
 	// Output:
 	// 11
 	// HASH
+	// 2
 }
 
 func ExampleSV_Copy() {
