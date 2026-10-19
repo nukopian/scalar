@@ -119,40 +119,70 @@ func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
 // which creates the levels on the way to what it deletes, DeleteAt never
 // creates anything: if a step on the way is missing, or isn't an array or
 // hash, there's nothing to delete. A malformed path panics, as for At.
-func (s *SV) DeleteAt(path string) *SV { return s.deleteSteps(compileAt(path)) }
+func (s *SV) DeleteAt(path string) *SV {
+	v, _ := s.deleteSteps(compileAt(path))
+	return v
+}
 
-// DeletePath is DeleteAt with the route as Get takes it: keys taken whole,
-// dots and all, so it suits keys that come from data, as
-// delete $s->{$section}{$key} does in Perl.
+// DeleteOK is Delete for data you aren't sure of, with Go's comma-ok: it
+// removes the last key or element as Delete does, and returns its value,
+// with ok true if there was something there to remove, even if its value
+// was undef. Unlike Delete, and unlike Perl, it never creates anything, and
+// never panics on the shape of the data: if a level on the way is missing,
+// or isn't an array or hash, or what the last key looks in isn't the kind
+// it asks for, there's nothing to delete, and ok is false.
 //
-//	doc.DeletePath("depth", "error")  // delete $doc->{depth}{error}
-//	doc.DeletePath("stations", -1)    // delete $doc->{stations}[-1]
-func (s *SV) DeletePath(keys ...any) *SV { return s.deleteSteps(pathSteps("DeletePath", keys)) }
+// Keys are as for Get, each taken whole, dots and all, so it suits keys
+// that come from data, as delete $s->{$section}{$key} does in Perl:
+//
+//	doc.DeleteOK("depth", "error")                // delete $doc->{depth}{error}
+//	if v, ok := doc.DeleteOK(section, key); ok {  // something was removed: v
+//
+// With no keys, there's nothing to delete, and ok is false. A key of the
+// wrong type panics, as for Get, and so does deleting from a locked hash,
+// as HV.Delete does.
+func (s *SV) DeleteOK(keys ...any) (v *SV, ok bool) {
+	for _, k := range keys {
+		subscript("DeleteOK", k) // a bad key panics, even after a missing step
+	}
+	if len(keys) == 0 {
+		return &SV{}, false
+	}
+	last := len(keys) - 1
+	parent, ok := s.GetOK(keys[:last]...)
+	if !ok {
+		return &SV{}, false
+	}
+	return parent.deleteSteps([]atStep{subscript("DeleteOK", keys[last])})
+}
 
 // deleteSteps removes what the last of steps leads to, walking the others
-// without creating anything, for DeleteAt and DeletePath.
-func (s *SV) deleteSteps(steps []atStep) *SV {
+// without creating anything, for Delete, DeleteAt and DeleteOK, and says
+// whether there was anything there to remove.
+func (s *SV) deleteSteps(steps []atStep) (*SV, bool) {
 	if len(steps) == 0 || s == nil {
-		return &SV{} // s itself can't be deleted
+		return &SV{}, false // s itself can't be deleted
 	}
 	cur := s
 	for _, st := range steps[:len(steps)-1] {
 		if cur = st.peek(cur); cur == nil {
-			return &SV{}
+			return &SV{}, false
 		}
 	}
 	last := steps[len(steps)-1]
 	switch v := cur.val().(type) {
 	case *HV:
 		if last.kind != stepIndex {
-			return v.Delete(last.key)
+			_, there := v.m[last.key]
+			return v.Delete(last.key), there // a locked hash panics either way
 		}
 	case *AV:
 		if last.kind != stepKey {
-			return v.Delete(last.index)
+			there := v.Exists(last.index)
+			return v.Delete(last.index), there
 		}
 	}
-	return &SV{}
+	return &SV{}, false
 }
 
 // CheckPath returns an error if path is malformed, and nil if At, AtOK and
@@ -338,8 +368,8 @@ func (h *HV) AtOK(path string) (v *SV, ok bool) { return h.probe().AtOK(path) }
 // DeleteAt is SV.DeleteAt, starting at h.
 func (h *HV) DeleteAt(path string) *SV { return h.ref().DeleteAt(path) }
 
-// DeletePath is SV.DeletePath, starting at h.
-func (h *HV) DeletePath(keys ...any) *SV { return h.ref().DeletePath(keys...) }
+// DeleteOK is SV.DeleteOK, starting at h.
+func (h *HV) DeleteOK(keys ...any) (v *SV, ok bool) { return h.probe().DeleteOK(keys...) }
 
 // GetOK is SV.GetOK, starting at h.
 func (h *HV) GetOK(keys ...any) (v *SV, ok bool) { return h.probe().GetOK(keys...) }
@@ -356,8 +386,8 @@ func (a *AV) AtOK(path string) (v *SV, ok bool) { return a.probe().AtOK(path) }
 // DeleteAt is SV.DeleteAt, starting at a.
 func (a *AV) DeleteAt(path string) *SV { return a.ref().DeleteAt(path) }
 
-// DeletePath is SV.DeletePath, starting at a.
-func (a *AV) DeletePath(keys ...any) *SV { return a.ref().DeletePath(keys...) }
+// DeleteOK is SV.DeleteOK, starting at a.
+func (a *AV) DeleteOK(keys ...any) (v *SV, ok bool) { return a.probe().DeleteOK(keys...) }
 
 // GetOK is SV.GetOK, starting at a.
 func (a *AV) GetOK(keys ...any) (v *SV, ok bool) { return a.probe().GetOK(keys...) }
@@ -365,7 +395,7 @@ func (a *AV) GetOK(keys ...any) (v *SV, ok bool) { return a.probe().GetOK(keys..
 // Find is SV.Find, with $ standing for a.
 func (a *AV) Find(path string) *AV { return a.probe().Find(path) }
 
-// probe is a scalar holding a reference to h, for GetOK, AtOK and Find,
+// probe is a scalar holding a reference to h, for GetOK, AtOK, DeleteOK and Find,
 // which look without creating anything: nil for a nil h, which isn't there,
 // as for a nil scalar.
 func (h *HV) probe() *SV {

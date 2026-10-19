@@ -543,19 +543,21 @@ func (s *SV) Exists(keys ...any) bool {
 // holes as AV.Delete says.
 //
 // As in Perl, the levels on the way autovivify as Get's do, and so does an
-// undef s, into the hash or array it deletes from; DeletePath deletes
+// undef s, into the hash or array it deletes from; DeleteOK deletes
 // without creating anything. If what the last key looks in is anything
-// else, Delete panics, as Perl dies; DeletePath deletes nothing instead.
+// else, Delete panics, as Perl dies; DeleteOK deletes nothing instead.
 // It needs at least one key.
 func (s *SV) Delete(keys ...any) *SV {
 	if len(keys) == 1 {
 		st := subscript("Delete", keys[0])
 		st.deref(s)
-		return s.deleteSteps([]atStep{st})
+		v, _ := s.deleteSteps([]atStep{st})
+		return v
 	}
 	cur, st := s.subscripts("Delete", keys)
 	st.deref(cur)
-	return cur.deleteSteps([]atStep{st})
+	v, _ := cur.deleteSteps([]atStep{st})
+	return v
 }
 
 // subscripts checks keys for Exists and Delete with more than one key,
@@ -605,16 +607,6 @@ func subscript(method string, key any) atStep {
 		return atStep{kind: stepIndex, index: k}
 	}
 	panic(fmt.Sprintf("scalar: %s key must be a string or an int, got %T", method, key))
-}
-
-// pathSteps turns keys, as Get takes them, into the steps At takes, for
-// DeletePath, whose name method is.
-func pathSteps(method string, keys []any) []atStep {
-	steps := make([]atStep, len(keys))
-	for i, k := range keys {
-		steps[i] = subscript(method, k)
-	}
-	return steps
 }
 
 // StrCmp is Perl's cmp, for use with AV.Sort.

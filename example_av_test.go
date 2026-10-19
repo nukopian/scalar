@@ -418,15 +418,17 @@ func ExampleAV_GetOK() {
 	// 7 true false
 }
 
-func ExampleAV_DeletePath() {
-	rows, _ := scalar.FromJSON([]byte(`[{"id":1,"tmp":"x"},{"id":2,"tmp":"y"}]`))
+func ExampleAV_DeleteOK() {
+	rows, _ := scalar.FromJSON([]byte(`[{"id": "ci40123456", "tmp": 1}, {"id": "nc75012345"}, "a stray string"]`))
 	a := rows.AV()
 	for i := range a.Length() {
-		a.DeletePath(i, "tmp") // delete $a[$i]{tmp}
+		_, ok := a.DeleteOK(i, "tmp") // delete $a[$i]{tmp}, if it's there
+		fmt.Println(i, ok)
 	}
-	fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
 	// Output:
-	// [id] [id]
+	// 0 true
+	// 1 false
+	// 2 false
 }
 
 func ExampleAV_Undef() {

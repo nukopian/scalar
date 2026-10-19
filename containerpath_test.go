@@ -145,7 +145,7 @@ func TestMatches(t *testing.T) {
 	})
 }
 
-// Delete, DeleteAt and DeletePath agree: on every index of an array with a
+// Delete, DeleteAt and DeleteOK agree: on every index of an array with a
 // hole, from either end and past them; on keys present, missing, empty,
 // numeric and dotted; and on nil arrays and hashes.
 func TestDeleteConsistency(t *testing.T) {
@@ -154,9 +154,9 @@ func TestDeleteConsistency(t *testing.T) {
 		a1, a2, a3 := mk(), mk(), mk()
 		r1 := a1.Delete(i).Dump() + a1.Dump()
 		r2 := a2.DeleteAt(fmt.Sprintf("[%d]", i)).Dump() + a2.Dump()
-		r3 := a3.DeletePath(i).Dump() + a3.Dump()
+		r3 := first(a3.DeleteOK(i)).Dump() + a3.Dump()
 		if r1 != r2 || r1 != r3 {
-			t.Errorf("index %d: Delete %s, DeleteAt %s, DeletePath %s", i, r1, r2, r3)
+			t.Errorf("index %d: Delete %s, DeleteAt %s, DeleteOK %s", i, r1, r2, r3)
 		}
 	}
 	mkh := func() *HV { return Hash("x", 1, "a.b", 2, "0", 3, "", 4) }
@@ -164,40 +164,87 @@ func TestDeleteConsistency(t *testing.T) {
 		h1, h2, h3 := mkh(), mkh(), mkh()
 		r1 := h1.Delete(k).Dump() + h1.Dump()
 		r2 := h2.DeleteAt(fmt.Sprintf("[%q]", k)).Dump() + h2.Dump()
-		r3 := h3.DeletePath(k).Dump() + h3.Dump()
+		r3 := first(h3.DeleteOK(k)).Dump() + h3.Dump()
 		if r1 != r2 || r1 != r3 {
-			t.Errorf("key %q: Delete %s, DeleteAt %s, DeletePath %s", k, r1, r2, r3)
+			t.Errorf("key %q: Delete %s, DeleteAt %s, DeleteOK %s", k, r1, r2, r3)
 		}
 	}
 	var na *AV
 	var nh *HV
-	if na.Delete(0).Defined() || na.DeleteAt("[0]").Defined() || na.DeletePath(0).Defined() ||
-		nh.Delete("k").Defined() || nh.DeleteAt("k").Defined() || nh.DeletePath("k").Defined() {
+	if na.Delete(0).Defined() || na.DeleteAt("[0]").Defined() || second(na.DeleteOK(0)) ||
+		nh.Delete("k").Defined() || nh.DeleteAt("k").Defined() || second(nh.DeleteOK("k")) {
 		t.Error("deleting from nil wasn't undef")
 	}
 }
 
-// DeletePath takes keys as Path does: whole, dots and all, with ints for
-// indices and compiled paths for several steps. It creates nothing.
-func TestDeletePath(t *testing.T) {
+// DeleteOK takes keys as Get does: whole, dots and all, with ints for
+// indices. It creates nothing, never panics on the shape of the data, and
+// its ok says whether there was something there to remove.
+func TestDeleteOK(t *testing.T) {
 	doc, _ := FromJSON([]byte(`{"a.b":{"c":1},"a":{"b":{"c":2}},"list":[{"k":"v"},{"k":"w"}]}`))
-	if got := doc.DeletePath("a.b", "c"); got.Int() != 1 || doc.At(`["a.b"]`).HV().Exists("c") {
+	if got := first(doc.DeleteOK("a.b", "c")); got.Int() != 1 || doc.At(`["a.b"]`).HV().Exists("c") {
 		t.Errorf("dotted key: %v", got)
 	}
-	if got := doc.DeletePath("list", -1, "k"); got.Str() != "w" || doc.At("list[1]").HV().Exists("k") {
+	if got := first(doc.DeleteOK("list", -1, "k")); got.Str() != "w" || doc.At("list[1]").HV().Exists("k") {
 		t.Errorf("index: %v", got)
 	}
-	if got := doc.DeletePath("a", "b", "c"); got.Int() != 2 {
+	if got := first(doc.DeleteOK("a", "b", "c")); got.Int() != 2 {
 		t.Errorf("undotted path: %v", got)
 	}
 	before := doc.Dump()
-	if doc.DeletePath("nope", "deeper", 0).Defined() || doc.DeletePath("list", 0, 5).Defined() || doc.Dump() != before {
+	if second(doc.DeleteOK("nope", "deeper", 0)) || second(doc.DeleteOK("list", 0, 5)) || doc.Dump() != before {
 		t.Error("deleting a missing path created or removed something")
 	}
-	if doc.DeletePath().Defined() {
+	if second(doc.DeleteOK()) {
 		t.Error("no keys: the scalar itself can't be deleted")
 	}
-	expectPanic(t, "bad key", "Path key must be", func() { doc.DeletePath(1.5) })
+	expectPanic(t, "bad key", "DeleteOK key must be a string or an int", func() { doc.DeleteOK(1.5) })
+	expectPanic(t, "bad key after a missing step", "DeleteOK key must be", func() { doc.DeleteOK("nope", true) })
+
+	// ok tells a removed null from nothing there, which the value can't.
+	quake, _ := FromJSON([]byte(`{"felt": null, "mag": 4.6, "tsunami": 0, "stations": ["PAS", "GSC", "ISA"]}`))
+	if v, ok := quake.DeleteOK("felt"); !ok || v.Defined() || quake.HV().Exists("felt") {
+		t.Errorf("a null: %v, %v", v, ok)
+	}
+	if v, ok := quake.DeleteOK("felt"); ok || v.Defined() {
+		t.Errorf("gone already: %v, %v", v, ok)
+	}
+	if _, ok := quake.DeleteOK("stations", 1); !ok {
+		t.Error("an element in the middle")
+	}
+	if _, ok := quake.DeleteOK("stations", 1); ok {
+		t.Error("a hole isn't there to remove")
+	}
+	if v, ok := quake.DeleteOK("stations", -1); !ok || v.Str() != "ISA" {
+		t.Errorf("the last: %v, %v", v, ok)
+	}
+
+	// The wrong shape is nothing to delete, never a panic, and leaves the
+	// data as it was.
+	before = quake.Dump()
+	for _, keys := range [][]any{{"tsunami", "x"}, {"tsunami", 0}, {"mag", "x", "y"}, {0}, {"stations", "0"}, {"stations", 0, "x"}, {"nope", 0}} {
+		if _, ok := quake.DeleteOK(keys...); ok {
+			t.Errorf("DeleteOK%v found something", keys)
+		}
+	}
+	if quake.Dump() != before {
+		t.Errorf("a DeleteOK of the wrong shape changed the data: %s", quake.Dump())
+	}
+
+	// On a hash or an array, the first key is typed, as for Get.
+	h := quake.HV()
+	if _, ok := h.DeleteOK("mag"); !ok || h.Exists("mag") {
+		t.Error("HV.DeleteOK")
+	}
+	st := quake.Get("stations").AV()
+	if v, ok := st.DeleteOK(0); !ok || v.Str() != "PAS" {
+		t.Errorf("AV.DeleteOK: %v, %v", v, ok)
+	}
+
+	// A locked hash panics, as HV.Delete and Perl do.
+	locked := Value(Hash("mag", 4.6))
+	locked.Lock()
+	expectPanic(t, "locked", "Attempt to delete readonly key 'mag'", func() { locked.DeleteOK("mag") })
 }
 
 // A nil hash or array isn't there, so the probes say so, as they do for a
@@ -211,6 +258,8 @@ func TestContainerProbesNil(t *testing.T) {
 		"AV.GetOK()":   second(na.GetOK()),
 		`HV.AtOK("")`:  second(nh.AtOK("")),
 		`AV.AtOK("$")`: second(na.AtOK("$")),
+		"HV.DeleteOK":  second(nh.DeleteOK("k")),
+		"AV.DeleteOK":  second(na.DeleteOK(0)),
 	} {
 		if ok {
 			t.Errorf("%s on nil: ok is true", name)
@@ -228,4 +277,5 @@ func TestContainerProbesNil(t *testing.T) {
 	}
 }
 
+func first(v *SV, _ bool) *SV    { return v }
 func second(_ *SV, ok bool) bool { return ok }

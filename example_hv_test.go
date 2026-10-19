@@ -295,12 +295,14 @@ func ExampleHV_GetOK() {
 	// go true false
 }
 
-func ExampleHV_DeletePath() {
+func ExampleHV_DeleteOK() {
 	section, key := "depth", "error" // from data
-	h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
-	fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
+	h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8.2, "error", 0.4)))
+	if v, ok := h.DeleteOK(section, key); ok { // delete $h{$section}{$key}
+		fmt.Println("removed", v)
+	}
 	// Output:
-	// 2
+	// removed 0.4
 }
 
 func ExampleHV_Undef() {

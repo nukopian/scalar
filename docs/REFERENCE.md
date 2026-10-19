@@ -879,7 +879,7 @@ depends on how sure you are of its shape:
   they go through, as Perl does, and panic where Perl dies. Use them as
   you'd write the Perl.
 - **Looking without creating anything.** `GetOK` and `AtOK` read,
-  `DeletePath` and `DeleteAt` delete, and `Find` searches. They never
+  `DeleteOK` and `DeleteAt` delete, and `Find` searches. They never
   create anything, and data of the wrong shape just means there's nothing
   there. Use them on data you aren't sure of.
 
@@ -888,11 +888,11 @@ depends on how sure you are of its shape:
 | read | `s.Get(k1, k2)`, `s.At("a.b")` | `s.GetOK(k1, k2)`, `s.AtOK("a.b")`, which tell missing from null |
 | assign | `s.Get(k1, k2).Set(x)`, `s.At("a.b").Set(x)` | |
 | is it there? | `s.Exists(k1, k2)` | the `ok` of `GetOK` or `AtOK` |
-| delete | `s.Delete(k1, k2)` | `s.DeletePath(k1, k2)`, `s.DeleteAt("a.b")` |
+| delete | `s.Delete(k1, k2)` | `s.DeleteOK(k1, k2)`, which says whether it removed anything, `s.DeleteAt("a.b")` |
 | search | | `s.Find("$..mag")`: see [Finding values with JSONPath](#finding-values-with-jsonpath) |
 
 In either mode, the route is spelt one of two ways: as keys, each taken
-whole, with `Get`, `Exists`, `Delete`, `GetOK` and `DeletePath`, which
+whole, with `Get`, `Exists`, `Delete`, `GetOK` and `DeleteOK`, which
 suits keys that come from data; or as one string with `At`, `AtOK` and
 `DeleteAt`, which suits routes written in the program. Keys can go in one
 call, `s.Get("a", 0, "b")`, or a step at a time,
@@ -908,7 +908,7 @@ programmer, or a Perl programmer reading Go, would expect isn't so:
 | `h.Get("mag", "net")` fetches two keys, like Perl's hash slice `@h{qw(mag net)}` | It's a route, one key inside the other: `$h{mag}{net}`. Several keys to `Get`, `Exists` and `Delete` always mean a route | `h.Values("mag", "net")` is the slice; `a.Values(0, -1)` is `@a[0, -1]` |
 | A read never changes the data | Going *through* a missing level creates it, as Perl's autovivification does: `s.Get("origin", "depth")` adds `"origin"` as an empty hash. The last key is never created by a read | `s.GetOK("origin", "depth")` or `s.AtOK("origin.depth")`, which create nothing |
 | `Exists` only looks | It creates the levels on the way as `Get` does, an undef `s` becomes a hash or array, and it panics if what it looks in is something else, all as Perl's `exists` does | `_, ok := s.GetOK(...)`, which only looks |
-| Deleting something that isn't there does nothing | `Delete` creates and panics as `Exists` does | `s.DeletePath(...)` or `s.DeleteAt(...)`, which do nothing |
+| Deleting something that isn't there does nothing | `Delete` creates and panics as `Exists` does | `s.DeleteOK(...)` or `s.DeleteAt(...)`, which do nothing |
 | Any number can be an index | Only an `int`. A JSON number is a `float64`, and a `float64`, `int64` or `uint` key panics, as does any type but `string` and `int` | Convert first: `s.Get(int(n.Int()))` |
 | `"0"` is index 0 | A string is always a hash key, as `$h{0}` is in Perl | `s.Get(0)` for the index |
 | `s.Get()` with no keys is a mistake | It's `s` itself, so a route that might be empty works: `s.Get(route...)`. `Exists()` and `Delete()` with no keys panic | |
@@ -1074,7 +1074,7 @@ cache keeps, `At` parses every path again, which is the case to avoid,
 and a `Get` chain does better than a compiled path there. So `MustPath`,
 `CompilePath` and their `PathExpr` were removed in v0.4.0, leaving
 `CheckPath` for checking a path. `Path` went too, as `Get` came to take
-several keys, and `PathOK` became `GetOK`.
+several keys, `PathOK` became `GetOK`, and `DeletePath` became `DeleteOK`.
 
 ### Looking without creating anything
 
@@ -1100,14 +1100,28 @@ stored value itself, as with `Get`. With one key, `s.GetOK(k)` is the
 forgiving form of `s.Exists(k)`: it creates nothing, and it doesn't panic
 when `s` turns out not to be a hash.
 
-`DeleteAt` removes what a path leads to, and returns its value, or undef if
-there was nothing there. `DeletePath` is the same with the route as `Get`
-takes it, for keys that come from data and might contain dots or brackets:
-`doc.DeletePath(section, key)` is `delete $doc->{$section}{$key}`. As with
-`HV.Delete` and `AV.Delete`, an element in the middle of an array leaves a
-hole, and deleting the last shrinks the array. Unlike Perl, which creates
-the levels on the way to what it deletes, neither creates anything, so
-deleting a path that isn't there leaves the data exactly as it was.
+`DeleteOK` and `DeleteAt` remove what a route leads to, without creating
+anything, and without panicking on data of the wrong shape: a route that
+isn't there leaves the data exactly as it was. Perl's `delete`, and
+`scalar`'s `Delete`, create the levels on the way instead.
+
+`DeleteOK` takes keys as `Get` does, each taken whole, so it suits keys
+that come from data and might contain dots or brackets:
+`doc.DeleteOK(section, key)` is `delete $doc->{$section}{$key}`. It returns
+the value it removed, and Go's comma-ok, true if there was something there
+to remove. That's more than Perl's `delete` says: both give undef when the
+value was null and when nothing was there, and `ok` tells them apart:
+
+```go
+if v, ok := doc.DeleteOK("depth", "error"); ok {
+	fmt.Println("removed", v)   // ok even if the error was null, when v is undef
+}
+```
+
+`DeleteAt` takes the route as one string, as `At` does, and returns only
+the value, or undef if there was nothing there. As with `HV.Delete` and
+`AV.Delete`, an element in the middle of an array leaves a hole, which
+isn't there to remove again, and deleting the last shrinks the array.
 
 `Find` searches with JSONPath, and creates nothing either: see
 [Finding values with JSONPath](#finding-values-with-jsonpath).
@@ -2243,9 +2257,9 @@ then dropped:
     an error instead), or a malformed template in
     `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
     that's neither a string nor a `*Template`
-  - passing something other than a string or int to `GetOK`,
-    `DeletePath`, or a scalar's `Get`, `Exists` or `Delete`, or something other than a string or function as an `S`
-    replacement
+  - passing a key that's neither a string nor an int to `Get`, `GetOK`,
+    `Exists`, `Delete` or `DeleteOK`, or something other than a string or
+    function as an `S` replacement
   - a scalar's `Exists` or `Delete` on something other than the hash (for
     a string key) or array (for an int) it refers to, or an undef that
     can create one

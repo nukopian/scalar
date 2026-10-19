@@ -240,9 +240,9 @@ func TestSVDelete(t *testing.T) {
 }
 
 // With one key, Get is HV().Get or AV().Get, and Exists and Delete are
-// the one-step forms of GetOK and DeletePath, on every kind of value and
+// the one-step forms of GetOK and DeleteOK, on every kind of value and
 // key, once Get has autovivified s as Exists and Delete would. Where s is
-// the wrong kind, Exists and Delete panic, and GetOK and DeletePath find
+// the wrong kind, Exists and Delete panic, and GetOK and DeleteOK find
 // nothing.
 func TestSVSubscriptOneStep(t *testing.T) {
 	keys := []any{"properties", "mag", "felt", "0", "nope", 0, 1, -1, -2, 2, 5, -9}
@@ -263,8 +263,8 @@ func TestSVSubscriptOneStep(t *testing.T) {
 			if s1.Ref() != map[bool]string{false: "HASH", true: "ARRAY"}[isIndex] {
 				expectPanic(t, fmt.Sprintf("%q Exists(%v)", at, k), "Not a", func() { s1.Exists(k) })
 				expectPanic(t, fmt.Sprintf("%q Delete(%v)", at, k), "Not a", func() { s1.Delete(k) })
-				if _, ok := s2.GetOK(k); ok || s2.DeletePath(k).Defined() || doc1.Dump() != doc2.Dump() {
-					t.Errorf("%q GetOK or DeletePath(%v) found something", at, k)
+				if _, ok := s2.GetOK(k); ok || second(s2.DeleteOK(k)) || doc1.Dump() != doc2.Dump() {
+					t.Errorf("%q GetOK or DeleteOK(%v) found something", at, k)
 				}
 				continue
 			}
@@ -272,8 +272,8 @@ func TestSVSubscriptOneStep(t *testing.T) {
 			if s1.Exists(k) != ok {
 				t.Errorf("%q Exists(%v) = %v, GetOK %v", at, k, !ok, ok)
 			}
-			if d := s1.Delete(k).Diff(s2.DeletePath(k)); d != "" || doc1.Dump() != doc2.Dump() {
-				t.Errorf("%q Delete(%v) vs DeletePath: %s\n%s\n%s", at, k, d, doc1.Dump(), doc2.Dump())
+			if d := s1.Delete(k).Diff(first(s2.DeleteOK(k))); d != "" || doc1.Dump() != doc2.Dump() {
+				t.Errorf("%q Delete(%v) vs DeleteOK: %s\n%s\n%s", at, k, d, doc1.Dump(), doc2.Dump())
 			}
 		}
 	}

@@ -920,21 +920,26 @@ fmt.Println(scalar.Array("10", 9, "2.5").Sort(scalar.NumCmp).Join(" ")) // sort 
 2.5 9 10
 ```
 
-#### `SV.DeletePath`
+#### `SV.DeleteOK`
 
-DeletePath is DeleteAt with the route as Get takes it: keys taken whole, dots and all, so it suits keys that come from data, as delete \$s->{\$section}{\$key} does in Perl.
+DeleteOK is Delete for data you aren't sure of, with Go's comma-ok: it removes the last key or element as Delete does, and returns its value, with ok true if there was something there to remove, even if its value was undef.
 
 ```go
-doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
-fmt.Println(doc.DeletePath("depth", "error")) // delete $doc->{depth}{error}
-fmt.Println(doc.DeletePath("v1.2", "note"))   // keys are taken whole, dots and all
-fmt.Println(doc.At("depth").HV().KeysSlice(), doc.DeletePath("depth", "type").Defined())
+doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2, "error": null}, "mag": 4.6, "v1.2": {"note": "x"}}`))
+v, ok := doc.DeleteOK("depth", "error") // delete $doc->{depth}{error}
+fmt.Println(v.Defined(), ok)            // the value was null, but something was removed
+_, ok = doc.DeleteOK("depth", "type")   // nothing there to remove
+fmt.Println(ok)
+_, ok = doc.DeleteOK("mag", "type") // the wrong shape: no panic, and nothing changes
+fmt.Println(ok, doc.Get("mag"))
+fmt.Println(doc.DeleteOK("v1.2", "note")) // keys are taken whole, dots and all
 ```
 
 ```
-2
-x
-[km] false
+false true
+false
+false 4.6
+x true
 ```
 
 #### `SV.Undef`
@@ -2361,21 +2366,23 @@ fmt.Println(v, ok, missing)
 7 true false
 ```
 
-#### `AV.DeletePath`
+#### `AV.DeleteOK`
 
-DeletePath is `SV.DeletePath`, starting at a.
+DeleteOK is `SV.DeleteOK`, starting at a.
 
 ```go
-rows, _ := scalar.FromJSON([]byte(`[{"id":1,"tmp":"x"},{"id":2,"tmp":"y"}]`))
+rows, _ := scalar.FromJSON([]byte(`[{"id": "ci40123456", "tmp": 1}, {"id": "nc75012345"}, "a stray string"]`))
 a := rows.AV()
 for i := range a.Length() {
-	a.DeletePath(i, "tmp") // delete $a[$i]{tmp}
+	_, ok := a.DeleteOK(i, "tmp") // delete $a[$i]{tmp}, if it's there
+	fmt.Println(i, ok)
 }
-fmt.Println(a.At("[0]").HV().KeysSlice(), a.At("[1]").HV().KeysSlice())
 ```
 
 ```
-[id] [id]
+0 true
+1 false
+2 false
 ```
 
 #### `AV.Undef`
@@ -2893,18 +2900,20 @@ fmt.Println(v, ok, past)
 go true false
 ```
 
-#### `HV.DeletePath`
+#### `HV.DeleteOK`
 
-DeletePath is `SV.DeletePath`, starting at h.
+DeleteOK is `SV.DeleteOK`, starting at h.
 
 ```go
 section, key := "depth", "error" // from data
-h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8, "error", 2)))
-fmt.Println(h.DeletePath(section, key)) // delete $h{$section}{$key}
+h := scalar.Hash("depth", scalar.Value(scalar.Hash("km", 8.2, "error", 0.4)))
+if v, ok := h.DeleteOK(section, key); ok { // delete $h{$section}{$key}
+	fmt.Println("removed", v)
+}
 ```
 
 ```
-2
+removed 0.4
 ```
 
 #### `HV.Undef`

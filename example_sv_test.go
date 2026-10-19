@@ -634,15 +634,20 @@ func ExampleNumCmp() {
 	// 2.5 9 10
 }
 
-func ExampleSV_DeletePath() {
-	doc, _ := scalar.FromJSON([]byte(`{"depth":{"km":8,"error":2},"v1.2":{"note":"x"}}`))
-	fmt.Println(doc.DeletePath("depth", "error")) // delete $doc->{depth}{error}
-	fmt.Println(doc.DeletePath("v1.2", "note"))   // keys are taken whole, dots and all
-	fmt.Println(doc.At("depth").HV().KeysSlice(), doc.DeletePath("depth", "type").Defined())
+func ExampleSV_DeleteOK() {
+	doc, _ := scalar.FromJSON([]byte(`{"depth": {"km": 8.2, "error": null}, "mag": 4.6, "v1.2": {"note": "x"}}`))
+	v, ok := doc.DeleteOK("depth", "error") // delete $doc->{depth}{error}
+	fmt.Println(v.Defined(), ok)            // the value was null, but something was removed
+	_, ok = doc.DeleteOK("depth", "type")   // nothing there to remove
+	fmt.Println(ok)
+	_, ok = doc.DeleteOK("mag", "type") // the wrong shape: no panic, and nothing changes
+	fmt.Println(ok, doc.Get("mag"))
+	fmt.Println(doc.DeleteOK("v1.2", "note")) // keys are taken whole, dots and all
 	// Output:
-	// 2
-	// x
-	// [km] false
+	// false true
+	// false
+	// false 4.6
+	// x true
 }
 
 func ExampleSV_Undef() {
