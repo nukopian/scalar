@@ -92,7 +92,7 @@ func (s *SV) AtOK(path string) (v *SV, ok bool) {
 	return s.peekSteps(compileAt(path))
 }
 
-// peekSteps walks steps without creating anything, for GetOK and AtOK:
+// peekSteps walks steps without creating anything, for AtOK and templates:
 // the value at the end, and whether every step exists.
 func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
 	cur := s
@@ -333,7 +333,7 @@ func isInteger(s string) bool {
 func (h *HV) At(path string) *SV { return h.ref().At(path) }
 
 // AtOK is SV.AtOK, starting at h.
-func (h *HV) AtOK(path string) (v *SV, ok bool) { return h.ref().AtOK(path) }
+func (h *HV) AtOK(path string) (v *SV, ok bool) { return h.probe().AtOK(path) }
 
 // DeleteAt is SV.DeleteAt, starting at h.
 func (h *HV) DeleteAt(path string) *SV { return h.ref().DeleteAt(path) }
@@ -342,16 +342,16 @@ func (h *HV) DeleteAt(path string) *SV { return h.ref().DeleteAt(path) }
 func (h *HV) DeletePath(keys ...any) *SV { return h.ref().DeletePath(keys...) }
 
 // GetOK is SV.GetOK, starting at h.
-func (h *HV) GetOK(keys ...any) (v *SV, ok bool) { return h.ref().GetOK(keys...) }
+func (h *HV) GetOK(keys ...any) (v *SV, ok bool) { return h.probe().GetOK(keys...) }
 
 // Find is SV.Find, with $ standing for h.
-func (h *HV) Find(path string) *AV { return h.ref().Find(path) }
+func (h *HV) Find(path string) *AV { return h.probe().Find(path) }
 
 // At is SV.At, starting at a.
 func (a *AV) At(path string) *SV { return a.ref().At(path) }
 
 // AtOK is SV.AtOK, starting at a.
-func (a *AV) AtOK(path string) (v *SV, ok bool) { return a.ref().AtOK(path) }
+func (a *AV) AtOK(path string) (v *SV, ok bool) { return a.probe().AtOK(path) }
 
 // DeleteAt is SV.DeleteAt, starting at a.
 func (a *AV) DeleteAt(path string) *SV { return a.ref().DeleteAt(path) }
@@ -360,10 +360,28 @@ func (a *AV) DeleteAt(path string) *SV { return a.ref().DeleteAt(path) }
 func (a *AV) DeletePath(keys ...any) *SV { return a.ref().DeletePath(keys...) }
 
 // GetOK is SV.GetOK, starting at a.
-func (a *AV) GetOK(keys ...any) (v *SV, ok bool) { return a.ref().GetOK(keys...) }
+func (a *AV) GetOK(keys ...any) (v *SV, ok bool) { return a.probe().GetOK(keys...) }
 
 // Find is SV.Find, with $ standing for a.
-func (a *AV) Find(path string) *AV { return a.ref().Find(path) }
+func (a *AV) Find(path string) *AV { return a.probe().Find(path) }
+
+// probe is a scalar holding a reference to h, for GetOK, AtOK and Find,
+// which look without creating anything: nil for a nil h, which isn't there,
+// as for a nil scalar.
+func (h *HV) probe() *SV {
+	if h == nil {
+		return nil
+	}
+	return &SV{v: h}
+}
+
+// probe is a scalar holding a reference to a, as HV.probe is for a hash.
+func (a *AV) probe() *SV {
+	if a == nil {
+		return nil
+	}
+	return &SV{v: a}
+}
 
 // ref is a scalar holding a reference to h, for walking a path from it.
 // For a nil h, it's a scalar that can't be created, so reading through it is

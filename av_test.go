@@ -51,7 +51,7 @@ func TestWritesThroughNonReferences(t *testing.T) {
 	expectPanic(t, "Push on a string", "Not an ARRAY reference", func() { s.AV().Push(1) })
 	expectPanic(t, "hash element of a string", "Not a HASH reference", func() { s.HV().Get("k").Set(1) })
 	expectPanic(t, "HV.Set on a string", "Not a HASH reference", func() { s.HV().Set("k", 1) })
-	expectPanic(t, "write via Path", "Not a HASH reference", func() { s.Get("k").Set(1) })
+	expectPanic(t, "write via Get", "Not a HASH reference", func() { s.Get("k").Set(1) })
 	if s.Str() != "str" {
 		t.Errorf("s changed to %q", s)
 	}

@@ -869,8 +869,9 @@ Perl. There are two ways to reach into nested data, and which to use
 depends on how sure you are of its shape:
 
 - **As Perl does.** `Get`, `Exists` and `Delete` take one key or a
-  whole route of them, and `At` a route as one string. They create what they go through, as Perl does,
-  and panic where Perl dies. Use them as you'd write the Perl.
+  whole route of them, and `At` a route as one string. They create what
+  they go through, as Perl does, and panic where Perl dies. Use them as
+  you'd write the Perl.
 - **Looking without creating anything.** `GetOK` and `AtOK` read,
   `DeletePath` and `DeleteAt` delete, and `Find` searches. They never
   create anything, and data of the wrong shape just means there's nothing
@@ -896,15 +897,16 @@ call, `s.Get("a", 0, "b")`, or a step at a time,
 A scalar holding a reference takes subscripts itself, with `Get`,
 `Exists` and `Delete`: a string is a hash key and an int an array index,
 as `{...}` and `[...]` are in Perl. As Perl needs no arrow between
-subscripts, nothing goes between the steps:
+subscripts, the keys simply follow one another:
 
 ```go
-s.Get("properties").Get("place")           // $s->{properties}{place}
-s.Get("stations").Get(-1)                  // $s->{stations}[-1]
-s.Get("stations").Get(0).Get("code")       // $s->{stations}[0]{code}
-s.Get("properties").Get("felt").Set(1204)  // $s->{properties}{felt} = 1204
-s.Get("properties").Exists("felt")         // exists $s->{properties}{felt}
-s.Get("properties").Delete("felt")         // delete $s->{properties}{felt}
+s.Get("properties", "place")           // $s->{properties}{place}
+s.Get("stations", -1)                  // $s->{stations}[-1]
+s.Get("stations", 0, "code")           // $s->{stations}[0]{code}
+s.Get("properties", "felt").Set(1204)  // $s->{properties}{felt} = 1204
+s.Exists("properties", "felt")         // exists $s->{properties}{felt}
+s.Delete("properties", "felt")         // delete $s->{properties}{felt}
+s.Get("properties").Get("place")       // a step at a time: the same as the first
 ```
 
 Arrays, hashes and scalars share four operations on one element:
@@ -938,7 +940,7 @@ structures in one line:
 
 ```go
 var s scalar.SV
-s.Get("x").Get("y").Get(2).Get("z").Set(1)  // $s->{x}{y}[2]{z} = 1
+s.Get("x", "y", 2, "z").Set(1)  // $s->{x}{y}[2]{z} = 1
 ```
 
 The rules are the same as Perl's:
@@ -946,19 +948,20 @@ The rules are the same as Perl's:
 - Reading a missing key or index gives undef and doesn't create anything.
 - Writing to it creates it.
 - Going *through* a missing key creates it, even if you are only reading.
-  `s.Get("a").Get("b")` creates `$s->{a}` but not `$s->{a}{b}`.
+  `s.Get("a", "b")` creates `$s->{a}` but not `$s->{a}{b}`.
 
 `Exists` and `Delete` autovivify as Perl's `exists` and `delete` do: an
 undef `s` becomes the hash or array they look in, and
-`s.Get("a").Exists("b")` creates `$s->{a}`, though never `$s->{a}{b}`.
+`s.Exists("a", "b")` creates `$s->{a}`, though never `$s->{a}{b}`.
 Where `s` is something else, such as a number, or a hash given an index,
 Perl dies and they panic. To look or delete without either, see
 [Looking without creating anything](#looking-without-creating-anything).
 
 Reading a missing key does cost something: it gives a new undef scalar,
 ready to create the key if you write to it. To ask only whether a key is
-there, as in a loop over many records, `Exists` costs nothing:
-`m.Exists("k")` rather than `m.Get("k").Defined()`.
+there, as in a loop over many records, `Exists` and `GetOK` cost
+nothing: `m.Exists("k")` rather than `m.Get("k").Defined()`, or
+`m.GetOK("k")` on records that might not be hashes at all.
 
 `Get` with several keys walks a mix of hash keys (strings) and array
 indexes (ints) in turn, as a chain of one-key `Get`s does, and `At` takes
@@ -1022,12 +1025,12 @@ doesn't vary with `At` and add the rest with `Get`:
 
 ```go
 week := doc.At("week.ci")
-week.Get(station).Get(field)          // not doc.At(fmt.Sprintf("week.ci{%s}.%s", station, field))
+week.Get(station, field)  // not doc.At(fmt.Sprintf("week.ci{%s}.%s", station, field))
 ```
 
 **Compiled paths were measured, then dropped.** `MustPath` compiled an
-`At` path once, for `Path` (now `Get`) to take among its keys, as `qr//` is taken by a
-match. Once `At` cached its parsing, that no longer paid. On the generated
+`At` path once, for `Path` (now `Get`) to take among its keys, as `qr//`
+is taken by a match. Once `At` cached its parsing, that no longer paid. On the generated
 station table the lock benchmarks use, with an Apple M2, in ns per lookup:
 
 | Lookup | `At` | `MustPath` | `At(prefix).Get` | `Get` chain |
@@ -1091,10 +1094,10 @@ There are two things Perl refuses to create, and `scalar` refuses them too:
 For both, reading gives undef, even if you read further through them with
 `Get`, `AV()` or `HV()`. Writing panics, just as Perl dies.
 
-Strict Perl dies on some of these *reads* as well. `scalar` lets reads carry
-on, because a read that can't panic is what makes `Get` and `At` safe on messy data.
-`Exists` and `Delete` on a scalar are the exception: they say which kind of
-container they expect, so they die where Perl does.
+Strict Perl dies on some of these *reads* as well. `scalar` lets reads
+carry on, because a read that can't panic is what makes `Get` and `At`
+safe on messy data. `Exists` and `Delete` are the exception: they say
+which kind of container they expect, so they die where Perl does.
 
 ## Finding values with JSONPath
 

@@ -43,8 +43,8 @@ func TestSVGet(t *testing.T) {
 		t.Errorf(`the key "0": %q`, got)
 	}
 
-	// The element itself, not a copy: the same *SV as HV().Get and Path.
-	if doc.Get("properties") != doc.HV().Get("properties") || doc.Get("stations").Get(0) != doc.Get("stations", 0) {
+	// The element itself, not a copy: the same *SV as HV().Get and At.
+	if doc.Get("properties") != doc.HV().Get("properties") || doc.Get("stations", 0) != doc.At("stations[0]") {
 		t.Error("Get should give the stored element")
 	}
 	doc.Get("properties").Get("mag").Set(4.7)
@@ -79,7 +79,7 @@ func TestSVGet(t *testing.T) {
 	expectPanic(t, "write through a hash by index", notArrayRef, func() { doc.Get("properties").Get(0).Set(1) })
 	expectPanic(t, "write before the start", "non-creatable", func() { doc.Get("stations").Get(-10).Set(1) })
 
-	// A nil *SV reads as undef, as Path does.
+	// A nil *SV reads as undef, as At does.
 	var nilSV *SV
 	if nilSV.Get("x").Defined() || nilSV.Get(0).Defined() {
 		t.Error("nil SV")
@@ -569,4 +569,19 @@ print $json->encode(\@out);
 		}
 	}
 	t.Logf("%d cases: %v", len(cases), counts)
+}
+
+// Asking costs no allocation when the answer is there, so GetOK, like
+// Exists, suits a loop over many records.
+func TestProbesDontAllocate(t *testing.T) {
+	doc := newSubscriptDoc(t)
+	for name, f := range map[string]func(){
+		"GetOK, one key":    func() { doc.GetOK("properties") },
+		"GetOK, three keys": func() { doc.GetOK("geometry", "coordinates", 1) },
+		"Exists":            func() { doc.Exists("properties", "mag") },
+	} {
+		if n := testing.AllocsPerRun(100, f); n != 0 {
+			t.Errorf("%s: %v allocations", name, n)
+		}
+	}
 }

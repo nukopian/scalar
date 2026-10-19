@@ -497,7 +497,19 @@ func (s *SV) Get(keys ...any) *SV {
 // anything. When ok is true, v is the stored value itself, as with Get.
 // With no keys, it's s, and ok is true unless s is nil.
 func (s *SV) GetOK(keys ...any) (v *SV, ok bool) {
-	return s.peekSteps(pathSteps("GetOK", keys))
+	for _, k := range keys {
+		subscript("GetOK", k) // a bad key panics, even after a missing step
+	}
+	if s == nil {
+		return &SV{}, false
+	}
+	cur := s
+	for _, k := range keys {
+		if cur = subscript("GetOK", k).peek(cur); cur == nil {
+			return &SV{}, false
+		}
+	}
+	return cur, true
 }
 
 // Exists is Perl's exists $s->{key} or exists $s->[i]: whether the hash or
@@ -511,6 +523,11 @@ func (s *SV) GetOK(keys ...any) (v *SV, ok bool) {
 // asked for an index, Exists panics, as Perl dies; GetOK says false
 // instead. It needs at least one key.
 func (s *SV) Exists(keys ...any) bool {
+	if len(keys) == 1 {
+		st := subscript("Exists", keys[0])
+		st.deref(s)
+		return st.peek(s) != nil
+	}
 	cur, st := s.subscripts("Exists", keys)
 	st.deref(cur)
 	return st.peek(cur) != nil
@@ -528,23 +545,33 @@ func (s *SV) Exists(keys ...any) bool {
 // else, Delete panics, as Perl dies; DeletePath deletes nothing instead.
 // It needs at least one key.
 func (s *SV) Delete(keys ...any) *SV {
+	if len(keys) == 1 {
+		st := subscript("Delete", keys[0])
+		st.deref(s)
+		return s.deleteSteps([]atStep{st})
+	}
 	cur, st := s.subscripts("Delete", keys)
 	st.deref(cur)
 	return cur.deleteSteps([]atStep{st})
 }
 
-// subscripts checks keys for Exists and Delete, whose name method is,
-// walks all but the last as Get does, and returns where that leads and the
-// last key as a step.
+// subscripts checks keys for Exists and Delete with more than one key,
+// whose name method is, walks all but the last as Get does, and returns
+// where that leads and the last key as a step. One key takes a direct path
+// in each, which is the usual case.
 func (s *SV) subscripts(method string, keys []any) (*SV, atStep) {
 	if len(keys) == 0 {
 		panic("scalar: " + method + " needs a key")
 	}
 	for _, k := range keys {
-		subscript(method, k)
+		subscript(method, k) // check every key before taking a step
 	}
 	last := len(keys) - 1
-	return s.Get(keys[:last]...), subscript(method, keys[last])
+	cur := s
+	for _, k := range keys[:last] {
+		cur = subscript(method, k).walk(cur)
+	}
+	return cur, subscript(method, keys[last])
 }
 
 // deref autovivifies an undef s into the hash or array that st looks in, as
@@ -578,7 +605,7 @@ func subscript(method string, key any) atStep {
 }
 
 // pathSteps turns keys, as Get takes them, into the steps At takes, for
-// GetOK and DeletePath, whose name method is.
+// DeletePath, whose name method is.
 func pathSteps(method string, keys []any) []atStep {
 	steps := make([]atStep, len(keys))
 	for i, k := range keys {

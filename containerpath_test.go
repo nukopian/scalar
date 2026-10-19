@@ -87,7 +87,7 @@ func TestContainerPathsNil(t *testing.T) {
 		t.Error("nil AtOK")
 	}
 	if _, ok := a.GetOK(0); ok {
-		t.Error("nil PathOK")
+		t.Error("nil GetOK")
 	}
 	if h.DeleteAt("a").Defined() || a.DeleteAt("[0]").Defined() {
 		t.Error("nil DeleteAt")
@@ -199,3 +199,33 @@ func TestDeletePath(t *testing.T) {
 	}
 	expectPanic(t, "bad key", "Path key must be", func() { doc.DeletePath(1.5) })
 }
+
+// A nil hash or array isn't there, so the probes say so, as they do for a
+// nil scalar: GetOK and AtOK with no steps are false, and Find matches
+// nothing.
+func TestContainerProbesNil(t *testing.T) {
+	var nh *HV
+	var na *AV
+	for name, ok := range map[string]bool{
+		"HV.GetOK()":   second(nh.GetOK()),
+		"AV.GetOK()":   second(na.GetOK()),
+		`HV.AtOK("")`:  second(nh.AtOK("")),
+		`AV.AtOK("$")`: second(na.AtOK("$")),
+	} {
+		if ok {
+			t.Errorf("%s on nil: ok is true", name)
+		}
+	}
+	if m := nh.Find("$"); m != nil {
+		t.Errorf("nil HV.Find($) = %s", m.Dump())
+	}
+	if m := na.Find("$"); m != nil {
+		t.Errorf("nil AV.Find($) = %s", m.Dump())
+	}
+	// A hash or array that's there is found, as before.
+	if !second(Hash().GetOK()) || !second(Array().AtOK("")) || Hash().Find("$").Length() != 1 {
+		t.Error("an empty hash or array is still there")
+	}
+}
+
+func second(_ *SV, ok bool) bool { return ok }

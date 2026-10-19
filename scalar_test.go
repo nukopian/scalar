@@ -791,15 +791,15 @@ func TestGetOK(t *testing.T) {
 			got = v.Ref()
 		}
 		if got != tt.want || v.Defined() != tt.defined || ok != tt.ok {
-			t.Errorf("%s: PathOK = (%q, defined %v, %v), want (%q, %v, %v)", tt.name, got, v.Defined(), ok, tt.want, tt.defined, tt.ok)
+			t.Errorf("%s: GetOK = (%q, defined %v, %v), want (%q, %v, %v)", tt.name, got, v.Defined(), ok, tt.want, tt.defined, tt.ok)
 		}
 	}
 
-	// It never creates anything, unlike Path.
+	// It never creates anything, unlike Get.
 	h := Value(Hash())
 	h.GetOK("a", "b", 0)
 	if h.HV().Length() != 0 {
-		t.Error("PathOK shouldn't autovivify")
+		t.Error("GetOK shouldn't autovivify")
 	}
 
 	// Holes don't exist.
@@ -813,7 +813,7 @@ func TestGetOK(t *testing.T) {
 	v, _ := doc.GetOK("usage", "output_tokens")
 	v.Inc()
 	if doc.Get("usage", "output_tokens").Int() != 13 {
-		t.Error("PathOK should return the stored value")
+		t.Error("GetOK should return the stored value")
 	}
 
 	var nilSV *SV

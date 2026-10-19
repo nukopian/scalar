@@ -45,7 +45,7 @@ func TestAt(t *testing.T) {
 		"meta.missing.deeper[0].x": "",
 	} {
 		// A fresh document each time: reading through a missing step
-		// autovivifies it, as Path and Perl do, which would change the
+		// autovivifies it, as Get and Perl do, which would change the
 		// others' answers.
 		if got := atDoc(t).At(path).Str(); got != want {
 			t.Errorf("At(%q) = %q, want %q", path, got, want)
@@ -54,7 +54,7 @@ func TestAt(t *testing.T) {
 	// That autovivification, shown: content[9] now exists, as a hash.
 	doc.At("content[9].rule_set")
 	if doc.At("content").AV().Length() != 10 || doc.At("content[9]").Ref() != "HASH" {
-		t.Error("reading through content[9] should create it, as Path does")
+		t.Error("reading through content[9] should create it, as Get does")
 	}
 	if doc.At("") != doc || doc.At("$") != doc {
 		t.Error("an empty path, or $ alone, is the scalar itself")
