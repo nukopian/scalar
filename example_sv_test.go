@@ -619,30 +619,14 @@ func ExampleSV_DeleteAt() {
 	// }
 }
 
-func ExampleMustPath() {
-	rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
-	doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
-	fmt.Println(doc.Path(rule, "name"))   // a compiled path, then more keys
-	fmt.Println(doc.Path(rule, "ids", 1)) // ...{ids}[1]
-	_, ok := doc.PathOK(rule, "missing")
-	fmt.Println(ok)
+func ExampleCheckPath() {
+	fmt.Println(scalar.CheckPath("properties.mag"))    // a path from outside the program: check it
+	fmt.Println(scalar.CheckPath("properties..mag"))   // At would panic on this
+	fmt.Println(scalar.CheckPath(`properties["mag"]`)) // quoted keys are fine
 	// Output:
-	// A
-	// 8
-	// false
-}
-
-func ExampleCompilePath() {
-	p, err := scalar.CompilePath("content..rule_set") // a path from outside the program: check it
-	fmt.Println(p == nil, err)
-	// Output:
-	// true scalar: bad path "content..rule_set" at offset 8: expected a name
-}
-
-func ExamplePathExpr_String() {
-	fmt.Println(scalar.MustPath(`meta["log.level"]`))
-	// Output:
-	// meta["log.level"]
+	// <nil>
+	// scalar: bad path "properties..mag" at offset 11: expected a name
+	// <nil>
 }
 
 func ExampleStrCmp() {

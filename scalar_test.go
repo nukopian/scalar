@@ -820,7 +820,7 @@ func TestPathOK(t *testing.T) {
 	if v, ok := nilSV.PathOK(); ok || v == nil {
 		t.Error("nil *SV: not ok, but a usable undef")
 	}
-	expectPanic(t, "bad key type", "Path key must be a string, an int or a *PathExpr", func() { doc.PathOK(1.5) })
+	expectPanic(t, "bad key type", "Path key must be a string or an int", func() { doc.PathOK(1.5) })
 }
 
 func TestHashFlattening(t *testing.T) {

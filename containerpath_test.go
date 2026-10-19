@@ -187,8 +187,8 @@ func TestDeletePath(t *testing.T) {
 	if got := doc.DeletePath("list", -1, "k"); got.Str() != "w" || doc.At("list[1]").HV().Exists("k") {
 		t.Errorf("index: %v", got)
 	}
-	if got := doc.DeletePath(MustPath("a.b"), "c"); got.Int() != 2 {
-		t.Errorf("compiled path: %v", got)
+	if got := doc.DeletePath("a", "b", "c"); got.Int() != 2 {
+		t.Errorf("undotted path: %v", got)
 	}
 	before := doc.Dump()
 	if doc.DeletePath("nope", "deeper", 0).Defined() || doc.DeletePath("list", 0, 5).Defined() || doc.Dump() != before {

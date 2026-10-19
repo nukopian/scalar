@@ -89,7 +89,22 @@ func (st atStep) peek(cur *SV) *SV {
 // gives ok true. Like PathOK, it never creates anything, and when ok is true,
 // v is the stored value itself.
 func (s *SV) AtOK(path string) (v *SV, ok bool) {
-	return s.PathOK(&PathExpr{steps: compileAt(path)})
+	return s.peekSteps(compileAt(path))
+}
+
+// peekSteps walks steps without creating anything, for PathOK and AtOK:
+// the value at the end, and whether every step exists.
+func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
+	cur := s
+	if cur == nil {
+		return &SV{}, false
+	}
+	for _, st := range steps {
+		if cur = st.peek(cur); cur == nil {
+			return &SV{}, false
+		}
+	}
+	return cur, true
 }
 
 // DeleteAt is Perl's delete $s->{content}[0]{rule_set}, with the route
@@ -140,37 +155,13 @@ func (s *SV) deleteSteps(steps []atStep) *SV {
 	return &SV{}
 }
 
-// PathExpr is a compiled At path, like a compiled regex: Path and PathOK
-// accept one among their keys, so a path used often is parsed once, and a
-// fixed prefix can be combined with keys that vary:
-//
-//	rule := scalar.MustPath("content[0].rule_set")
-//	s.Path(rule)                // s.At("content[0].rule_set")
-//	s.Path(rule, "name", 2)     // ...{name}[2]
-type PathExpr struct {
-	src   string
-	steps []atStep
+// CheckPath returns an error if path is malformed, and nil if At, AtOK and
+// DeleteAt can take it, for paths that come from outside the program, which
+// would otherwise panic as a bad regex does.
+func CheckPath(path string) error {
+	_, err := parseAt(path)
+	return err
 }
-
-// CompilePath compiles an At path, or returns an error if it's malformed,
-// for paths that come from outside the program.
-func CompilePath(path string) (*PathExpr, error) {
-	steps, err := parseAt(path)
-	if err != nil {
-		return nil, err
-	}
-	return &PathExpr{src: path, steps: steps}, nil
-}
-
-// MustPath is CompilePath, panicking if the path is malformed. Use it for
-// paths in the program, in package-level variables, so that a bad one fails
-// as soon as the program starts.
-func MustPath(path string) *PathExpr {
-	return &PathExpr{src: path, steps: compileAt(path)}
-}
-
-// String returns the path as written.
-func (p *PathExpr) String() string { return p.src }
 
 var atCache = boundedCache[string, []atStep]{limit: cacheLimit}
 

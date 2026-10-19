@@ -996,19 +996,37 @@ the data exactly as it was.
 `Path` itself never splits strings: `doc.Path("log.level")` is the single
 key `log.level`, as it should be, since real keys contain dots.
 
-For a path used often, or one built from parts, compile it once with
-`scalar.MustPath`, and pass it to `Path` or `PathOK` like any key, as
-`qr//` is passed to a match:
+A path that comes from outside the program, such as a config file or a
+flag, can be checked first: `scalar.CheckPath(path)` returns the error
+`At` would panic with, or nil.
+
+`At` parses each path once and keeps it, for up to 4,096 different paths,
+so a path written in the program costs nothing to parse after its first
+use. A route built from data, such as one for each station, is better
+built with `Get` than formatted into a string for `At`. Fix the part that
+doesn't vary with `At` and add the rest with `Get`:
 
 ```go
-var rule = scalar.MustPath("content[0].rule_set")
-
-doc.Path(rule)              // doc.At("content[0].rule_set")
-doc.Path(rule, "name", 2)   // ...{name}[2]
+week := doc.At("week.ci")
+week.Get(station).Get(field)          // not doc.At(fmt.Sprintf("week.ci{%s}.%s", station, field))
 ```
 
-`scalar.CompilePath` does the same but returns an error instead of
-panicking, for paths that come from outside the program.
+**Compiled paths were measured, then dropped.** `MustPath` compiled an
+`At` path once, for `Path` to take among its keys, as `qr//` is taken by a
+match. Once `At` cached its parsing, that no longer paid. On the generated
+station table the lock benchmarks use, with an Apple M2, in ns per lookup:
+
+| Lookup | `At` | `MustPath` | `At(prefix).Get` | `Get` chain |
+|---|---|---|---|---|
+| One path, again and again | 79 | 67 | | 79 |
+| 1,000 routes built from data | 116 | 127 | 123 | 101 |
+| About 6,600 routes, more than `At` keeps | 435 | 126 | 121 | 101 |
+
+The 12 ns on one path was within the spread of the runs. Past what the
+cache keeps, `At` parses every path again, which is the case to avoid,
+and a `Get` chain does better than a compiled path there. So `MustPath`,
+`CompilePath` and their `PathExpr` were removed in v0.4.0, leaving
+`CheckPath` for checking a path.
 
 ### Missing or null?
 
@@ -2154,13 +2172,12 @@ then dropped:
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float
   - a malformed dump in `MustFromDump` (use `FromDump` to get an error)
-  - a malformed path in `At`, `AtOK`, `DeleteAt` or `MustPath` (use
-    `CompilePath` to get an error instead), or a malformed template in
+  - a malformed path in `At`, `AtOK` or `DeleteAt` (use `CheckPath` to get
+    an error instead), or a malformed template in
     `Interpolate` or `MustTemplate` (use `CompileTemplate`), or a template
     that's neither a string nor a `*Template`
-  - passing something other than a string, int or `*PathExpr` to `Path`,
-    something other than a string or int to a scalar's `Get`, `Exists` or
-    `Delete`, or something other than a string or function as an `S`
+  - passing something other than a string or int to `Path`, `PathOK`,
+    `DeletePath`, or a scalar's `Get`, `Exists` or `Delete`, or something other than a string or function as an `S`
     replacement
   - a scalar's `Exists` or `Delete` on something other than the hash (for
     a string key) or array (for an int) it refers to, or an undef that

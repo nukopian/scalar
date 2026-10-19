@@ -121,32 +121,15 @@ func TestAtErrors(t *testing.T) {
 		".a":      "expected a name",
 	} {
 		expectPanic(t, path, want, func() { Value(nil).At(path) })
-		if _, err := CompilePath(path); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("CompilePath(%q) error = %v, want it to contain %q", path, err, want)
+		if err := CheckPath(path); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("CheckPath(%q) error = %v, want it to contain %q", path, err, want)
 		}
 	}
-}
-
-func TestPathExpr(t *testing.T) {
-	doc := atDoc(t)
-	first := MustPath("content[0]")
-	if got := doc.Path(first, "tags", 1).Str(); got != "y" {
-		t.Errorf("Path(compiled, more keys) = %q", got)
+	for _, path := range []string{"", "$", "content[0].rule_set", "{content}[0]{rule_set}", `meta["log.level"]`, "items[-1].name", "meta.0"} {
+		if err := CheckPath(path); err != nil {
+			t.Errorf("CheckPath(%q) = %v", path, err)
+		}
 	}
-	if v, ok := doc.PathOK(first, "rule_set"); !ok || v.Str() != "A" {
-		t.Error("PathOK with a compiled path")
-	}
-	if _, ok := doc.PathOK(first, "missing"); ok {
-		t.Error("PathOK with a compiled path, then a missing key")
-	}
-	if first.String() != "content[0]" {
-		t.Errorf("String = %q", first.String())
-	}
-	p, err := CompilePath("meta.0")
-	if err != nil || doc.Path(p).Str() != "zero" {
-		t.Errorf("CompilePath: %v", err)
-	}
-	expectPanic(t, "MustPath on a bad path", "bad path", func() { MustPath("a..b") })
 }
 
 func TestDeleteAt(t *testing.T) {

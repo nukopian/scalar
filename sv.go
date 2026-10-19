@@ -539,8 +539,7 @@ func badSubscript(method string, key any) string {
 // Path walks a chain of hash keys (string) and array indices (int), so
 // s.Path("content", 0, "text") is $s->{content}[0]{text}, as is
 // s.Get("content").Get(0).Get("text"). Intermediate levels autovivify, as
-// they do in Perl; the final element does not. A key may also be a compiled
-// path (see MustPath), whose steps are taken in turn.
+// they do in Perl; the final element does not. Any other type of key panics.
 func (s *SV) Path(keys ...any) *SV {
 	cur := s
 	for _, k := range keys {
@@ -549,12 +548,8 @@ func (s *SV) Path(keys ...any) *SV {
 			cur = cur.HV().Get(k)
 		case int:
 			cur = cur.AV().Get(k)
-		case *PathExpr:
-			for _, st := range k.steps {
-				cur = st.walk(cur)
-			}
 		default:
-			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
+			panic(fmt.Sprintf("scalar: Path key must be a string or an int, got %T", k))
 		}
 	}
 	return cur
@@ -566,20 +561,11 @@ func (s *SV) Path(keys ...any) *SV {
 // gives ok false and an undef scalar. Unlike Path, it never creates
 // anything. When ok is true, v is the stored value itself, as with Path.
 func (s *SV) PathOK(keys ...any) (v *SV, ok bool) {
-	cur := s
-	if cur == nil {
-		return &SV{}, false
-	}
-	for _, st := range pathSteps(keys) {
-		if cur = st.peek(cur); cur == nil {
-			return &SV{}, false
-		}
-	}
-	return cur, true
+	return s.peekSteps(pathSteps(keys))
 }
 
 // pathSteps turns Path's keys into the steps At takes: a string is a hash
-// key, taken whole, an int an array index, and a *PathExpr its own steps.
+// key, taken whole, and an int an array index.
 func pathSteps(keys []any) []atStep {
 	var steps []atStep
 	for _, k := range keys {
@@ -588,10 +574,8 @@ func pathSteps(keys []any) []atStep {
 			steps = append(steps, atStep{kind: stepKey, key: k})
 		case int:
 			steps = append(steps, atStep{kind: stepIndex, index: k})
-		case *PathExpr:
-			steps = append(steps, k.steps...)
 		default:
-			panic(fmt.Sprintf("scalar: Path key must be a string, an int or a *PathExpr, got %T", k))
+			panic(fmt.Sprintf("scalar: Path key must be a string or an int, got %T", k))
 		}
 	}
 	return steps

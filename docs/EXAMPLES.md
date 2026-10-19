@@ -893,48 +893,20 @@ GSC
 }
 ```
 
-#### `MustPath`
+#### `CheckPath`
 
-MustPath is CompilePath, panicking if the path is malformed.
-
-```go
-rule := scalar.MustPath("content[0].rule_set") // parsed once, like a compiled regex
-doc, _ := scalar.FromJSON([]byte(`{"content": [{"rule_set": {"name": "A", "ids": [7, 8]}}]}`))
-fmt.Println(doc.Path(rule, "name"))   // a compiled path, then more keys
-fmt.Println(doc.Path(rule, "ids", 1)) // ...{ids}[1]
-_, ok := doc.PathOK(rule, "missing")
-fmt.Println(ok)
-```
-
-```
-A
-8
-false
-```
-
-#### `CompilePath`
-
-CompilePath compiles an At path, or returns an error if it's malformed, for paths that come from outside the program.
+CheckPath returns an error if path is malformed, and nil if At, AtOK and DeleteAt can take it, for paths that come from outside the program, which would otherwise panic as a bad regex does.
 
 ```go
-p, err := scalar.CompilePath("content..rule_set") // a path from outside the program: check it
-fmt.Println(p == nil, err)
+fmt.Println(scalar.CheckPath("properties.mag"))    // a path from outside the program: check it
+fmt.Println(scalar.CheckPath("properties..mag"))   // At would panic on this
+fmt.Println(scalar.CheckPath(`properties["mag"]`)) // quoted keys are fine
 ```
 
 ```
-true scalar: bad path "content..rule_set" at offset 8: expected a name
-```
-
-#### `PathExpr.String`
-
-String returns the path as written.
-
-```go
-fmt.Println(scalar.MustPath(`meta["log.level"]`))
-```
-
-```
-meta["log.level"]
+<nil>
+scalar: bad path "properties..mag" at offset 11: expected a name
+<nil>
 ```
 
 #### `StrCmp`

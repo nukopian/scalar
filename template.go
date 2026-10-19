@@ -115,7 +115,7 @@ func (t *Template) fill(s *SV) string {
 			b.WriteString(p.text)
 			continue
 		}
-		v, ok := s.PathOK(&PathExpr{steps: p.steps})
+		v, ok := s.peekSteps(p.steps)
 		if !ok {
 			continue // missing: ""
 		}

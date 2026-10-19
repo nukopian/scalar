@@ -93,7 +93,7 @@ func TestSVGet(t *testing.T) {
 	}
 	expectPanic(t, "locked hash", "disallowed key 'depth'", func() { locked.Get("depth") })
 
-	for _, key := range []any{4.5, int64(1), nil, []string{"a"}, MustPath("a")} {
+	for _, key := range []any{4.5, int64(1), nil, []string{"a"}, struct{}{}} {
 		expectPanic(t, fmt.Sprintf("Get(%T)", key), fmt.Sprintf("Get key must be a string or an int, got %T", key), func() { doc.Get(key) })
 	}
 }
