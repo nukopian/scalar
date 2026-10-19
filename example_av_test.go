@@ -369,6 +369,18 @@ func ExampleAV_At() {
 	// 3 Alan
 }
 
+func ExampleAV_Find() {
+	quakes, _ := scalar.FromJSON([]byte(`[
+		{"place": "12 km SSW of Ridgecrest, CA", "mag": 4.6},
+		{"place": "5 km N of Parkfield, CA", "mag": 2.1},
+		{"place": "8 km E of Anza, CA", "mag": 3.8}
+	]`))
+	big := quakes.AV().Find("$[?@.mag >= 3].place") // $ is the array itself
+	fmt.Println(big.Join("; "))
+	// Output:
+	// 12 km SSW of Ridgecrest, CA; 8 km E of Anza, CA
+}
+
 func ExampleAV_AtOK() {
 	a := scalar.Array(1, nil)
 	_, ok := a.AtOK("[1]") // exists, though undef

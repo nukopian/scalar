@@ -1116,6 +1116,9 @@ doc.Find("$['mag-type']")         // keys that aren't plain words need brackets
 | `[0,2]`, `['a','b']` | several at once |
 | `[?@.price < 10]` | the elements (or a hash's values) the filter is true for; see below |
 
+Arrays and hashes have `Find` too, with `$` standing for the array or
+hash itself, so `h.Find("$.ci[*]")` needs no scalar around `h`.
+
 Each match is a scalar. Strings, numbers, booleans and nulls come back as plain
 values. Objects and arrays come back as references, so you can continue from
 them with `HV()`, `AV()`, `Path` or `Find`.

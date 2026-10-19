@@ -347,6 +347,9 @@ func (h *HV) Path(keys ...any) *SV { return h.ref().Path(keys...) }
 // PathOK is SV.PathOK, starting at h.
 func (h *HV) PathOK(keys ...any) (v *SV, ok bool) { return h.ref().PathOK(keys...) }
 
+// Find is SV.Find, with $ standing for h.
+func (h *HV) Find(path string) *AV { return h.ref().Find(path) }
+
 // At is SV.At, starting at a.
 func (a *AV) At(path string) *SV { return a.ref().At(path) }
 
@@ -364,6 +367,9 @@ func (a *AV) Path(keys ...any) *SV { return a.ref().Path(keys...) }
 
 // PathOK is SV.PathOK, starting at a.
 func (a *AV) PathOK(keys ...any) (v *SV, ok bool) { return a.ref().PathOK(keys...) }
+
+// Find is SV.Find, with $ standing for a.
+func (a *AV) Find(path string) *AV { return a.ref().Find(path) }
 
 // ref is a scalar holding a reference to h, for walking a path from it.
 // For a nil h, it's a scalar that can't be created, so reading through it is

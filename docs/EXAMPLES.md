@@ -2301,6 +2301,24 @@ Grace
 3 Alan
 ```
 
+#### `AV.Find`
+
+Find is `SV.Find`, with \$ standing for a.
+
+```go
+quakes, _ := scalar.FromJSON([]byte(`[
+	{"place": "12 km SSW of Ridgecrest, CA", "mag": 4.6},
+	{"place": "5 km N of Parkfield, CA", "mag": 2.1},
+	{"place": "8 km E of Anza, CA", "mag": 3.8}
+]`))
+big := quakes.AV().Find("$[?@.mag >= 3].place") // $ is the array itself
+fmt.Println(big.Join("; "))
+```
+
+```
+12 km SSW of Ridgecrest, CA; 8 km E of Anza, CA
+```
+
 #### `AV.AtOK`
 
 AtOK is `SV.AtOK`, starting at a.
@@ -2814,6 +2832,22 @@ fmt.Println(tallies.At("ci.reviewed"), tallies.At("ci.automatic"), tallies.At("u
 
 ```
 2 1 0
+```
+
+#### `HV.Find`
+
+Find is `SV.Find`, with \$ standing for h.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"ci": ["PAS", "GSC"], "nc": ["MCB"]}`))
+networks := doc.HV()
+fmt.Println(networks.Find("$.*[*]").Length()) // every station, in any network
+fmt.Println(networks.Find("$.ci[-1]").Get(0)) // $ is the hash itself
+```
+
+```
+3
+GSC
 ```
 
 #### `HV.AtOK`

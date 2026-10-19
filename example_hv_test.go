@@ -243,6 +243,16 @@ func ExampleHV_At() {
 	// 2 1 0
 }
 
+func ExampleHV_Find() {
+	doc, _ := scalar.FromJSON([]byte(`{"ci": ["PAS", "GSC"], "nc": ["MCB"]}`))
+	networks := doc.HV()
+	fmt.Println(networks.Find("$.*[*]").Length()) // every station, in any network
+	fmt.Println(networks.Find("$.ci[-1]").Get(0)) // $ is the hash itself
+	// Output:
+	// 3
+	// GSC
+}
+
 func ExampleHV_AtOK() {
 	h := scalar.Hash("depth", scalar.Value(scalar.Hash("error", nil)))
 	_, ok := h.AtOK("depth.error") // exists, though undef

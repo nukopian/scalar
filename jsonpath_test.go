@@ -251,3 +251,34 @@ func TestFindErrors(t *testing.T) {
 		expectPanic(t, path, want, func() { doc.Find(path) })
 	}
 }
+
+// AV.Find and HV.Find are SV.Find on a scalar holding a reference to them.
+func TestContainerFind(t *testing.T) {
+	doc, err := FromJSON([]byte(`{"ci": ["PAS", "GSC"], "nc": {"stations": ["MCB"]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, a := doc.HV(), doc.At("ci").AV()
+	for _, path := range []string{"$", "$.ci[*]", "$..*", "$.nope", "$[0]"} {
+		if d := Value(h.Find(path)).Diff(Value(doc.Find(path))); d != "" {
+			t.Errorf("HV.Find(%q): %s", path, d)
+		}
+	}
+	for _, path := range []string{"$", "$[*]", "$[-1]", "$[?@ == 'GSC']", "$.x"} {
+		if d := Value(a.Find(path)).Diff(Value(doc.At("ci").Find(path))); d != "" {
+			t.Errorf("AV.Find(%q): %s", path, d)
+		}
+	}
+	// The matches are the stored values: changing one changes the hash.
+	h.Find("$.ci[0]").Get(0).Set("PASA")
+	if got := doc.At("ci[0]").Str(); got != "PASA" {
+		t.Errorf("writing through a match: %q", got)
+	}
+	// A nil array or hash matches nothing beneath it, as an undef scalar does.
+	var nh *HV
+	var na *AV
+	if nh.Find("$.x") != nil || na.Find("$[0]") != nil {
+		t.Error("nil container")
+	}
+	expectPanic(t, "a malformed path", "", func() { h.Find("$[") })
+}
