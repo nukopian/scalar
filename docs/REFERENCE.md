@@ -918,7 +918,7 @@ Reading through creates, as in Perl:
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"properties": {"mag": 4.6}}`))
-doc.Get("origin", "depth")             // undef, but doc now has "origin": {}
+doc.Get("origin", "depth")                 // undef, but doc now has "origin": {}
 _, ok := doc.GetOK("products", "shakemap") // false, and doc is unchanged
 ```
 
