@@ -96,7 +96,10 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
 (a Perl → scalar → plain Go phrasebook, whose every row
 `TestMappingMatchesPerl` runs in all three and compares) and
 `docs/PROCESS.md` (Iain's essay on how scalar and grammar were made, the
-why behind these rules; his words, so change it only when he asks).
+why behind these rules; his words, so change it only when he asks), with
+`CHANGELOG.md` (what each release changed) and `docs/MAINTAINING.md`
+(branches, releases, and the git and GitHub work done by hand) beside
+them.
 
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
@@ -145,6 +148,12 @@ and gaps found by reading them have led to real features.
   `test: ...` or `ci: ...`. Say why as well as what.
 - Claude commits and pushes changes once they're done and checked, and
   Iain reviews them. Commits are signed.
+- Work is committed and pushed to `develop`. `main` is the latest release
+  and moves only at a release, by a fast-forward to `develop`, with the
+  tag on it; it's protected, so a push to it needs CI passing. Add what
+  changed for users to `CHANGELOG.md` under Unreleased in the same
+  commit. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
+  and GitHub work done by hand.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.

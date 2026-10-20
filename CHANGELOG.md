@@ -1,0 +1,80 @@
+# Changes
+
+What changed in each release of scalar, newest first. Each release's
+entry is taken from its signed tag message. Versions follow
+[semantic versioning](https://semver.org): before v1, a breaking change
+bumps the minor version, as v0.4.0 and v0.5.0 did.
+
+Work collects under Unreleased on the `develop` branch, and becomes a
+release's entry when `main` is moved to it and tagged
+([docs/MAINTAINING.md](docs/MAINTAINING.md) has the steps).
+
+## Unreleased
+
+- Docs: [The process](docs/PROCESS.md), Iain's essay on how scalar and
+  grammar were made, linked from the README and CLAUDE.md.
+- CI scans the whole history for secrets with gitleaks on every push.
+- The repository is public, from 2026-10-20.
+
+## v0.5.1 (2026-10-19)
+
+HV.Set stores a new key without a placeholder. None of the changes is to
+the API.
+
+- HV.Set stores a new key directly, without first making the placeholder
+  and closure Get makes for a missing key: two allocations fewer per new
+  key. Behind fastPaths, compared with the general code by
+  TestSetFastPathSame. Through grammar's benchmarks, a pay parse 2%
+  faster, 8 allocations fewer.
+- Docs: "What you might assume" says plainly that a missing key or index
+  is never a panic for Exists and Delete, only a value of the wrong kind,
+  as in Perl; and the reference and phrasebook give Perl's `@{ X }` and
+  `%{ X }` as `X.AV()` and `X.HV()`.
+
+## v0.5.0 (2026-10-19)
+
+DeleteOK, the forgiving delete, says whether it removed anything.
+
+- **Breaking:** DeletePath is now DeleteOK, on scalars, hashes and arrays,
+  returning the value it removed and Go's comma-ok: ok is true if there
+  was something there to remove, even if its value was null. Like GetOK,
+  it never creates anything and never panics on the shape of the data.
+  `s.DeletePath(k1, k2)` is `v, _ := s.DeleteOK(k1, k2)`.
+- Docs: the comments in the read-through example under "What you might
+  assume" line up.
+
+## v0.4.0 (2026-10-19)
+
+Get, Exists and Delete take a route of keys. Several of the changes are
+breaking.
+
+- Get, Exists and Delete take one key or a route of them, on scalars,
+  hashes and arrays: `s.Get("content", 0, "text")` is
+  `$s->{content}[0]{text}`. Several keys are always a route, never a
+  slice; a slice is Values. A hash's first key is a string and an
+  array's an int.
+- **Breaking:** Path is gone: use Get with the same keys. PathOK is now
+  GetOK.
+- **Breaking:** MustPath, CompilePath and PathExpr are gone: At caches its
+  parsing, and a benchmark showed compiled paths no longer paid.
+  CheckPath(path) checks a path from outside the program.
+- **Breaking:** Exists and Delete on a scalar panic where Perl dies, on
+  something that isn't the hash or array the key asks for.
+- Find on arrays and hashes, as on scalars.
+- GetOK, AtOK and Find on a nil hash or array find nothing, as on a nil
+  scalar.
+- The reference presents nested access by mode, Perl's or looking
+  without creating anything, with a table of what you might assume.
+
+The commit adding more keys to AV and HV says its test covers 560 routes;
+it covers 2,628.
+
+## v0.3.0 (2026-10-19)
+
+Get, Exists and Delete on a scalar, as Perl subscripts.
+
+## v0.2.0 (2026-10-18)
+
+scalar as a project of its own: its first release as the module
+`github.com/nukopian/scalar`, with its history from 2026-10-11, when it
+began inside job-meta.

@@ -218,6 +218,10 @@ a worked example of every function and method, see the
 - [The process](docs/PROCESS.md): how `scalar` and
   [`grammar`](https://github.com/nukopian/grammar) were made, as a
   partnership with Claude in which judgement stayed with me.
+- [Changes](CHANGELOG.md): what each release changed, and what's waiting
+  for the next.
+- [Maintaining](docs/MAINTAINING.md): branches, releases, and the git and
+  GitHub work done by hand.
 
 To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
 pandoc and Prince. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
