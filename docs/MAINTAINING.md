@@ -85,15 +85,17 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in
    `## v0.5.2 (2026-10-21)`, start the entry with a sentence that sums it
-   up (it becomes the tag's title), and add an empty Unreleased above it. Commit (`docs: changes for v0.5.2`), push, and wait for CI.
+   up (it becomes the tag's title), and add an empty Unreleased above it.
+   Commit (`docs: changes for v0.5.2`), push, and wait for CI.
 
-3. **Write the tag message from the entry,** and read it. Set the version
-   on the first line:
+3. **Write the tag message from the entry,** and read it. The entry is
+   also the GitHub release's notes, and the tag message is the same with
+   the version in front. Set the version on the first line:
 
    ```
    v=v0.5.2
-   awk -v h="## $v (" 'index($0, h) == 1 {on = 1; next} /^## / {on = 0} on' CHANGELOG.md | sed '/./,$!d' > "$TMPDIR/tag-$v.txt"
-   sed -i '' "1s/^/$v: /" "$TMPDIR/tag-$v.txt"
+   awk -v h="## $v (" 'index($0, h) == 1 {on = 1; next} /^## / {on = 0} on' CHANGELOG.md | sed '/./,$!d' > "$TMPDIR/notes-$v.txt"
+   sed "1s/^/$v: /" "$TMPDIR/notes-$v.txt" > "$TMPDIR/tag-$v.txt"
    cat "$TMPDIR/tag-$v.txt"
    ```
 
@@ -108,8 +110,16 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    git merge --ff-only develop
    git tag -s "$v" -F "$TMPDIR/tag-$v.txt"
    git push origin main "$v"
+   gh release create "$v" --verify-tag --title "$(git tag -l --format='%(contents:subject)' "$v")" --notes-file "$TMPDIR/notes-$v.txt"
    git switch develop
    ```
+
+   The release is the page GitHub shows for the tag, and the newest is
+   marked Latest in the repository's sidebar. `go get` reads only the
+   tag, so a tag without a release still installs, but GitHub would show
+   an older version as the latest, as it did until 2026-10-20, when the
+   releases from v0.3.0 on were added. `--verify-tag` refuses to make a
+   tag of its own if the push didn't happen.
 
    If the merge says it can't fast-forward, `main` has a commit `develop`
    doesn't. Stop and find out why; don't make a merge commit.

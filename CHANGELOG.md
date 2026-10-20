@@ -14,6 +14,9 @@ release's entry when `main` is moved to it and tagged
 - Docs: [The process](docs/PROCESS.md), Iain's essay on how scalar and
   grammar were made, linked from the README and CLAUDE.md.
 - CI scans the whole history for secrets with gitleaks on every push.
+- This change log, a `develop` branch for work (`main` is the latest
+  release, and moves only at the next), GitHub releases for every tag,
+  and [docs/MAINTAINING.md](docs/MAINTAINING.md), the maintainer's guide.
 - The repository is public, from 2026-10-20.
 
 ## v0.5.1 (2026-10-19)
@@ -78,3 +81,14 @@ Get, Exists and Delete on a scalar, as Perl subscripts.
 scalar as a project of its own: its first release as the module
 `github.com/nukopian/scalar`, with its history from 2026-10-11, when it
 began inside job-meta.
+
+- **Standalone module**, extracted with its history from the project it
+  started in. No API changes on the way.
+- **Go 1.25 or later.** The floor is set by `golang.org/x/text` v0.41.0,
+  the oldest without known vulnerabilities.
+- **Documentation**, all on earthquake data: a short README, a how-to
+  guide, a reference, an example for every function and method, and a
+  Perl → scalar → Go phrasebook whose every row is tested three ways.
+- **Tested** against Perl itself, the JSONPath Compliance Test Suite and
+  fuzzing, with CI on Linux, macOS and Windows, govulncheck and
+  staticcheck.
