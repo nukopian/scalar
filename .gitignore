@@ -1,2 +1,3 @@
 # PDFs of the documents, built on demand by scripts/readme-pdf.sh
 *.pdf
+scalar.code-workspace
