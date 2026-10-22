@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.3 (2026-10-22)
+
+Planned work goes in TODO.md on develop, and the maintainer's guide is scalar's own
+
+None of the changes is to the code or the API.
+
 - Planned work for a later session is listed in a `TODO.md` on
   `develop`, checked at the start of each session, and gone before a
   release, so it never reaches `main`. CLAUDE.md has the rules, and the
