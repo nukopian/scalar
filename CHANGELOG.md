@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.6 (2026-10-22)
+
+The Dump comparison with Perl needs Data::Dumper 2.188
+
+None of the changes is to the code or the API.
+
 - Docs: the reference said a boolean dumps as `!!1` or `!!0` "as in
   Perl 5.36 and later". It's Data::Dumper 2.188 and later, which comes
   with Perl 5.38; 5.36's Data::Dumper prints `1` and `''`. Dump itself is
