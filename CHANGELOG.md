@@ -11,6 +11,14 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.5 (2026-10-22)
+
+A weekly vulnerability scan, and a Security section in the README
+
+None of the changes is to the code or the API.
+
 - Security: govulncheck also runs every Monday on `main`, the latest
   release, so a vulnerability published after it is found, not only at
   the next push. GitHub's Dependabot alerts, secret scanning and push
