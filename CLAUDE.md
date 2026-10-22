@@ -80,6 +80,12 @@ else.
   failing if a Perl test skips; on macOS and Windows with `-short`; and 30
   seconds of each fuzz target. `.gitattributes` keeps files LF, so they
   compare byte for byte on Windows too.
+- govulncheck also runs every Monday on `main`
+  (`.github/workflows/vuln.yml`), so a vulnerability published after a
+  release is found, and GitHub's Dependabot alerts, secret scanning and
+  push protection are on. The README's Security section tells users
+  this: keep it true when any of these change.
+  [MAINTAINING.md](docs/MAINTAINING.md#security-checks) has the commands.
 - gitleaks scans the whole history for secrets: in CI on every push, and
   by hand (`gitleaks git --redact .`) before a repository goes public,
   before a tag, and after any history rewrite, before it's pushed. A leak

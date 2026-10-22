@@ -232,6 +232,36 @@ developed: the rules, and the reasons for them.
 Version 0: it works, and it's tested against Perl itself, the JSONPath
 compliance suite and fuzzing, but the API may still change before 1.0.
 
+## Security
+
+What's checked, and how often, so you can judge for yourself:
+
+- **Known vulnerabilities:** govulncheck checks what `scalar` calls, in
+  its dependencies and in the standard library, on every push
+  ([test](https://github.com/nukopian/scalar/actions/workflows/test.yml))
+  and every Monday against the latest release
+  ([vulnerabilities](https://github.com/nukopian/scalar/actions/workflows/vuln.yml)).
+  GitHub's Dependabot alerts watch the dependencies too.
+  `golang.org/x/text` is held at v0.41.0 or later, the oldest without
+  known vulnerabilities.
+- **Code:** `go vet` and staticcheck; the tests with the race detector
+  on Linux, and on macOS and Windows; and a run of each fuzz target,
+  `FuzzReadJSON`, `FuzzNumericPrefix` and `FuzzFind`, on every push.
+- **Secrets:** gitleaks scans the whole history on every push, and
+  GitHub's secret scanning and push protection are on.
+- **Provenance:** every commit and release tag is signed, and `main`,
+  the latest release, is protected: signed commits, a linear history and
+  CI passing, with no force-pushes. A published version is never changed;
+  Go's checksum database records each one.
+- **Dependencies:** `go.mod` and `go.sum` list them with their checksums,
+  and tools such as govulncheck and pkg.go.dev read them directly. GitHub
+  exports them as an SPDX SBOM, from Insights → Dependency graph → Export
+  SBOM.
+
+To report a vulnerability, see the
+[security policy](https://github.com/nukopian/scalar/security/policy):
+reports are made privately, through the Security tab.
+
 ## Licence
 
 Copyright 2026 Iain Campbell. `scalar` is free software; you can

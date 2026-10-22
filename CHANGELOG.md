@@ -11,7 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Security: govulncheck also runs every Monday on `main`, the latest
+  release, so a vulnerability published after it is found, not only at
+  the next push. GitHub's Dependabot alerts, secret scanning and push
+  protection are on. The README has a Security section saying what's
+  checked and how often, and how to report a vulnerability.
+- The release steps check every check run on the commit before pushing
+  `main`, and say what to do about a check stuck "in progress" or a
+  `main` refused after its tag went up, both of which happened at
+  grammar v0.1.5.
 
 ## v0.5.4 (2026-10-22)
 

@@ -110,9 +110,22 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    cat "$TMPDIR/tag-$v.txt"
    ```
 
-4. **Move `main` and tag it.** The merge is a fast-forward, so `main` gets
-   exactly the commits CI tested on `develop`, with their signatures. Set
-   the version on the first line:
+4. **Move `main` and tag it.** First check that every check run on the
+   commit has completed successfully. `gh run watch` can report a run
+   as passed while one of its jobs is still marked in progress, and
+   `main`'s protection refuses the push until it isn't. Each check is
+   listed once, from `develop`'s push:
+
+   ```
+   cd ~/Git/github.com/nukopian/scalar
+   gh api "repos/nukopian/scalar/commits/$(git rev-parse develop)/check-runs" --jq '.check_runs[] | "\(.name) \(.status) \(.conclusion)"'
+   ```
+
+   Every line ends `completed success`; if one doesn't, see
+   [When something goes wrong](#when-something-goes-wrong). Then the
+   merge, which is a fast-forward, so `main` gets exactly the commits CI
+   tested on `develop`, with their signatures. Set the version on the
+   first line:
 
    ```
    v=v0.5.2
@@ -184,6 +197,71 @@ For grammar's release steps, see
 
 - **A push to `main` refused:** the protection did its job. Push to
   `develop` instead, or, at a release, wait for CI to pass on the commit.
+- **A check stuck "in progress"** after all its steps passed, as
+  grammar's Windows job was on 2026-10-22: GitHub never marked it
+  complete. Re-run that job alone. This finds every unfinished check on
+  `develop`'s commit and re-runs it:
+
+  ```
+  cd ~/Git/github.com/nukopian/scalar
+  gh api "repos/nukopian/scalar/commits/$(git rev-parse develop)/check-runs" --jq '.check_runs[] | select(.status != "completed") | .details_url' | sed -E 's|.*/runs/([0-9]+)/job/([0-9]+).*|\1 \2|' | while read run job; do gh run rerun "$run" --job "$job"; done
+  ```
+
+  Then check the check runs again, as in step 4.
+- **`main` refused after the tag went up:** `git push origin main "$v"`
+  sends both, so the tag can be published while `main` is refused. Leave
+  the tag as it is: it points at the right commit. Fix the check, then
+  push `main` to the tagged commit and make the release. Set the version
+  on the first line:
+
+  ```
+  v=v0.5.2
+  cd ~/Git/github.com/nukopian/scalar
+  git switch main
+  git merge --ff-only "$v"
+  git push origin main
+  gh release create "$v" --verify-tag --title "$(git tag -l --format='%(contents:subject)' "$v")" --notes-file "$TMPDIR/notes-$v.txt"
+  git switch develop
+  ```
+
+## Security checks
+
+These run without anyone starting them, and the README's Security
+section tells users about them, so keep the two in step.
+
+- **govulncheck** runs on every push, in `test.yml`, and every Monday on
+  `main`, in `vuln.yml`, so that a vulnerability published after a
+  release is found. A failed weekly run means a new vulnerability in
+  what scalar calls: fix it on `develop` and release, as for any bug.
+  GitHub turns off a public repository's scheduled workflows after 60
+  days without activity. To check it's still on, and turn it back on:
+
+  ```
+  gh workflow list --all -R nukopian/scalar
+  gh workflow enable vuln.yml -R nukopian/scalar
+  ```
+
+  To run it by hand, on `main`:
+
+  ```
+  gh workflow run vuln.yml -R nukopian/scalar
+  ```
+
+- **Dependabot alerts** are on, and **Dependabot security updates** are
+  off on purpose: they open pull requests against `main`, which moves
+  only at a release. An alert is fixed on `develop`, like anything else.
+- **Secret scanning and push protection** are on: push protection
+  refuses a push with a recognised secret in it, before gitleaks would
+  see it.
+
+To see the settings, and any open alerts:
+
+```
+gh api repos/nukopian/scalar --jq '.security_and_analysis | to_entries[] | "\(.key) \(.value.status)"'
+gh api repos/nukopian/scalar/vulnerability-alerts --silent && echo "Dependabot alerts on"
+gh api repos/nukopian/scalar/dependabot/alerts --jq '.[] | select(.state == "open") | "\(.number) \(.security_advisory.summary)"'
+gh api repos/nukopian/scalar/secret-scanning/alerts --jq '.[] | select(.state == "open") | "\(.number) \(.secret_type_display_name)"'
+```
 
 ## Rewriting history
 
