@@ -263,7 +263,9 @@ fmt.Println(doc.Dump())   // print Dumper($doc)
 Keys are sorted, and quoted only when they need to be. Strings are
 double-quoted, with escapes for anything that isn't printable ASCII:
 `"caf\x{e9}"` for text, and octal, `"\211PNG"`, for a byte string. A
-boolean prints as `!!1` or `!!0`, as in Perl 5.36 and later. An array or
+boolean prints as `!!1` or `!!0`, as Data::Dumper 2.188 and later print
+it; that version comes with Perl 5.38. (Perl 5.36 has booleans, but its
+Data::Dumper, 2.184, prints them as `1` and `''`.) An array or
 hash that appears twice prints in full the first time, then as its path,
 such as `$VAR1->{stations}`, so a structure that loops back on itself is safe.
 `TestDumpMatchesPerl` checks hundreds of random structures against Perl's

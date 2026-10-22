@@ -76,9 +76,14 @@ func TestDump(t *testing.T) {
 // Dump matches Perl's Data::Dumper::Concise (Data::Dumper's pure-Perl
 // version, Useperl, with Concise's settings) for
 // hundreds of random structures, with shared parts and loops. It needs perl
-// on the PATH, and is skipped without it.
+// on the PATH, and is skipped without it. It also needs Data::Dumper 2.188,
+// which comes with Perl 5.38: the 2.184 that comes with 5.36 prints a
+// boolean as 1, not !!1, and CPAN's own Data::Dumper stopped at 2.183.
 func TestDumpMatchesPerl(t *testing.T) {
 	needPerl(t)
+	if exec.Command("perl", "-MData::Dumper 2.188", "-e", "1").Run() != nil {
+		t.Skip("Perl's Data::Dumper is older than 2.188, which prints booleans as !!1; Perl 5.38 brings it")
+	}
 	rng := rand.New(rand.NewPCG(3, 5))
 	chars := []string{"a", "Z", "0", "1", "9", " ", "-", "\"", "\\", "$", "@", "'", "\t", "\n", "\x00",
 		"\x01", "\x1b", "\x7f", "\u00E9", "\u263A", "\u0100", "{", "}"}
