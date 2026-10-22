@@ -58,6 +58,17 @@ else.
   with a Perl older than 5.36, as macOS and Windows ship; two also skip
   without List::UtilsBy or YAML::PP. `TestMappingMatchesPerl` checks
   `PerlUnusable` instead, so that it still compares scalar with plain Go.
+  `TestDumpMatchesPerl` also skips with a Data::Dumper older than 2.188,
+  which comes with Perl 5.38: 5.36's prints booleans as `1`, not `!!1`.
+- On Iain's Mac, the Perl tests run in a perlbrew library of their own,
+  `perl-5.36.3@scalar`, `perl-5.38.5@scalar`, `perl-5.40.5@scalar` or
+  `perl-5.42.3@scalar`, with the modules they need. His default Perl is
+  another project's, so name the library, which `go test` passes on to
+  the `perl` it runs:
+
+  ```
+  perlbrew exec --quiet --with perl-5.42.3@scalar go test ./...
+  ```
 - Fuzz targets: `FuzzReadJSON`, `FuzzNumericPrefix` and `FuzzFind`. Run
   the relevant one after changing the code it covers, for example
   `go test -run '^$' -fuzz FuzzFind -fuzztime 60s`.
