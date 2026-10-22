@@ -142,6 +142,28 @@ and gaps found by reading them have led to real features.
   show the plain Go version beside it and recommend it. scalar belongs at
   the edges, where the shape isn't known yet.
 
+## Planned work
+
+- **At the start of a session, check for `TODO.md`** at the top of the
+  repository, on `develop`. If it's there, read it, ask Iain whether each
+  task should still be done, and do the ones he confirms. Remove each
+  task in the commit that completes it, so the history shows which
+  commit did which, and delete the file with the last one. A task he
+  drops is removed too, saying why in the commit message.
+- **Work planned for a later session goes into `TODO.md`,** committed on
+  `develop`, with enough to do it cold: what, why, the files involved,
+  and how to check it's done. Not only in Claude's memory or the chat,
+  which Iain can't review and a fresh session may not have.
+- **`TODO.md` never reaches `main`.** `main` is a fast-forward of
+  `develop`, so a release waits until the file is gone: each task done,
+  or, to outlast the release, moved to a GitHub issue, or for a decision
+  awaiting Iain, to a Claude Doc. The release steps in
+  [MAINTAINING.md](docs/MAINTAINING.md) check for it.
+
+Why: planned work survives between sessions in the open, where Iain
+reviews it like any other change, and a release never carries an
+unfinished list.
+
 ## Commits
 
 - Conventional commits, such as `feat: ...`, `fix: ...`, `docs: ...`,

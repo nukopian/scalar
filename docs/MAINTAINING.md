@@ -1,10 +1,14 @@
 # Maintaining
 
-How scalar and [grammar](https://github.com/nukopian/grammar) are kept:
-their branches, releases, and the git and GitHub work done by hand. It's
-for whoever maintains them, Iain and Claude now. Every command can be
-pasted as it stands. The few that need a value say so on the line before,
-and set it in a variable on their first line.
+How scalar is kept: its branches, releases, and the git and GitHub work
+done by hand. It's for whoever maintains it, Iain and Claude now. Every
+command can be pasted as it stands. The few that need a value say so on
+the line before, and set it in a variable on their first line.
+
+[grammar](https://github.com/nukopian/grammar) is kept the same way, and
+has [its own guide](https://github.com/nukopian/grammar/blob/main/docs/MAINTAINING.md),
+with what's particular to it: the local scalar, the Raku tests, and
+comparing job-meta's output before and after a release.
 
 The repositories sit side by side, and job-meta, which uses both, sits
 next to them:
@@ -24,6 +28,9 @@ next to them:
   is on it. Visitors to GitHub see `main`, so its README and docs describe
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
+- `TODO.md`, when there is one, lists work planned for a later session.
+  It's committed on `develop` and gone before a release, so it never
+  reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
 
 `main` is protected on GitHub. Pushes to it need signed commits, a linear
 history (no merge commits) and CI passing on every job, and it can't be
@@ -71,16 +78,20 @@ A release is a signed, annotated tag on `main`. Before v1, a breaking
 change bumps the minor version (v0.5.1 to v0.6.0) and anything else the
 patch (v0.5.1 to v0.5.2). Claude asks before tagging.
 
-1. **Check `develop`:** CI is green on its last commit, and the history
-   has no secrets.
+1. **Check `develop`:** CI is green on its last commit, there's no
+   `TODO.md`, and the history has no secrets.
 
    ```
    cd ~/Git/github.com/nukopian/scalar
    git switch develop
    git pull --ff-only
    gh run list --branch develop --limit 1
+   if [ -e TODO.md ]; then cat TODO.md; else echo "no TODO.md"; fi
    gitleaks git --redact --no-banner .
    ```
+
+   If `TODO.md` is there, its tasks come first: do them, or move them
+   where CLAUDE.md says, and delete the file before going on.
 
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in
@@ -145,8 +156,8 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    GOWORK=off go test ./...
    ```
 
-For grammar, it's the same, in `~/Git/github.com/nukopian/grammar`, with
-`github.com/nukopian/grammar` in step 5.
+For grammar's release steps, see
+[its guide](https://github.com/nukopian/grammar/blob/main/docs/MAINTAINING.md#making-a-release).
 
 ## When something goes wrong
 
