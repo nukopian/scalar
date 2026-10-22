@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.2 (2026-10-22)
+
+A change log, a maintainer's guide, and the essay on how scalar was made
+
+None of the changes is to the code or the API; this release publishes
+the documentation and CI work since v0.5.1.
+
 - Docs: [The process](docs/PROCESS.md), Iain's essay on how scalar and
   grammar were made, linked from the README and CLAUDE.md.
 - CI scans the whole history for secrets with gitleaks on every push.
