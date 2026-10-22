@@ -1,6 +1,6 @@
 # scalar
 
-[![test](https://github.com/nukopian/scalar/actions/workflows/test.yml/badge.svg)](https://github.com/nukopian/scalar/actions/workflows/test.yml)
+[![test](https://github.com/nukopian/scalar/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nukopian/scalar/actions/workflows/test.yml?query=branch%3Amain)
 
 Read, clean and reshape messy data in Go, then get back to typed Go.
 

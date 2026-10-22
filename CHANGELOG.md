@@ -11,7 +11,8 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- The README's CI badge names `main`, so it shows the latest release's
+  status: without a branch, GitHub's badge said "no status".
 
 ## v0.5.3 (2026-10-22)
 
