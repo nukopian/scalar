@@ -116,9 +116,9 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
 `TestMappingMatchesPerl` runs in all three and compares) and
 `docs/PROCESS.md` (Iain's essay on how scalar and grammar were made, the
 why behind these rules; his words, so change it only when he asks), with
-`CHANGELOG.md` (what each release changed) and `docs/MAINTAINING.md`
-(branches, releases, and the git and GitHub work done by hand) beside
-them.
+`CHANGELOG.md` (what each release changed), `ROADMAP.md` (what scalar
+means to do next, and why) and `docs/MAINTAINING.md` (branches, releases,
+and the git and GitHub work done by hand) beside them.
 
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
@@ -154,6 +154,8 @@ and gaps found by reading them have led to real features.
   memory, correctness, inefficiency and slop. Reproduce each finding
   before reporting it, rank the findings, and write failing tests before
   fixes. Re-run the Perl differential tests to show nothing else changed.
+  The wash-up before a release also checks `ROADMAP.md`: what shipped is
+  out of it, and Now is what's really being worked on.
 - **Dogfooding.** Use scalar in real programs, note where it fought you,
   and fix the frequent friction. Check the fix by reworking those
   programs with their output unchanged. Do this alongside each wash-up.
@@ -163,6 +165,23 @@ and gaps found by reading them have led to real features.
 
 ## Planned work
 
+- **`ROADMAP.md` holds what scalar means to do:** features and outcomes,
+  not session tasks. **Now** is what's being worked on, each item with a
+  full plan in `TODO.md`'s task format, and at most three items, so it
+  stays a queue to pull from, not a fire-hose (Iain, 2026-10-25): another
+  starts only when one ships or goes back to Next; **Next** is decided
+  but not started (what, why, done when); **Later** is ideas worth
+  keeping, in a line or two. Most useful first in each. The CHANGELOG is
+  the past, the README the present, and the roadmap the future.
+- **The roadmap is public, on `main`,** and in every release, so people
+  following scalar can see what's coming. What's kept out of the README
+  is kept out of it too. Its PDF is built with the others.
+- **The roadmap is kept current:** an item leaves when it ships, in the
+  commit that adds it to the CHANGELOG, and a change that ships, starts
+  or drops a feature updates it in the same commit.
+- **`TODO.md` comes first:** its tasks take priority over the roadmap's
+  items. When a session takes up an item, its next steps go into
+  `TODO.md`, or are done at once.
 - **At the start of a session, check for `TODO.md`** at the top of the
   repository, on `develop`. If it's there, read it, ask Iain whether each
   task should still be done, and do the ones he confirms. Remove each
@@ -200,16 +219,18 @@ and gaps found by reading them have led to real features.
   to get past a bug may still stay uncommitted.
 - **`TODO.md` never reaches `main`.** `main` is a fast-forward of
   `develop`, so a release waits until the file is gone: each task done,
-  or, to outlast the release, moved to a GitHub issue, or for a decision
-  awaiting Iain, to a Claude Doc. The release steps in
-  [MAINTAINING.md](docs/MAINTAINING.md) check for it.
+  or, to outlast the release, a feature moved word for word into
+  `ROADMAP.md`, or a decision awaiting Iain to a Claude Doc. There are
+  no GitHub issues for planned work (Iain, 2026-10-25). The release steps
+  in [MAINTAINING.md](docs/MAINTAINING.md) check for it.
 - **A release ends by looking in the other repositories' `TODO.md`**
   for tasks waiting on it, and telling Iain which can now be done.
   Nothing else tells their sessions it has landed.
 
 Why: planned work survives between sessions in the open, where Iain
 reviews it like any other change, and a release never carries an
-unfinished list.
+unfinished list, while the roadmap shows anyone following scalar what's
+planned. grammar's CLAUDE.md has the same rule.
 
 ## Commits
 
@@ -221,7 +242,8 @@ unfinished list.
   and moves only at a release, by a fast-forward to `develop`, with the
   tag on it; it's protected, so a push to it needs CI passing. Add what
   changed for users to `CHANGELOG.md` under Unreleased in the same
-  commit. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
+  commit, and update `ROADMAP.md` there if it ships, starts or drops a
+  feature. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
   and GitHub work done by hand.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently

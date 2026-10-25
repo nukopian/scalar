@@ -221,6 +221,7 @@ a worked example of every function and method, see the
   partnership with Claude in which judgement stayed with me.
 - [Changes](CHANGELOG.md): what each release changed, and what's waiting
   for the next.
+- [Roadmap](ROADMAP.md): what's planned, and why.
 - [Maintaining](docs/MAINTAINING.md): branches, releases, and the git and
   GitHub work done by hand.
 
@@ -232,6 +233,7 @@ developed: the rules, and the reasons for them.
 
 Version 0: it works, and it's tested against Perl itself, the JSONPath
 compliance suite and fuzzing, but the API may still change before 1.0.
+What's planned is in the [roadmap](ROADMAP.md).
 
 ## Security
 

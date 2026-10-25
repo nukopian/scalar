@@ -15,6 +15,8 @@ release's entry when `main` is moved to it and tagged
   has a table of what a Go programmer might assume, starting with
   `scalar.Array(m1, m2)`, which is one list of two Go maps' keys and
   values, not an array of two hashes. `Array`'s doc comment says so too.
+- Docs: a [roadmap](ROADMAP.md) says what's planned, and why, and the
+  README links to it. It starts empty.
 
 ## v0.5.7 (2026-10-25)
 

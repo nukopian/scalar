@@ -28,9 +28,19 @@ next to them:
   is on it. Visitors to GitHub see `main`, so its README and docs describe
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
-- `TODO.md`, when there is one, lists work planned for a later session.
-  It's committed on `develop` and gone before a release, so it never
-  reaches `main` ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
+- [ROADMAP.md](../ROADMAP.md) holds what scalar means to do: features
+  and outcomes, in Now, Next and Later. It's public, on both branches,
+  and in every release. Now holds three items at most, so the roadmap
+  stays a queue to pull from, not a list pushing work; an item in Now has
+  a plan written to be picked up cold; one leaves when it ships, in the
+  commit that adds it to the CHANGELOG.
+- `TODO.md`, when there is one, lists work planned for a later session:
+  the concrete steps of a roadmap item being worked on, or tasks from
+  other repositories' sessions. Its tasks come before the roadmap's
+  items. It's committed on `develop` and gone before a release, so it
+  never reaches `main`: each task is done, or, if it's a feature rather
+  than a step, moved word for word into the roadmap
+  ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
 
 `main` is protected on GitHub. Pushes to it need signed commits, a linear
 history (no merge commits) and CI passing on every job, and it can't be
@@ -85,7 +95,8 @@ git log --format='%h %G? %s' -10
 ```
 
 Add what changed for users to `CHANGELOG.md` under Unreleased, in the same
-commit.
+commit, and update [ROADMAP.md](../ROADMAP.md) if the change ships, starts
+or drops a feature.
 
 ## Making a release
 
@@ -105,8 +116,11 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    gitleaks git --redact --no-banner .
    ```
 
-   If `TODO.md` is there, its tasks come first: do them, or move them
-   where CLAUDE.md says, and delete the file before going on.
+   If `TODO.md` is there, its tasks come first: do them, or move a
+   feature word for word into ROADMAP.md, or a decision awaiting Iain
+   to a Claude Doc, and delete the file before going on. Check
+   ROADMAP.md too: what shipped is out of it, and Now is what's really
+   being worked on.
 
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in
