@@ -34,3 +34,28 @@ under Unreleased.
 **Done when:** the table is there, each row's code is compiled and run
 in a temporary test, and the reference PDF
 (`scripts/readme-pdf.sh docs/REFERENCE.md`) reads well.
+
+## jdc-lab's TODO.md is now on develop
+
+**From:** jdc-lab's session, 2026-10-25 (jdc-lab abf51d723bf3437e9aecf662612b1bc9cc90187d)
+**Waiting on:** nothing
+
+**What:** jdc-lab now works as grammar and scalar do: work on `develop`,
+`main` the latest release, and `TODO.md` on `develop`, never on `main`.
+Change what scalar says about it:
+
+- CLAUDE.md's Planned work: "on `develop` for grammar, on `main` for
+  job-meta and jdc-lab" puts jdc-lab with grammar, on `develop`.
+- docs/MAINTAINING.md's release step 7: its loop pulls whatever branch
+  each working copy has checked out, so it reads jdc-lab's `TODO.md`
+  only if that copy is on `develop`. Read `origin/develop` for grammar
+  and jdc-lab instead, as grammar's step 7 does
+  (`git -C "$d" fetch -q` and `git -C "$d" show origin/develop:TODO.md`).
+
+**Why:** a task added to jdc-lab's `TODO.md` on `main` would never reach
+jdc-lab's sessions, which work on `develop`, and step 7 could miss tasks
+waiting on a scalar release.
+
+**Done when** neither file says jdc-lab's `TODO.md` is on `main`, and
+step 7's loop reads jdc-lab's `TODO.md` from `origin/develop` whatever
+its working copy has checked out.
