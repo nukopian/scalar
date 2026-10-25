@@ -57,7 +57,9 @@ func nonCreatable(i int) string {
 
 // Array returns an array of vals, as Perl's (...) list does: arrays and
 // hashes among vals are flattened into it (see Push), and other values are
-// converted as by SV.Set.
+// converted as by SV.Set. So Array(m1, m2), of two Go maps, is one list of
+// their keys and values; Array(Value(m1), Value(m2)) is an array of two
+// hashes.
 func Array(vals ...any) *AV {
 	return &AV{items: flatten(vals)}
 }

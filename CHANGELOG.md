@@ -11,7 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Docs: the reference's [Lists flatten](docs/REFERENCE.md#lists-flatten-as-in-perl)
+  has a table of what a Go programmer might assume, starting with
+  `scalar.Array(m1, m2)`, which is one list of two Go maps' keys and
+  values, not an array of two hashes. `Array`'s doc comment says so too.
 
 ## v0.5.7 (2026-10-25)
 

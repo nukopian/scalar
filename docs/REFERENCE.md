@@ -522,6 +522,23 @@ a.Map(func(s *scalar.SV) any { return scalar.Array(s, s.Mul(10)) })   // map { (
 
 Values are always copied in, as Perl copies list values.
 
+Go has no lists that flatten, so a Go programmer meets this without
+looking for it. `scalar.Array(...)` reads as a constructor that takes
+values, but it takes a list:
+
+| You might expect | What happens | For what you expected |
+|---|---|---|
+| `scalar.Array(m1, m2)`, with two Go maps, is an array of two hashes | It's one list of their keys and values, as Perl's `(%a, %b)` is: eight elements for two maps of two keys, in map order. `scalar.To[[]Quake]` then fails on the first element, with `want a hash for main.Quake, got "place"`, or whichever key came first | `scalar.Array(scalar.Value(m1), scalar.Value(m2))`, as Perl's `(\%a, \%b)` is, or read the data with `FromJSON` |
+| `scalar.Array(rows)`, with `rows` a `[]map[string]any`, is an array of the rows | The slice flattens, and each map in it too, into one list of keys and values. A slice of slices flattens the same way | `scalar.Value(rows).AV()`: a scalar keeps the slice whole, as a reference, and `AV` is `@$rows` |
+| `a.Push(m)` adds one element | It adds each key and value, as `push @a, %h` does | `a.Push(scalar.Value(m))`, as `push @a, \%h` |
+
+```go
+m1 := map[string]any{"place": "Anchorage", "mag": 4.6}
+m2 := map[string]any{"place": "Ridgecrest", "mag": 3.1}
+scalar.Array(m1, m2)                             // 8 elements: "place", "Anchorage", "mag", 4.6, ...
+scalar.Array(scalar.Value(m1), scalar.Value(m2)) // 2 elements, each a hash reference
+```
+
 ### List utilities
 
 These follow Perl's `List::Util`. The ones that test elements take a function,
