@@ -169,10 +169,27 @@ and gaps found by reading them have led to real features.
   task in the commit that completes it, so the history shows which
   commit did which, and delete the file with the last one. A task he
   drops is removed too, saying why in the commit message.
+- **Before each commit, `git pull --ff-only` and re-read `TODO.md`.**
+  Sessions in the other repositories add tasks here, mid-session too, and
+  a commit that completes a task must remove it.
 - **Work planned for a later session goes into `TODO.md`,** committed on
   `develop`, with enough to do it cold: what, why, the files involved,
   and how to check it's done. Not only in Claude's memory or the chat,
   which Iain can't review and a fresh session may not have.
+- **Each task opens with where it came from and what it waits on,** so
+  a session can see at a glance which tasks it can do now, and whom to
+  tell when one is done. As grammar's first such task did:
+
+  ```markdown
+  ## Mark each match with scalar's Autovivify(false)
+
+  **From:** scalar's session, 2026-10-25 (scalar 5fd3f0dd76c34de50c011d0389719abf85dcc0f2)
+  **Waiting on:** a scalar release with Autovivify
+  ```
+
+  `From` names the repository whose session added it, the date, and the
+  full hash of the commit that prompted it. `Waiting on` is "nothing"
+  when the task can be done now.
 - **`TODO.md` never reaches `main`.** `main` is a fast-forward of
   `develop`, so a release waits until the file is gone: each task done,
   or, to outlast the release, moved to a GitHub issue, or for a decision

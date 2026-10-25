@@ -51,7 +51,17 @@ git pull --ff-only
 
 ## Every commit
 
-Run these first, and check that each one succeeds. Don't pipe `go test`
+First bring `develop` up to date and re-read `TODO.md`, if there is one:
+sessions in grammar, job-meta and jdc-lab add tasks to it, mid-session
+too, and a commit that completes a task removes it
+([CLAUDE.md](../CLAUDE.md#planned-work)).
+
+```
+git pull --ff-only
+if [ -e TODO.md ]; then cat TODO.md; else echo "no TODO.md"; fi
+```
+
+Then run these, and check that each one succeeds. Don't pipe `go test`
 through `tail` or `grep` to judge it: the pipe's exit status is the last
 command's, and hides a failure.
 
