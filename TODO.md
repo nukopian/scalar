@@ -20,6 +20,29 @@ a separate switch, such as `NoVivify()`, that `Lock` can be combined
 with, or a variant of `Lock` whose missing reads give undef instead of
 panicking.
 
+**Decided with Iain (2026-10-25)**, recorded in the Claude Doc
+https://claude.ai/artifact/V4kKq2RrbJaGQyf4BwHAeM:
+
+- A separate switch, `Autovivify(on ...bool)` on `SV`, `AV` and `HV`,
+  returning its receiver: `()` is `(true)`, `(x)` sets the receiver and
+  everything below it, `(self, deeply)` sets them apart, and more
+  arguments panic. On is the default. Getters `Autovivifies()` and
+  `AutovivifiesDeeply()`.
+- With it off, a store still vivifies, as under the pragma; values
+  stored later inherit the setting; `Exists` and `Delete` create
+  nothing; `All` and `Values` create nothing either, though the pragma
+  lets `foreach` vivify (a deviation for Caveats, with the lexical
+  scope).
+- A cycle back to the top keeps the receiver's own setting, as the walk
+  visits each container once. `Clone` drops the setting; `Copy` shares
+  the container. No strict-store option: combine it with `Lock`, whose
+  hash reads must then check the setting first. A second `HV()` or
+  `AV()` on the same undef gives the same detached container.
+- No reader option: reading into a scalar with it off is a store, so the
+  tree inherits the setting. `UnmarshalJSON` and `UnmarshalYAML` into a
+  locked target return an error with Perl's message instead of
+  panicking.
+
 Perl's pragma is lexical; Go has no lexical scope, so the mode has to
 belong to the value, reaching all the way down, as `Lock` does. That,
 and the name, are deviations to raise with Iain before building, as
