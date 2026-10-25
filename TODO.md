@@ -77,6 +77,16 @@ the example.
   each with a full plan in TODO.md's task format), **Next** (decided,
   not started: what, why, done when) and **Later** (ideas worth
   keeping, a line or two). Most useful first in each.
+- **Its preamble is the project's own:** jdc-lab's is written for a lab
+  and doesn't carry over. Keep its shape: a line on what the roadmap
+  is (what the project means to do, and why; the CHANGELOG says what
+  it has done), the three groups, and that a shipped item moves to the
+  CHANGELOG. Replace the lab's **Serves** list, its six research
+  questions, with what this project's items serve, if anything does
+  (for a library, perhaps areas such as API, correctness, performance,
+  parity with the language it follows, or docs), or leave Serves out.
+  Drop the lab's note on samples, figures and runs, which has no
+  counterpart here.
 - **Past, present, future:** the CHANGELOG is the past, the README the
   present, ROADMAP.md the future. The README links to it, and lists it
   where it lists the files at the root.
