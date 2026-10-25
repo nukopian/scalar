@@ -74,7 +74,8 @@ the example.
 
 - **What it holds:** features and outcomes, not session tasks: what the
   project means to do, and why. Three groups: **Now** (being worked on,
-  each with a full plan in TODO.md's task format), **Next** (decided,
+  each with a full plan in TODO.md's task format; three items at most,
+  so the roadmap stays a queue to pull from, not a fire-hose), **Next** (decided,
   not started: what, why, done when) and **Later** (ideas worth
   keeping, a line or two). Most useful first in each.
 - **Its preamble is the project's own:** jdc-lab's is written for a lab
