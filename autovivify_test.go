@@ -404,3 +404,43 @@ print $json->encode(\@out);
 	}
 	t.Logf("%d cases: %v", len(cases), counts)
 }
+
+// Setting a structure the size of a grammar match, a dozen hashes,
+// allocates nothing, where a map of the containers seen allocates past
+// eight.
+func TestAutovivifySmallDoesntAllocate(t *testing.T) {
+	h := Hash("~", "2026-10-25", "from", 0, "to", 10)
+	for _, k := range []string{"year", "month", "day", "zone", "a", "b", "c", "d", "e", "f", "g"} {
+		h.Set(k, map[string]any{"~": "2026", "from": 0, "to": 4})
+	}
+	s := Value(h)
+	if n := testing.AllocsPerRun(100, func() { s.Autovivify(false) }); n != 0 {
+		t.Errorf("%v allocations", n)
+	}
+}
+
+// Past the containers the walk keeps in an array, it keeps them in a
+// map: a large structure, with a shared part and a loop, is set all the
+// way down, each part once.
+func TestAutovivifyLarge(t *testing.T) {
+	shared := Hash("net", "CI")
+	a := Array()
+	for i := 0; i < 100; i++ {
+		a.Push(Value(map[string]any{"mag": i, "station": shared, "depth": map[string]any{"km": 2}}))
+	}
+	doc := Value(map[string]any{"features": a})
+	shared.Set("doc", doc) // a loop back to the top
+	doc.Autovivify(false, true)
+	if doc.Autovivifies() || !doc.AutovivifiesDeeply() {
+		t.Error("the receiver's own setting changed")
+	}
+	doc.Autovivify(false)
+	before := doc.Get("features", 99, "depth").Clone()
+	for i := range 100 {
+		doc.At(fmt.Sprintf("features[%d].depth.error.x", i))
+		doc.At(fmt.Sprintf("features[%d].station.doc.nope.x", i))
+	}
+	if doc.Get("features").AV().Length() != 100 || !doc.Get("features", 99, "depth").Equal(before) || shared.Exists("nope") || doc.Exists("nope") {
+		t.Error("reading a large structure with autovivification off created something")
+	}
+}

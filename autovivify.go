@@ -20,7 +20,8 @@ package scalar
 // and writes still panic. Clone gives a copy with the default setting.
 func (s *SV) Autovivify(on ...bool) *SV {
 	self, deeply := vivArgs(on)
-	vivSV(s, self, deeply, map[any]bool{})
+	var w vivWalk
+	w.sv(s, self, deeply)
 	return s
 }
 
@@ -37,7 +38,8 @@ func (s *SV) AutovivifiesDeeply() bool { return s == nil || !s.noVivDeep }
 // is for a's elements, and the second for everything below them.
 func (a *AV) Autovivify(on ...bool) *AV {
 	self, deeply := vivArgs(on)
-	vivAV(a, self, deeply, map[any]bool{})
+	var w vivWalk
+	w.av(a, self, deeply)
 	return a
 }
 
@@ -54,7 +56,8 @@ func (a *AV) AutovivifiesDeeply() bool { return a == nil || !a.noVivDeep }
 // is for h's values, and the second for everything below them.
 func (h *HV) Autovivify(on ...bool) *HV {
 	self, deeply := vivArgs(on)
-	vivHV(h, self, deeply, map[any]bool{})
+	var w vivWalk
+	w.hv(h, self, deeply)
 	return h
 }
 
@@ -78,43 +81,79 @@ func vivArgs(on []bool) (self, deeply bool) {
 	panic("scalar: Autovivify takes at most two settings")
 }
 
-// vivSV, vivAV and vivHV set autovivification on everything reachable,
-// each container once, as lockSV and the rest lock it, so a structure
-// that refers back to itself is set too, and the receiver keeps its own
-// setting. A scalar's setting is for itself, dereferenced; an array's or
-// a hash's is for its elements, which it gives to those stored later.
-func vivSV(s *SV, self, deeply bool, seen map[any]bool) {
+// vivWalk sets autovivification on everything reachable, each container
+// once, as lockSV and the rest lock it, so a structure that refers back to
+// itself is set too, and the receiver keeps its own setting. A scalar's
+// setting is for itself, dereferenced; an array's or a hash's is for its
+// elements, which it gives to those stored later.
+//
+// It remembers the containers it sets in an array while they fit, and in a
+// map after that, so that setting a small structure, such as one of
+// grammar's matches, allocates nothing, where a map alone allocates past
+// eight containers, and a large one costs no more than a map.
+type vivWalk struct {
+	n     int
+	first [32]any
+	rest  map[any]bool // all of them, once there are more than first holds
+}
+
+// seen reports whether c has been set already, and remembers it if not.
+func (w *vivWalk) seen(c any) bool {
+	if w.rest != nil {
+		if w.rest[c] {
+			return true
+		}
+		w.rest[c] = true
+		return false
+	}
+	for _, x := range w.first[:w.n] {
+		if x == c {
+			return true
+		}
+	}
+	if w.n < len(w.first) {
+		w.first[w.n] = c
+		w.n++
+		return false
+	}
+	w.rest = make(map[any]bool, 2*len(w.first))
+	for _, x := range w.first {
+		w.rest[x] = true
+	}
+	w.rest[c] = true
+	return false
+}
+
+func (w *vivWalk) sv(s *SV, self, deeply bool) {
 	if s == nil {
 		return
 	}
 	s.noViv, s.noVivDeep = !self, !deeply
 	switch v := s.v.(type) {
 	case *AV:
-		vivAV(v, deeply, deeply, seen)
+		w.av(v, deeply, deeply)
 	case *HV:
-		vivHV(v, deeply, deeply, seen)
+		w.hv(v, deeply, deeply)
 	}
 }
 
-func vivAV(a *AV, elems, deeply bool, seen map[any]bool) {
-	if a == nil || seen[a] {
+func (w *vivWalk) av(a *AV, elems, deeply bool) {
+	if a == nil || w.seen(a) {
 		return
 	}
-	seen[a] = true
 	a.noViv, a.noVivDeep = !elems, !deeply
 	for _, s := range a.items {
-		vivSV(s, elems, deeply, seen) // a hole stays a hole
+		w.sv(s, elems, deeply) // a hole stays a hole
 	}
 }
 
-func vivHV(h *HV, elems, deeply bool, seen map[any]bool) {
-	if h == nil || seen[h] {
+func (w *vivWalk) hv(h *HV, elems, deeply bool) {
+	if h == nil || w.seen(h) {
 		return
 	}
-	seen[h] = true
 	h.noViv, h.noVivDeep = !elems, !deeply
 	for _, s := range h.m {
-		vivSV(s, elems, deeply, seen)
+		w.sv(s, elems, deeply)
 	}
 }
 
@@ -136,11 +175,12 @@ func (s *SV) adoptValue() {
 	if !s.noVivDeep {
 		return
 	}
+	var w vivWalk
 	switch v := s.v.(type) {
 	case *AV:
-		vivAV(v, false, false, map[any]bool{})
+		w.av(v, false, false)
 	case *HV:
-		vivHV(v, false, false, map[any]bool{})
+		w.hv(v, false, false)
 	}
 }
 
