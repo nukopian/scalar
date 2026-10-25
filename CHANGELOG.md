@@ -11,6 +11,16 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.7 (2026-10-25)
+
+Autovivify(false), a mode in which reading creates nothing
+
+Adds to the API; nothing that compiled before stops compiling. One
+change in behaviour: reading JSON or YAML into a locked scalar returns
+an error, where it panicked.
+
 - New: `Autovivify(false)`, on scalars, arrays and hashes, is the CPAN
   pragma's `no autovivification` for a value and everything it refers
   to: `Get`, `At`, `HV()`, `AV()`, `Exists` and `Delete` create nothing,
