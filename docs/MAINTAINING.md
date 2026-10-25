@@ -187,13 +187,16 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
 7. **Find the tasks waiting on it.** Look in the other repositories'
    `TODO.md` for tasks whose **Waiting on** this release meets, and tell
    Iain which can now be done. Nothing else tells their sessions it has
-   landed:
+   landed. grammar's and jdc-lab's are on `develop`, and job-meta's on
+   `main`, so the loop reads each from its remote branch, whatever the
+   working copy has checked out:
 
    ```
-   for r in grammar job-meta jdc-lab; do
-     d=~/Git/github.com/nukopian/$r
-     git -C "$d" pull --ff-only --quiet
-     if [ -e "$d/TODO.md" ]; then echo "$r:"; grep -E '^## |^\*\*Waiting on' "$d/TODO.md"; else echo "$r: no TODO.md"; fi
+   for r in grammar:develop jdc-lab:develop job-meta:main; do
+     repo=${r%%:*}; branch=${r#*:}
+     d=~/Git/github.com/nukopian/$repo
+     git -C "$d" fetch -q
+     if git -C "$d" cat-file -e "origin/$branch:TODO.md" 2>/dev/null; then echo "$repo:"; git -C "$d" show "origin/$branch:TODO.md" | grep -E '^## |^\*\*Waiting on'; else echo "$repo: no TODO.md"; fi
    done
    ```
 

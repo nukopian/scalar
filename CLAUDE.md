@@ -193,7 +193,7 @@ and gaps found by reading them have led to real features.
   is "nothing" when the task can be done now.
 - **A task added to another repository's `TODO.md` is committed and
   pushed there at once,** after `git pull --ff-only`, as its own `docs:`
-  commit: on `develop` for grammar, on `main` for job-meta and jdc-lab.
+  commit: on `develop` for grammar and jdc-lab, on `main` for job-meta.
   `TODO.md` changes only through commits. Left uncommitted, it makes
   that repository's next pull refuse to run, and the session that does
   the task never sees it arrive. A code fix made in another working copy
