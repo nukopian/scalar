@@ -188,13 +188,24 @@ and gaps found by reading them have led to real features.
   ```
 
   `From` names the repository whose session added it, the date, and the
-  full hash of the commit that prompted it. `Waiting on` is "nothing"
-  when the task can be done now.
+  full hash of the commit that prompted it, or, if that work isn't
+  committed yet, the last commit and "work uncommitted". `Waiting on`
+  is "nothing" when the task can be done now.
+- **A task added to another repository's `TODO.md` is committed and
+  pushed there at once,** after `git pull --ff-only`, as its own `docs:`
+  commit: on `develop` for grammar, on `main` for job-meta and jdc-lab.
+  `TODO.md` changes only through commits. Left uncommitted, it makes
+  that repository's next pull refuse to run, and the session that does
+  the task never sees it arrive. A code fix made in another working copy
+  to get past a bug may still stay uncommitted.
 - **`TODO.md` never reaches `main`.** `main` is a fast-forward of
   `develop`, so a release waits until the file is gone: each task done,
   or, to outlast the release, moved to a GitHub issue, or for a decision
   awaiting Iain, to a Claude Doc. The release steps in
   [MAINTAINING.md](docs/MAINTAINING.md) check for it.
+- **A release ends by looking in the other repositories' `TODO.md`**
+  for tasks waiting on it, and telling Iain which can now be done.
+  Nothing else tells their sessions it has landed.
 
 Why: planned work survives between sessions in the open, where Iain
 reviews it like any other change, and a release never carries an

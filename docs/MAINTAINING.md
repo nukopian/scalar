@@ -54,7 +54,12 @@ git pull --ff-only
 First bring `develop` up to date and re-read `TODO.md`, if there is one:
 sessions in grammar, job-meta and jdc-lab add tasks to it, mid-session
 too, and a commit that completes a task removes it
-([CLAUDE.md](../CLAUDE.md#planned-work)).
+([CLAUDE.md](../CLAUDE.md#planned-work)). Each task opens with **From**
+(the session that added it, the date, and the commit that prompted it,
+or the last commit and "work uncommitted") and **Waiting on** (what it
+needs first, or nothing). A task this session adds to another
+repository's `TODO.md` is committed and pushed there at once, after the
+same pull, so `TODO.md` only ever changes through commits.
 
 ```
 git pull --ff-only
@@ -177,6 +182,19 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    GOWORK=off go get "github.com/nukopian/scalar@$v"
    GOWORK=off go mod tidy
    GOWORK=off go test ./...
+   ```
+
+7. **Find the tasks waiting on it.** Look in the other repositories'
+   `TODO.md` for tasks whose **Waiting on** this release meets, and tell
+   Iain which can now be done. Nothing else tells their sessions it has
+   landed:
+
+   ```
+   for r in grammar job-meta jdc-lab; do
+     d=~/Git/github.com/nukopian/$r
+     git -C "$d" pull --ff-only --quiet
+     if [ -e "$d/TODO.md" ]; then echo "$r:"; grep -E '^## |^\*\*Waiting on' "$d/TODO.md"; else echo "$r: no TODO.md"; fi
+   done
    ```
 
 For grammar's release steps, see
