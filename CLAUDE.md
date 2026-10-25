@@ -55,9 +55,11 @@ else.
 
 - Differential tests run the same cases through Perl and compare the
   results. They skip through `needPerl(t)` with `-short`, without Perl, or
-  with a Perl older than 5.36, as macOS and Windows ship; two also skip
-  without List::UtilsBy or YAML::PP. `TestMappingMatchesPerl` checks
-  `PerlUnusable` instead, so that it still compares scalar with plain Go.
+  with a Perl older than 5.36, as macOS and Windows ship; three also skip
+  without List::UtilsBy, YAML::PP or autovivification. `TestMappingMatchesPerl`
+  checks `PerlUnusable` instead, so that it still compares scalar with plain
+  Go, and leaves Perl out of its one task that needs autovivification
+  without it, saying so.
   `TestDumpMatchesPerl` also skips with a Data::Dumper older than 2.188,
   which comes with Perl 5.38: 5.36's prints booleans as `1`, not `!!1`.
 - On Iain's Mac, the Perl tests run in a perlbrew library of their own,

@@ -10,9 +10,11 @@ const readOnlyMsg = "Modification of a read-only value attempted"
 // restricted hash"), as do deleting one and any change to a value
 // ("Modification of a read-only value attempted"); a locked array can't
 // grow, shrink or change. Unlike Perl's, a lock reaches nested arrays as
-// well as hashes, and their elements. Reads that would autovivify panic
-// instead (At("x.y") with no x), and reads that never create (AtOK, Find,
-// Exists) answer as usual.
+// well as hashes, and their elements. A read that would autovivify a
+// missing key panics instead (At("x.y") with no x), while a locked undef,
+// which can't be written, reads through as undef; reads that never create
+// (AtOK, Find, Exists) answer as usual. With Autovivify(false) as well, a
+// missing key reads as undef too, and only writes panic.
 //
 // Nothing a locked structure does when read writes anything, so it can be
 // shared between goroutines for reading, except for Each, which keeps a

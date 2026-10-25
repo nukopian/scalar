@@ -107,14 +107,14 @@ func emptyYAMLDocument(n *yaml.Node) bool {
 
 // UnmarshalYAML lets a scalar be a field of a struct read with the YAML
 // package's Unmarshal, for a part of a document whose shape varies; it
-// reads as FromYAML does.
+// reads as FromYAML does. As with UnmarshalJSON, reading into a locked
+// scalar is an error.
 func (s *SV) UnmarshalYAML(n *yaml.Node) error {
 	sv, err := readYAML(n)
 	if err != nil {
 		return err
 	}
-	*s = SV{v: sv.v}
-	return nil
+	return s.setRead(sv)
 }
 
 func readYAML(n *yaml.Node) (*SV, error) {

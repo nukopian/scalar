@@ -321,4 +321,4 @@ gh repo edit nukopian/scalar --visibility public --accept-visibility-change-cons
 `go` (the version `go.mod` asks for, or newer), `gh`, `gitleaks`,
 `git-filter-repo`, and for the PDFs, `pandoc` and Prince. grammar's Raku
 tests need Rakudo 2025.11, and scalar's Perl tests Perl 5.36 or later,
-with List::UtilsBy and YAML::PP.
+with List::UtilsBy, YAML::PP and autovivification.

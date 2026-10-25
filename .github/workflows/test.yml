@@ -28,14 +28,14 @@ jobs:
       - run: go version
 
       # The differential tests run the same cases through Perl (5.36 or
-      # later) and compare. These two modules aren't in Perl's core; without
+      # later) and compare. These three modules aren't in Perl's core; without
       # them, their tests skip.
       - name: Perl modules
         run: |
           sudo apt-get update
-          sudo apt-get install -y libyaml-pp-perl liblist-utilsby-perl
+          sudo apt-get install -y libyaml-pp-perl liblist-utilsby-perl libautovivification-perl
           perl -v | head -2
-          perl -MYAML::PP -MList::UtilsBy -e 'print "modules ok\n"'
+          perl -MYAML::PP -MList::UtilsBy -Mautovivification -e 'print "modules ok\n"'
 
       - name: gofmt
         run: |

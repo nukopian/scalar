@@ -1009,6 +1009,59 @@ fmt.Println(doc.Locked(), doc.Clone().Locked())
 true false
 ```
 
+#### `SV.Autovivify`
+
+Autovivify sets whether reading through s creates what's missing, and returns s; see the reference's Autovivification section.
+
+Autovivify(false) is Perl's no autovivification: probing a feature for fields it may not have creates nothing, so it writes out as it was read. A write still creates the levels it needs.
+
+```go
+f, _ := scalar.FromJSON([]byte(`{"properties": {"mag": 4.6, "place": "12 km SSW of Ridgecrest, CA"}}`))
+f.Autovivify(false)
+fmt.Println(f.At("properties.alert").Defined(), f.At("properties.products.shakemap[0].code").Defined())
+out, _ := f.MarshalJSON()
+fmt.Println(string(out))
+f.At("properties.tsunami").Set(0)
+out, _ = f.MarshalJSON()
+fmt.Println(string(out))
+```
+
+```
+false false
+{"properties":{"mag":4.6,"place":"12 km SSW of Ridgecrest, CA"}}
+{"properties":{"mag":4.6,"place":"12 km SSW of Ridgecrest, CA","tsunami":0}}
+```
+
+#### `SV.Autovivifies`
+
+Autovivifies reports whether reading through s creates what's missing, as Autovivify sets for s itself.
+
+Autovivifies reports Autovivify's setting for the scalar itself; a Clone has the default.
+
+```go
+f := scalar.Value(map[string]any{"properties": map[string]any{"mag": 4.6}})
+fmt.Println(f.Autovivifies(), f.Autovivify(false).Autovivifies(), f.Clone().Autovivifies())
+```
+
+```
+true false true
+```
+
+#### `SV.AutovivifiesDeeply`
+
+AutovivifiesDeeply reports whether reading through what s refers to creates what's missing, as Autovivify sets for everything below s.
+
+AutovivifiesDeeply reports Autovivify's setting for everything below the scalar, which a second setting gives apart from the first.
+
+```go
+f := scalar.Value(map[string]any{"properties": map[string]any{"mag": 4.6}}).Autovivify(true, false)
+fmt.Println(f.Autovivifies(), f.AutovivifiesDeeply(), f.Get("properties").Autovivifies())
+```
+
+```
+true false false
+```
+
 ### Reference: Strings
 
 #### `SV.Length`
@@ -2445,6 +2498,50 @@ fmt.Println(a.Locked(), a.Lock().Locked())
 false true
 ```
 
+#### `AV.Autovivify`
+
+Autovivify sets autovivification for a's elements and everything below them, as `SV.Autovivify` does, and returns a.
+
+With autovivification off, an array's missing elements, and what would be below them, read as undef and create nothing; writing still creates.
+
+```go
+quakes := scalar.Array(scalar.Value(map[string]any{"mag": 4.6})).Autovivify(false)
+fmt.Println(quakes.Get(0, "felt", "count").Defined(), quakes.Get(3, "mag").Defined(), quakes.Length())
+quakes.Get(1, "mag").Set(2.1)
+fmt.Println(quakes.Length(), quakes.Get(1, "mag"))
+```
+
+```
+false false 1
+2 2.1
+```
+
+#### `AV.Autovivifies`
+
+Autovivifies reports whether reading through a's elements creates what's missing.
+
+```go
+quakes := scalar.Array(4.6, 2.1)
+fmt.Println(quakes.Autovivifies(), quakes.Autovivify(false).Autovivifies())
+```
+
+```
+true false
+```
+
+#### `AV.AutovivifiesDeeply`
+
+AutovivifiesDeeply reports whether reading below a's elements creates what's missing.
+
+```go
+quakes := scalar.Array(4.6, 2.1).Autovivify(false, true)
+fmt.Println(quakes.Autovivifies(), quakes.AutovivifiesDeeply())
+```
+
+```
+false true
+```
+
 ### Reference: Hashes
 
 #### `Hash`
@@ -2989,6 +3086,50 @@ Locked reports whether h is locked.
 ```go
 h := scalar.Hash("min", 25000)
 fmt.Println(h.Locked(), h.Lock().Locked())
+```
+
+```
+false true
+```
+
+#### `HV.Autovivify`
+
+Autovivify sets autovivification for h's values and everything below them, as `SV.Autovivify` does, and returns h.
+
+With autovivification off, a hash's missing keys, and what would be below them, read as undef and create nothing. Locked as well, it reads a missing key quietly, where a locked hash alone panics.
+
+```go
+stations := scalar.Hash("CI", scalar.Value(map[string]any{"CLC": 8.2})).Autovivify(false)
+fmt.Println(stations.Get("NC", "MCB").Defined(), stations.Exists("NC"))
+stations.Lock()
+fmt.Println(stations.Get("NC").Defined(), catch(func() { stations.Get("NC").Set(1) }))
+```
+
+```
+false false
+false scalar: Attempt to access disallowed key 'NC' in a restricted hash
+```
+
+#### `HV.Autovivifies`
+
+Autovivifies reports whether reading through h's values creates what's missing.
+
+```go
+stations := scalar.Hash("CI", "CLC")
+fmt.Println(stations.Autovivifies(), stations.Autovivify(false).Autovivifies())
+```
+
+```
+true false
+```
+
+#### `HV.AutovivifiesDeeply`
+
+AutovivifiesDeeply reports whether reading below h's values creates what's missing.
+
+```go
+stations := scalar.Hash("CI", "CLC").Autovivify(false, true)
+fmt.Println(stations.Autovivifies(), stations.AutovivifiesDeeply())
 ```
 
 ```

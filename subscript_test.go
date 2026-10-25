@@ -396,7 +396,6 @@ func TestSVSubscriptMatchesPerl(t *testing.T) {
 		Op   string `json:"op"`
 		Path []step `json:"path"`
 	}
-	keys := []any{"properties", "mag", "felt", "0", "nope", "coordinates", "geometry", 0, 1, -1, -3, 2, 4, -9}
 	toKeys := func(path []any) []step {
 		var st []step
 		for _, k := range path {
@@ -409,64 +408,10 @@ func TestSVSubscriptMatchesPerl(t *testing.T) {
 		}
 		return st
 	}
-	// fits says whether a get is one Perl does without dying; scalar's
-	// reads carry on where Perl dies, as documented. Anything else fits.
-	fits := func(op string, path []any) bool {
-		if op != "get" {
-			return true
-		}
-		cur, curOK := newSubscriptDoc(t), true // cur exists so far
-		for i, k := range path {
-			last := i == len(path)-1
-			if !curOK || !cur.Defined() {
-				if n, isInt := k.(int); isInt && n < 0 && !last {
-					return false // $a[-1] of an empty array can't be created
-				}
-				curOK = false
-				continue
-			}
-			switch k := k.(type) {
-			case string:
-				if cur.Ref() != "HASH" {
-					return false
-				}
-			case int:
-				if cur.Ref() != "ARRAY" {
-					return false
-				}
-				if !last && (k < -cur.AV().Length()) {
-					return false // going through an element Perl can't create
-				}
-			}
-			cur, curOK = cur.GetOK(k)
-		}
-		return true
-	}
-	var cases []testCase
-	var paths [][]any
-	for _, op := range []string{"get", "set", "exists", "delete"} {
-		for _, a := range keys {
-			for _, b := range append([]any{nil}, keys...) {
-				for _, c := range append([]any{nil}, keys...) {
-					path := []any{a}
-					if b != nil {
-						path = append(path, b)
-						if c != nil {
-							path = append(path, c)
-						}
-					} else if c != nil {
-						continue
-					}
-					if fits(op, path) {
-						cases = append(cases, testCase{op, toKeys(path)})
-						paths = append(paths, path)
-					}
-				}
-			}
-		}
-	}
-	if len(cases) < 1000 {
-		t.Fatalf("only %d cases", len(cases))
+	ops, paths := subscriptCases(t)
+	cases := make([]testCase, len(ops))
+	for n, op := range ops {
+		cases[n] = testCase{op, toKeys(paths[n])}
 	}
 	in, _ := json.Marshal(map[string]any{"doc": json.RawMessage(subscriptDoc), "cases": cases})
 	const script = `
@@ -569,6 +514,72 @@ print $json->encode(\@out);
 		}
 	}
 	t.Logf("%d cases: %v", len(cases), counts)
+}
+
+// subscriptCases is every get, set, exists and delete of one to three keys
+// into subscriptDoc, for the tests that compare with Perl: each case's
+// operation, and its path.
+func subscriptCases(t *testing.T) (ops []string, paths [][]any) {
+	t.Helper()
+	keys := []any{"properties", "mag", "felt", "0", "nope", "coordinates", "geometry", 0, 1, -1, -3, 2, 4, -9}
+	// fits says whether a get is one Perl does without dying; scalar's
+	// reads carry on where Perl dies, as documented. Anything else fits.
+	fits := func(op string, path []any) bool {
+		if op != "get" {
+			return true
+		}
+		cur, curOK := newSubscriptDoc(t), true // cur exists so far
+		for i, k := range path {
+			last := i == len(path)-1
+			if !curOK || !cur.Defined() {
+				if n, isInt := k.(int); isInt && n < 0 && !last {
+					return false // $a[-1] of an empty array can't be created
+				}
+				curOK = false
+				continue
+			}
+			switch k := k.(type) {
+			case string:
+				if cur.Ref() != "HASH" {
+					return false
+				}
+			case int:
+				if cur.Ref() != "ARRAY" {
+					return false
+				}
+				if !last && (k < -cur.AV().Length()) {
+					return false // going through an element Perl can't create
+				}
+			}
+			cur, curOK = cur.GetOK(k)
+		}
+		return true
+	}
+	for _, op := range []string{"get", "set", "exists", "delete"} {
+		for _, a := range keys {
+			for _, b := range append([]any{nil}, keys...) {
+				for _, c := range append([]any{nil}, keys...) {
+					path := []any{a}
+					if b != nil {
+						path = append(path, b)
+						if c != nil {
+							path = append(path, c)
+						}
+					} else if c != nil {
+						continue
+					}
+					if fits(op, path) {
+						ops = append(ops, op)
+						paths = append(paths, path)
+					}
+				}
+			}
+		}
+	}
+	if len(ops) < 1000 {
+		t.Fatalf("only %d cases", len(ops))
+	}
+	return ops, paths
 }
 
 // Asking costs no allocation when the answer is there, so GetOK, like

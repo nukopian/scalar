@@ -11,7 +11,25 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- New: `Autovivify(false)`, on scalars, arrays and hashes, is the CPAN
+  pragma's `no autovivification` for a value and everything it refers
+  to: `Get`, `At`, `HV()`, `AV()`, `Exists` and `Delete` create nothing,
+  and a missing level reads as undef, so data probed for optional fields
+  writes out as it was read. A write still creates the levels it needs,
+  and values stored later take the setting. `Autovivify(self, deeply)`
+  sets a value and what's below it apart; `Autovivifies` and
+  `AutovivifiesDeeply` report them. With `Lock` as well, a missing key
+  reads as undef instead of panicking. `TestAutovivifyOffMatchesPerl`
+  checks nearly 10,000 subscripts against the pragma.
+- Changed: `UnmarshalJSON` and `UnmarshalYAML` into a locked scalar, as
+  `json.Unmarshal` and `yaml.Unmarshal` call them, return an error with
+  Perl's message, `Modification of a read-only value attempted`, instead
+  of panicking, and leave the scalar as it was.
+- Fixed: `UnmarshalYAML` wrote into a locked scalar, and YAML read into a
+  missing element, such as `yaml.Unmarshal(data, h.Get("q"))`, was lost
+  rather than stored, as JSON is.
+- Docs: `Lock`'s comment said reads that would autovivify panic; that's
+  so for a locked hash, but a locked undef reads through as undef.
 
 ## v0.5.6 (2026-10-22)
 

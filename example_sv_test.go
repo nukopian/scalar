@@ -693,6 +693,42 @@ func ExampleSV_Locked() {
 	// true false
 }
 
+// Autovivify(false) is Perl's no autovivification: probing a feature for
+// fields it may not have creates nothing, so it writes out as it was read.
+// A write still creates the levels it needs.
+func ExampleSV_Autovivify() {
+	f, _ := scalar.FromJSON([]byte(`{"properties": {"mag": 4.6, "place": "12 km SSW of Ridgecrest, CA"}}`))
+	f.Autovivify(false)
+	fmt.Println(f.At("properties.alert").Defined(), f.At("properties.products.shakemap[0].code").Defined())
+	out, _ := f.MarshalJSON()
+	fmt.Println(string(out))
+	f.At("properties.tsunami").Set(0)
+	out, _ = f.MarshalJSON()
+	fmt.Println(string(out))
+	// Output:
+	// false false
+	// {"properties":{"mag":4.6,"place":"12 km SSW of Ridgecrest, CA"}}
+	// {"properties":{"mag":4.6,"place":"12 km SSW of Ridgecrest, CA","tsunami":0}}
+}
+
+// Autovivifies reports Autovivify's setting for the scalar itself; a Clone
+// has the default.
+func ExampleSV_Autovivifies() {
+	f := scalar.Value(map[string]any{"properties": map[string]any{"mag": 4.6}})
+	fmt.Println(f.Autovivifies(), f.Autovivify(false).Autovivifies(), f.Clone().Autovivifies())
+	// Output:
+	// true false true
+}
+
+// AutovivifiesDeeply reports Autovivify's setting for everything below the
+// scalar, which a second setting gives apart from the first.
+func ExampleSV_AutovivifiesDeeply() {
+	f := scalar.Value(map[string]any{"properties": map[string]any{"mag": 4.6}}).Autovivify(true, false)
+	fmt.Println(f.Autovivifies(), f.AutovivifiesDeeply(), f.Get("properties").Autovivifies())
+	// Output:
+	// true false false
+}
+
 // catch runs f and returns what it panicked with.
 func catch(f func()) (msg any) {
 	defer func() { msg = recover() }()

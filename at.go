@@ -418,7 +418,7 @@ func (a *AV) probe() *SV {
 // undef and writing panics.
 func (h *HV) ref() *SV {
 	if h == nil {
-		return &SV{noCreate: "Not a HASH reference"}
+		return noCreateSV("Not a HASH reference")
 	}
 	return &SV{v: h}
 }
@@ -426,7 +426,7 @@ func (h *HV) ref() *SV {
 // ref is a scalar holding a reference to a, as HV.ref is for a hash.
 func (a *AV) ref() *SV {
 	if a == nil {
-		return &SV{noCreate: notArrayRef}
+		return noCreateSV(notArrayRef)
 	}
 	return &SV{v: a}
 }

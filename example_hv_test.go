@@ -353,3 +353,30 @@ func ExampleHV_Locked() {
 	// Output:
 	// false true
 }
+
+// With autovivification off, a hash's missing keys, and what would be
+// below them, read as undef and create nothing. Locked as well, it reads
+// a missing key quietly, where a locked hash alone panics.
+func ExampleHV_Autovivify() {
+	stations := scalar.Hash("CI", scalar.Value(map[string]any{"CLC": 8.2})).Autovivify(false)
+	fmt.Println(stations.Get("NC", "MCB").Defined(), stations.Exists("NC"))
+	stations.Lock()
+	fmt.Println(stations.Get("NC").Defined(), catch(func() { stations.Get("NC").Set(1) }))
+	// Output:
+	// false false
+	// false scalar: Attempt to access disallowed key 'NC' in a restricted hash
+}
+
+func ExampleHV_Autovivifies() {
+	stations := scalar.Hash("CI", "CLC")
+	fmt.Println(stations.Autovivifies(), stations.Autovivify(false).Autovivifies())
+	// Output:
+	// true false
+}
+
+func ExampleHV_AutovivifiesDeeply() {
+	stations := scalar.Hash("CI", "CLC").Autovivify(false, true)
+	fmt.Println(stations.Autovivifies(), stations.AutovivifiesDeeply())
+	// Output:
+	// false true
+}

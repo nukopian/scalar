@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 // FromJSON decodes data into a scalar. Integers that fit in int64 become
@@ -19,13 +20,31 @@ func FromJSON(data []byte) (*SV, error) {
 	return s, nil
 }
 
-// UnmarshalJSON implements json.Unmarshaler.
+// UnmarshalJSON implements json.Unmarshaler. Reading into a locked
+// scalar, or an element that can't be written, is an error, with the
+// message Set would panic with, and leaves s as it was.
 func (s *SV) UnmarshalJSON(data []byte) error {
 	if v, ok := readJSON(data); ok {
-		s.Set(v)
-		return nil
+		return s.setRead(v)
 	}
 	return s.unmarshalJSONSlow(data)
+}
+
+// setRead is Set for UnmarshalJSON and UnmarshalYAML, whose callers expect
+// an error rather than a panic: a write that Set would panic on, as one to
+// a locked scalar does, is an error with the same message instead.
+func (s *SV) setRead(v any) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			msg, ok := r.(string)
+			if !ok || !strings.HasPrefix(msg, "scalar: ") {
+				panic(r)
+			}
+			err = errors.New(msg)
+		}
+	}()
+	s.Set(v)
+	return nil
 }
 
 // unmarshalJSONSlow decodes with encoding/json, for whatever readJSON
@@ -40,8 +59,7 @@ func (s *SV) unmarshalJSONSlow(data []byte) error {
 	if _, err := dec.Token(); err != io.EOF {
 		return errors.New("scalar: trailing data after JSON value")
 	}
-	s.Set(x)
-	return nil
+	return s.setRead(x)
 }
 
 // MarshalJSON implements json.Marshaler. Undef encodes as null. A

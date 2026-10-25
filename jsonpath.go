@@ -114,7 +114,7 @@ func walk(n *SV, ancestors map[any]bool, visit func(*SV)) {
 // it (null). It's a fresh scalar, so the hole isn't filled in.
 func hole(c *SV) *SV {
 	if c == nil {
-		return &SV{noCreate: "Modification of a hole in an array, found by Find, attempted"}
+		return noCreateSV("Modification of a hole in an array, found by Find, attempted")
 	}
 	return c
 }

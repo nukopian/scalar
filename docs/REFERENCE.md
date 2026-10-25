@@ -885,6 +885,11 @@ depends on how sure you are of its shape:
   create anything, and data of the wrong shape just means there's nothing
   there. Use them on data you aren't sure of.
 
+Or turn creation off for a whole structure, with `Autovivify(false)`, as
+the CPAN pragma's `no autovivification` turns it off for a block of Perl:
+then `Get`, `At`, `Exists` and `Delete` create nothing either. See
+[Turning autovivification off](#turning-autovivification-off-autovivify).
+
 | | As Perl does | Looking without creating anything |
 |---|---|---|
 | read | `s.Get(k1, k2)`, `s.At("a.b")` | `s.GetOK(k1, k2)`, `s.AtOK("a.b")`, which tell missing from null |
@@ -908,7 +913,7 @@ programmer, or a Perl programmer reading Go, would expect isn't so:
 | You might expect | What happens | For what you expected |
 |---|---|---|
 | `h.Get("mag", "net")` fetches two keys, like Perl's hash slice `@h{qw(mag net)}` | It's a route, one key inside the other: `$h{mag}{net}`. Several keys to `Get`, `Exists` and `Delete` always mean a route | `h.Values("mag", "net")` is the slice; `a.Values(0, -1)` is `@a[0, -1]` |
-| A read never changes the data | Going *through* a missing level creates it, as Perl's autovivification does: `s.Get("origin", "depth")` adds `"origin"` as an empty hash. The last key is never created by a read | `s.GetOK("origin", "depth")` or `s.AtOK("origin.depth")`, which create nothing |
+| A read never changes the data | Going *through* a missing level creates it, as Perl's autovivification does: `s.Get("origin", "depth")` adds `"origin"` as an empty hash. The last key is never created by a read | `s.GetOK("origin", "depth")` or `s.AtOK("origin.depth")`, which create nothing, or `s.Autovivify(false)` for the whole structure |
 | `Exists` only looks | For a key or index that isn't there, it says false, and never panics (but see [locked hashes](#locking)). But, as Perl's `exists` does, it creates the levels on the way as `Get` does, makes an undef `s` a hash or array, and panics on a value of the wrong kind: a number or a string, a hash asked for an index, an array asked for a key | `_, ok := s.GetOK(...)`, which only looks, and never panics |
 | `Delete` only removes | For a key or index that isn't there, it removes nothing and returns undef, and never panics (but see [locked hashes](#locking)). But, as Perl's `delete` does, it creates the levels on the way, and panics on a value of the wrong kind, as `Exists` does | `s.DeleteOK(...)` or `s.DeleteAt(...)`, which create nothing and never panic |
 | Any number can be an index | Only an `int`. A JSON number is a `float64`, and a `float64`, `int64` or `uint` key panics, as does any type but `string` and `int` | Convert first: `s.Get(int(n.Int()))` |
@@ -1134,6 +1139,72 @@ isn't there to remove again, and deleting the last shrinks the array.
 
 `Find` searches with JSONPath, and creates nothing either: see
 [Finding values with JSONPath](#finding-values-with-jsonpath).
+
+### Turning autovivification off: `Autovivify`
+
+`Autovivify(false)` is the CPAN pragma
+[autovivification](https://metacpan.org/pod/autovivification)'s
+`no autovivification`, for a value and everything it refers to, all the
+way down. Reading creates nothing, so data probed for optional fields
+writes out exactly as it was read. A write still creates the levels it
+needs, as under the pragma:
+
+```go
+f, _ := scalar.FromJSON(body)
+f.Autovivify(false)
+f.At("properties.products.shakemap[0].code") // undef, and f is unchanged
+f.Exists("properties", "alert", "level")      // false, and f is unchanged
+f.At("properties.tsunami").Set(0)             // creates "tsunami", as a store does
+```
+
+| With autovivification off | Does |
+|---|---|
+| `Get`, `At` and `HV()` or `AV()` of a missing level | read as undef, or an empty hash or array, and create nothing |
+| `Exists`, `Delete` | create nothing on the way: false, or nothing deleted |
+| `All`, `Values`, `Keys`, `Each`, `Length` | read what's there, and create nothing |
+| a write: `Set`, `Push`, `Splice`, `Pop`, `Undef` and the rest | creates the levels it needs, as before |
+| a value stored later | takes the setting of the array or hash it goes into, all the way down |
+
+It's on by default, as in Perl. `Autovivify()` and `Autovivify(true)` turn
+it back on, as far down. With two settings, `Autovivify(self, deeply)`, the
+first is for the value itself and the second for everything below it. For
+a scalar, the first is whether the scalar, while it's undef, becomes an
+array or hash when read through; for an array or hash, it's for its
+elements. More than two settings panics. `Autovivifies` and
+`AutovivifiesDeeply` report the two settings.
+
+The setting belongs to the values, as a [lock](#locking) does, so it reaches
+a part shared with another structure for both. A structure that refers back
+to itself is set once, and the value `Autovivify` was called on keeps its
+own setting when the walk comes back to it. `Clone` gives a copy with the
+default setting, as it gives an unlocked one; `Copy` is shallow, so a copied
+reference shares the hash or array and its setting. Reading JSON or YAML
+into a scalar with autovivification off is a store, so everything read in
+takes the setting.
+
+With [`Lock`](#locking) as well, a structure is read-only and quiet: a
+missing key reads as undef, where a locked hash alone panics, and every
+write still panics.
+
+Code that never turns it off pays nothing for it: a scalar takes no more
+memory than it did, and the benchmarks in `lock_bench_test.go` run as fast
+as before.
+`TestAutovivifyOffMatchesPerl` runs every get, set, `exists` and `delete`
+of `TestSVSubscriptMatchesPerl`, nearly 10,000, through Perl under
+`no autovivification`, and compares the value and the document. It runs
+when the module is installed.
+
+Where it differs from the pragma:
+
+- **It belongs to the value, not to a block of code.** Perl's pragma is
+  lexical, and Go has no lexical scope, so the value carries the setting
+  wherever it goes, and code that reads it later reads it the same way.
+- **`All`, `Values` and `Each` create nothing.** Under the pragma,
+  `for (@{$h->{a}})` and `each %{$h->{a}}` still create `a`. `scalar`
+  doesn't follow it there: a loop over what isn't there reads nothing.
+- **With a lock, a missing key reads as undef.** A Perl restricted hash dies
+  on a missing key whatever the pragma says. `scalar` reads it as undef, so
+  that a structure can be both read-only and safe to probe.
 
 ### What Perl won't create
 
@@ -1769,6 +1840,10 @@ out, err := json.Marshal(s)      // encode
   contains itself, directly or further down), and a NaN or infinite number.
   The same array or hash appearing twice, without a loop, is fine: it's
   written out each time.
+- **Decoding into a locked scalar is an error,** `json.Unmarshal(data, s)`
+  with `s` [locked](#locking), with the message `Set` would panic with
+  (`scalar: Modification of a read-only value attempted`), and `s` is left
+  as it was. `encoding/json`'s callers expect an error, not a panic.
 
 ## YAML
 
@@ -1841,7 +1916,8 @@ just YAML 1.2 ones:
 Scalars, arrays and hashes also work with the YAML package itself
 (`go.yaml.in/yaml/v3`), as they do with `encoding/json`: a `*scalar.SV`
 field in a struct you read with `yaml.Unmarshal` takes whatever part of the
-document is there, for the parts whose shape varies.
+document is there, for the parts whose shape varies. As with JSON,
+reading into a locked scalar is an error rather than a panic.
 
 `TestYAMLRoundTrip` checks that what `ToYAML` writes reads back the same,
 type by type, for hundreds of random structures, shared parts and loops
@@ -2193,9 +2269,9 @@ doc.At("depth.km").Set(1)       // panics: Modification of a read-only value att
 
 | Locked | Like Perl's | Reading | Writing |
 |---|---|---|---|
-| a hash | `lock_hash` | a key it has, as usual; one it hasn't got panics ("Attempt to access disallowed key 'x' in a restricted hash"), where `At` would have autovivified; `Exists`, `AtOK` and `Find` answer as usual | changing a value, adding a key or deleting one panics |
+| a hash | `lock_hash` | a key it has, as usual; one it hasn't got panics ("Attempt to access disallowed key 'x' in a restricted hash"), where `At` would have autovivified, unless [autovivification is off](#turning-autovivification-off-autovivify), when it reads as undef; `Exists`, `AtOK` and `Find` answer as usual | changing a value, adding a key or deleting one panics |
 | an array | `Internals::SvREADONLY` | as usual, past the end too (undef) | push, pop, splice, an element, sorting or reversing in place: all panic |
-| a scalar | `Readonly` (CPAN) | as usual; an undef doesn't autovivify | `Set`, `Inc`, `ConcatInPlace` and the rest panic |
+| a scalar | `Readonly` (CPAN) | as usual; an undef doesn't autovivify, and reads through as undef | `Set`, `Inc`, `ConcatInPlace` and the rest panic |
 
 It reaches everything the value refers to, nested arrays and their
 elements included, which is a step beyond Perl, whose `lock_hash_recurse`

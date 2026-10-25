@@ -36,15 +36,57 @@ type SV struct {
 	// reading a missing element doesn't create it but writing through it does.
 	viv func(*SV)
 
+	// rare holds what only a few scalars need, so that the rest stay
+	// small; nil for most.
+	rare *svRare
+
+	// ro marks a scalar Lock has made read-only: writing to it panics, and
+	// as an undef it doesn't autovivify.
+	ro bool
+
+	// noViv and noVivDeep are Autovivify's settings, off when true, for s
+	// itself and for what's below it.
+	noViv, noVivDeep bool
+}
+
+// svRare is the part of a scalar that only a few have.
+type svRare struct {
 	// noCreate marks an undef that Perl couldn't create, such as an array
 	// element before index 0 or an element of a non-reference. Writing to it
 	// panics with this message; dereferencing it yields nil, so reads
 	// through it stay undef.
 	noCreate string
 
-	// ro marks a scalar Lock has made read-only: writing to it panics, and
-	// as an undef it doesn't autovivify.
-	ro bool
+	// pend is what an undef with autovivification off dereferences to: an
+	// array or hash that attaches to it on its first write. Any other write
+	// to the undef drops it.
+	pend any
+}
+
+// noCreateSV is an undef that can't be created, for the reason msg.
+func noCreateSV(msg string) *SV { return &SV{rare: &svRare{noCreate: msg}} }
+
+// noCreate is why s can't be created, or "" if it can.
+func (s *SV) noCreate() string {
+	if s.rare == nil {
+		return ""
+	}
+	return s.rare.noCreate
+}
+
+// pend is the array or hash s is waiting to attach, or nil.
+func (s *SV) pend() any {
+	if s.rare == nil {
+		return nil
+	}
+	return s.rare.pend
+}
+
+func (s *SV) setPend(c any) {
+	if s.rare == nil {
+		s.rare = &svRare{}
+	}
+	s.rare.pend = c
 }
 
 // Value returns a scalar holding x. See Set for how Go values are converted.
@@ -68,6 +110,7 @@ func Value(x any) *SV {
 func (s *SV) Set(x any) *SV {
 	s.vivify()
 	s.v = normalize(x)
+	s.adoptValue()
 	return s
 }
 
@@ -92,8 +135,14 @@ func (s *SV) vivify() {
 	if s.ro {
 		panic("scalar: " + readOnlyMsg)
 	}
-	if s.noCreate != "" {
-		panic("scalar: " + s.noCreate)
+	if s.rare != nil {
+		if msg := s.rare.noCreate; msg != "" {
+			if s.viv != nil {
+				s.viv(s) // an array waiting to be created is, as Perl creates it before dying
+			}
+			panic("scalar: " + msg)
+		}
+		s.rare.pend = nil
 	}
 	if s.viv != nil {
 		f := s.viv
@@ -416,7 +465,18 @@ func (s *SV) AV() *AV {
 	case *AV:
 		return v
 	case nil:
-		if s.noCreate != "" || s.ro {
+		if s.ro {
+			return nil
+		}
+		if s.noViv { // even one that can't be created: a write through it then panics with why
+			if a, ok := s.pend().(*AV); ok {
+				return a
+			}
+			a := &AV{noViv: s.noVivDeep, noVivDeep: s.noVivDeep, owner: s}
+			s.setPend(a)
+			return a
+		}
+		if s.noCreate() != "" {
 			return nil
 		}
 		a := &AV{}
@@ -438,7 +498,18 @@ func (s *SV) HV() *HV {
 	case *HV:
 		return v
 	case nil:
-		if s.noCreate != "" || s.ro {
+		if s.ro {
+			return nil
+		}
+		if s.noViv { // even one that can't be created: a write through it then panics with why
+			if h, ok := s.pend().(*HV); ok {
+				return h
+			}
+			h := &HV{noViv: s.noVivDeep, noVivDeep: s.noVivDeep, owner: s}
+			s.setPend(h)
+			return h
+		}
+		if s.noCreate() != "" {
 			return nil
 		}
 		h := &HV{}
@@ -588,6 +659,9 @@ func (s *SV) subscripts(method string, keys []any) (*SV, atStep) {
 // Perl's exists and delete do, and panics, as Perl dies, if s is anything
 // else, or an undef that can't be created.
 func (st atStep) deref(s *SV) {
+	if s != nil && s.v == nil && s.noViv {
+		return // nothing to create, and nothing there: Exists is false, Delete deletes nothing
+	}
 	msg := "Not a HASH reference"
 	if st.kind == stepKey {
 		if s.HV() != nil {

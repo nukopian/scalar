@@ -42,10 +42,11 @@ func plainHash(kv []any) (*HV, bool) {
 // closure it vivifies through. As Set's general code does, it stores the
 // scalar before converting v, so a conversion that panics leaves the key
 // there, holding undef. It reports false, having done nothing, for a key h
-// already has, which must keep its scalar, and for a locked or nil hash,
-// whose panics the general code gives.
+// already has, which must keep its scalar, for a locked or nil hash,
+// whose panics the general code gives, and for a hash with
+// autovivification off, whose setting the general code passes on.
 func (h *HV) setNew(key string, v any) (*SV, bool) {
-	if !fastPaths || h == nil || h.locked {
+	if !fastPaths || h == nil || h.locked || h.noViv || h.noVivDeep {
 		return nil, false
 	}
 	if _, ok := h.m[key]; ok {

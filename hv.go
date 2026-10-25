@@ -19,6 +19,11 @@ type HV struct {
 	eachPos  int
 
 	locked bool // by Lock: its keys fixed, and reading one it hasn't got panics
+
+	// Autovivify's settings for the values and below, off when true, and
+	// the undef h was made for, until h attaches to it (see attach).
+	noViv, noVivDeep bool
+	owner            *SV
 }
 
 // Hash builds a hash from a key/value list, as %h = (k1 => v1, ...) does.
@@ -82,15 +87,15 @@ func (h *HV) Get(key string, more ...any) *SV {
 // get is Get with one key, for the package's own use on hot paths.
 func (h *HV) get(key string) *SV {
 	if h == nil {
-		return &SV{noCreate: "Not a HASH reference"}
+		return noCreateSV("Not a HASH reference")
 	}
 	if s, ok := h.m[key]; ok {
 		return s
 	}
-	if h.locked {
+	if h.locked && !h.noViv { // with autovivification off, a missing key reads as undef
 		panic(fmt.Sprintf("scalar: Attempt to access disallowed key '%s' in a restricted hash", key))
 	}
-	return &SV{viv: func(s *SV) { h.store(key, s) }}
+	return &SV{viv: func(s *SV) { h.store(key, s) }, noViv: h.noViv, noVivDeep: h.noVivDeep}
 }
 
 func (h *HV) store(key string, s *SV) {
@@ -100,6 +105,10 @@ func (h *HV) store(key string, s *SV) {
 		}
 		panic(fmt.Sprintf("scalar: Attempt to access disallowed key '%s' in a restricted hash", key))
 	}
+	if h.owner != nil {
+		h.attach()
+	}
+	adopt(s, h.noViv, h.noVivDeep)
 	if h.m == nil {
 		h.m = map[string]*SV{}
 	}
@@ -211,6 +220,9 @@ func (h *HV) Undef() *HV {
 	}
 	if h == nil {
 		panic("scalar: Not a HASH reference")
+	}
+	if h.owner != nil {
+		h.attach() // as undef %{$s->{a}} creates the hash, even under no autovivification
 	}
 	h.m, h.order, h.eachKeys, h.eachPos = map[string]*SV{}, nil, nil, 0
 	return h

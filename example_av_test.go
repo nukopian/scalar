@@ -465,3 +465,29 @@ func ExampleAV_Locked() {
 	// Output:
 	// false true
 }
+
+// With autovivification off, an array's missing elements, and what would
+// be below them, read as undef and create nothing; writing still creates.
+func ExampleAV_Autovivify() {
+	quakes := scalar.Array(scalar.Value(map[string]any{"mag": 4.6})).Autovivify(false)
+	fmt.Println(quakes.Get(0, "felt", "count").Defined(), quakes.Get(3, "mag").Defined(), quakes.Length())
+	quakes.Get(1, "mag").Set(2.1)
+	fmt.Println(quakes.Length(), quakes.Get(1, "mag"))
+	// Output:
+	// false false 1
+	// 2 2.1
+}
+
+func ExampleAV_Autovivifies() {
+	quakes := scalar.Array(4.6, 2.1)
+	fmt.Println(quakes.Autovivifies(), quakes.Autovivify(false).Autovivifies())
+	// Output:
+	// true false
+}
+
+func ExampleAV_AutovivifiesDeeply() {
+	quakes := scalar.Array(4.6, 2.1).Autovivify(false, true)
+	fmt.Println(quakes.Autovivifies(), quakes.AutovivifiesDeeply())
+	// Output:
+	// false true
+}

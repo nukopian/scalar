@@ -17,13 +17,35 @@ type AV struct {
 	items   []*SV // nil entries are holes
 	eachPos int   // how far Each has got
 	locked  bool  // by Lock: read-only
+
+	// Autovivify's settings for the elements and below, off when true,
+	// and the undef a was made for, until a attaches to it (see attach).
+	noViv, noVivDeep bool
+	owner            *SV
 }
 
 // mustWrite panics if a is locked, as a change to a read-only array dies
-// in Perl.
+// in Perl, and attaches a if it's waiting to, as a change through an undef
+// creates the array.
 func (a *AV) mustWrite() {
+	a.mustNotBeLocked()
+	if a != nil && a.owner != nil {
+		a.attach()
+	}
+}
+
+func (a *AV) mustNotBeLocked() {
 	if a != nil && a.locked {
 		panic("scalar: " + readOnlyMsg)
+	}
+}
+
+// adoptNew gives elements just added to a its autovivification setting.
+func (a *AV) adoptNew(items []*SV) {
+	if a.noViv || a.noVivDeep {
+		for _, s := range items {
+			adopt(s, a.noViv, a.noVivDeep)
+		}
 	}
 }
 
@@ -161,16 +183,21 @@ func (a *AV) Get(i int, more ...any) *SV {
 // get is Get with one index, for the package's own use on hot paths.
 func (a *AV) get(i int) *SV {
 	if a == nil {
-		return &SV{noCreate: notArrayRef}
+		return noCreateSV(notArrayRef)
 	}
 	idx, ok := a.index(i)
 	if !ok {
-		return &SV{noCreate: nonCreatable(i)}
+		s := noCreateSV(nonCreatable(i))
+		s.noViv, s.noVivDeep = a.noViv, a.noVivDeep
+		if a.owner != nil {
+			s.viv = func(*SV) { a.mustWrite() }
+		}
+		return s
 	}
 	if idx < len(a.items) && a.items[idx] != nil {
 		return a.items[idx]
 	}
-	return &SV{viv: func(s *SV) { a.store(idx, s) }}
+	return &SV{viv: func(s *SV) { a.store(idx, s) }, noViv: a.noViv, noVivDeep: a.noVivDeep}
 }
 
 func (a *AV) store(i int, s *SV) {
@@ -179,6 +206,7 @@ func (a *AV) store(i int, s *SV) {
 		a.items = append(a.items, make([]*SV, i+1-len(a.items))...)
 	}
 	a.items[i] = s
+	adopt(s, a.noViv, a.noVivDeep)
 }
 
 // Set is Perl's $a[i] = v: it assigns v to element i, extending the array
@@ -217,7 +245,7 @@ func (a *AV) Delete(i int, more ...any) *SV {
 	if len(more) > 0 {
 		return a.get(i).Delete(more...)
 	}
-	a.mustWrite()
+	a.mustNotBeLocked() // deleting creates nothing, so a waiting array stays waiting
 	idx, ok := a.index(i)
 	if !ok || idx >= a.Length() || a.items[idx] == nil {
 		return &SV{}
@@ -252,13 +280,15 @@ func (a *AV) Undef() *AV {
 func (a *AV) Push(vals ...any) *AV {
 	a.mustWrite()
 	a.mustExist()
+	n := len(a.items)
 	if plainValues(vals) {
 		for _, v := range vals {
 			a.items = append(a.items, Value(v))
 		}
-		return a
+	} else {
+		a.items = append(a.items, flatten(vals)...)
 	}
-	a.items = append(a.items, flatten(vals)...)
+	a.adoptNew(a.items[n:])
 	return a
 }
 
@@ -267,7 +297,9 @@ func (a *AV) Push(vals ...any) *AV {
 func (a *AV) Unshift(vals ...any) *AV {
 	a.mustWrite()
 	a.mustExist()
-	a.items = append(flatten(vals), a.items...)
+	items := flatten(vals)
+	a.adoptNew(items)
+	a.items = append(items, a.items...)
 	return a
 }
 
@@ -360,7 +392,9 @@ func (a *AV) Splice(offset, length int, list ...any) *AV {
 	for i, s := range a.items[start:end] {
 		removed.items[i] = orUndef(s)
 	}
-	a.items = slices.Replace(a.items, start, end, flatten(list)...)
+	items := flatten(list)
+	a.adoptNew(items)
+	a.items = slices.Replace(a.items, start, end, items...)
 	return removed
 }
 
@@ -572,7 +606,7 @@ func orStrCmp(cmp func(x, y *SV) int) func(x, y *SV) int {
 func (a *AV) fillHoles() {
 	for i, s := range a.items {
 		if s == nil {
-			a.items[i] = &SV{}
+			a.items[i] = &SV{noViv: a.noViv, noVivDeep: a.noVivDeep}
 		}
 	}
 }

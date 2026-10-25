@@ -43,6 +43,7 @@ var mappingWant = map[string]string{
 	"substitute":  "Ridgecrest, CA",
 	"slice":       "5.1 ci",
 	"deref":       "4 felt,mag,net,place,stations",
+	"probe":       "none felt,mag,net,place,stations",
 }
 
 // mappingPerl is each task in Perl, printing "task<TAB>answer".
@@ -86,6 +87,16 @@ $out{substitute} = $p->{place} =~ s/^\d+ km \w+ of //r;
 $out{slice} = join " ", @{$p}{qw(mag net)};
 
 $out{deref} = scalar(@{ $feed->{features} }) . " " . join ",", sort keys %{ $feed->{features}[0]{properties} };
+
+# The CPAN pragma autovivification isn't in Perl's core; without it, this
+# task is left out, and the test says Perl wasn't compared.
+if (eval { require autovivification; 1 }) {
+	eval q{
+		no autovivification;
+		$out{probe} = ($p->{products}{shakemap}[0]{code} // "none") . " " . join ",", sort keys %$p;
+		1;
+	} or die $@;
+}
 
 say "$_\t$out{$_}" for sort keys %out;
 `
@@ -150,6 +161,9 @@ func mappingScalar(feed *scalar.SV) map[string]string {
 
 	out["deref"] = fmt.Sprint(feed.Get("features").AV().Length(), " ",
 		feed.Get("features", 0, "properties").HV().Keys().Sort(nil).Join(","))
+
+	p.Autovivify(false)
+	out["probe"] = fmt.Sprint(p.At("products.shakemap[0].code").Or("none"), " ", p.HV().Keys().Sort(nil).Join(","))
 
 	return out
 }
@@ -270,6 +284,15 @@ func mappingPlain(feed plainFeed, raw map[string]any) map[string]string {
 	props := raw["features"].([]any)[0].(map[string]any)["properties"].(map[string]any)
 	out["deref"] = fmt.Sprint(len(feed.Features), " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
 
+	code := "none"
+	products, _ := props["products"].(map[string]any)
+	if shakemap, _ := products["shakemap"].([]any); len(shakemap) > 0 {
+		if c, ok := shakemap[0].(map[string]any)["code"].(string); ok {
+			code = c
+		}
+	}
+	out["probe"] = fmt.Sprint(code, " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
+
 	return out
 }
 
@@ -317,6 +340,10 @@ func TestMappingMatchesPerl(t *testing.T) {
 		for sc.Scan() {
 			task, answer, _ := strings.Cut(sc.Text(), "\t")
 			perl[task] = answer
+		}
+		if _, ok := perl["probe"]; !ok {
+			t.Log("Perl not compared for probe: autovivification isn't installed (cpanm autovivification, or set PERL5LIB)")
+			perl["probe"] = mappingWant["probe"]
 		}
 		versions["Perl"] = perl
 	}

@@ -26,6 +26,7 @@ for tasks in more depth, the [how-to guide](HOWTO.md).
 - [Substitute](#substitute)
 - [A hash slice](#a-hash-slice)
 - [A whole array or hash](#a-whole-array-or-hash)
+- [Probe without creating](#probe-without-creating)
 - [When to switch](#when-to-switch)
 
 ## The feed
@@ -409,6 +410,38 @@ fmt.Sprint(feed.Get("features").AV().Length(), " ",
 // plain Go: a struct has no keys to list, so they come from the raw JSON
 props := raw["features"].([]any)[0].(map[string]any)["properties"].(map[string]any)
 fmt.Sprint(len(feed.Features), " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
+```
+
+## Probe without creating
+
+Reading through a level that isn't there creates it, in Perl and in
+scalar, unless autovivification is off: in Perl with the CPAN pragma
+[autovivification](https://metacpan.org/pod/autovivification), and in
+scalar with `Autovivify(false)`, which belongs to the value rather than to
+a block. The first quake has no `products`, and probing for a ShakeMap
+leaves it without. Answer: `none felt,mag,net,place,stations`.
+
+```perl
+no autovivification;
+($p->{products}{shakemap}[0]{code} // "none") . " " . join ",", sort keys %$p
+```
+
+```go
+// scalar
+p.Autovivify(false)
+fmt.Sprint(p.At("products.shakemap[0].code").Or("none"), " ", p.HV().Keys().Sort(nil).Join(","))
+```
+
+```go
+// plain Go: reading a map creates nothing, so there's nothing to turn off
+code := "none"
+products, _ := props["products"].(map[string]any)
+if shakemap, _ := products["shakemap"].([]any); len(shakemap) > 0 {
+	if c, ok := shakemap[0].(map[string]any)["code"].(string); ok {
+		code = c
+	}
+}
+fmt.Sprint(code, " ", strings.Join(slices.Sorted(maps.Keys(props)), ","))
 ```
 
 ## When to switch
