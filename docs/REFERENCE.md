@@ -86,9 +86,12 @@ A number read as text keeps its text as well when a `float64` can't give
 the number back: a decimal of more than about 15 significant digits, such
 as `-132.48854465954707381603`, or a whole number beyond `int64`, such as
 the id `12345678901234567890`. It's read from JSON, YAML, a dump or a
-JSONPath literal, or comes from a Go `uint64` beyond `int64`. Ordinary
-numbers keep nothing, as a `float64` gives back any number of up to 15
-significant digits, so they cost only a count of their digits.
+JSONPath literal, or comes from a Go `uint64` beyond `int64`, or `%`. A
+whole number beyond `int64` always keeps its digits, so it prints as the
+integer it is, as Perl prints one up to 2⁶⁴−1: `10000000000000000000`, not
+`1e+19`. Ordinary numbers keep nothing, as a `float64` gives back any
+number of up to 15 significant digits, so they cost only a count of their
+digits.
 
 ```go
 doc, _ := scalar.FromJSON([]byte(`{"seq": 12345678901234567890, "mag": 4.5}`))
@@ -104,8 +107,8 @@ seq.Add(1).Str()        // "1.23456789012346e+19": arithmetic is on the float
 
 - **The digits are written out** by `Str`, `MarshalJSON`, `ToYAML`,
   `Dump`, `%v` and, for a whole number, `%d`, and read by `To` into a
-  string, a `json.Number` or a type that reads JSON, such as `*big.Int`,
-  and by `Decode` into a `uint64`. `Copy`, `Clone` and `Set` from
+  string, a `json.Number`, a type that reads JSON, such as `*big.Int`, or
+  one that reads text, such as `*big.Rat`, and by `Decode` into a `uint64`. `Copy`, `Clone` and `Set` from
   another scalar carry them. `Dump` writes a kept number as a quoted
   string, as Data::Dumper quotes a long one, so `FromDump` reads it back
   as a string, with every digit.
@@ -1529,9 +1532,23 @@ Things to know:
   in an `int64`. Otherwise they become floats.
 - **Division:** `/` gives an integer only when it divides evenly: `7/2` is `3.5`.
 - **Modulus:** `%` takes the sign of the right-hand side: `-7 % 3` is `2`.
-- **Dividing by zero:** `Div` and `Mod` by zero panic.
+  As in Perl, a whole number up to 2⁶⁴−1 is exact, a float is truncated
+  while it's below 2⁶⁴, so `1e19 % 7` is `3`, and once either side is 2⁶⁴
+  or more, the remainder is a float's, of the operands rounded.
+- **Powers:** `**` gives an exact integer while the result fits in an
+  `int64`: `2**62` is `4611686018427387904`. Perl works a power of two out
+  as a float, and gives an integer only while the base's bits times the
+  power fit in 64, so its `2**62` is `4.61168601842739e+18`.
+- **Dividing by zero:** `Div` and `Mod` by zero panic, as does `Mod` by a
+  number that truncates to zero, such as `0.5`, as in Perl.
 - **String increment:** `Inc` on a string like `"aa"` gives `"ab"`, `"Az"`
-  gives `"Ba"`, and `"zz"` gives `"aaa"`. `Dec` always works on numbers.
+  gives `"Ba"`, and `"zz"` gives `"aaa"`. Perl increments a string of digits
+  the same way, so `"007"` gives `"008"`, and `"12345678901234567890"`, beyond
+  `int64`, gives `"12345678901234567891"`; where a number gives the same
+  text, as `"9"` does, scalar's result is the number `10`. `Dec` always works
+  on numbers.
+- **Negative zero** prints as `-0`, as Go prints it, where Perl prints `0`:
+  `Value(0.0).Neg().Str()` is `"-0"`.
 - **Negating strings:** `Neg` on a word adds or flips its sign:
   `-"foo"` is `"-foo"`, and `-"-foo"` is `"+foo"`.
 - **In place:** `Inc` and `Dec` change the scalar itself and autovivify, so
@@ -1932,6 +1949,9 @@ out, err := json.Marshal(s)      // encode
   ```
 - `SV`, `AV` and `HV` all work with `encoding/json`, so you can use them as
   fields in your own structs.
+- **A float is written as Go writes it,** in the shortest form that reads
+  back as the same float, so `0.1 + 0.2` is written `0.30000000000000004`.
+  JSON::PP writes it as Perl prints it, to 15 significant digits: `0.3`.
 - Hashes are encoded with their keys sorted, so the same data always produces
   the same JSON, even though hash order is random.
 - Decoding reads JSON straight into scalars, about three times faster than
@@ -2085,7 +2105,7 @@ fmt.Println(e.Place, e.Depth.Km)
 | a pointer, `*T` | what `T` takes; undef gives nil | `scalar.To[*int](doc.At("felt"))` |
 | `any` | anything, as plain Go values, as `Any()` gives them | `scalar.To[any](doc)` |
 | `*scalar.SV`, `*scalar.AV`, `*scalar.HV` | a deep copy (see `Clone`) of whatever is there | a struct field for a part that stays loose |
-| a type with `UnmarshalJSON` or `UnmarshalText`, such as `time.Time` | whatever it accepts | `scalar.To[time.Time](doc.At("posted"))` |
+| a type with `UnmarshalJSON` or `UnmarshalText`, such as `time.Time` | whatever it accepts; `UnmarshalText` takes a string, or a number's exact text, so `*big.Rat` gets every digit a number [keeps](#numbers-that-keep-their-digits) | `scalar.To[time.Time](doc.At("posted"))` |
 | `[]byte` | a byte string's bytes, or text in base64, as `encoding/json` takes it | `scalar.To[[]byte](doc.At("samples"))` |
 
 These nest as you'd expect: `[]Event` takes an array of hashes,

@@ -117,4 +117,6 @@ above `int64`.
   its own: `1e19 % 7` is `0` where Perl gives `3`, as `%` truncates a
   float beyond `int64` through `Int()`, and `"007"++` is `8` where Perl
   gives `"008"`. Also `**`, which gives an exact whole number where Perl
-  gives a float for a power of two, as `2**62` does.
+  gives a float for a power of two, as `2**62` does. The wash-up before
+  v0.6.0 fixed both bugs, following Perl, and documented `**` as a
+  difference from Perl.

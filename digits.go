@@ -28,10 +28,13 @@ type keptNumber struct {
 }
 
 // keepNumber is a number read as text, as a scalar stores it: f, or f
-// with its text if f can't give the number back. text is in a form
+// with its text if f can't give the number back. A whole number written
+// as digits always keeps them, as it's only a float here because it's
+// beyond int64, and should print as the integer it is, as Perl prints
+// one up to 2⁶⁴−1: 10000000000000000000, not 1e+19. text is in a form
 // strconv.ParseFloat reads.
 func keepNumber(text string, f float64) any {
-	if keepDigits && !faithful(text, f) {
+	if keepDigits && (isIntText(text) || !faithful(text, f)) {
 		if isJSONNumber(text) {
 			// As written: JSON, YAML and Perl all read it. A copy, so that
 			// text doesn't escape, and the readers' numbers that keep
@@ -426,6 +429,22 @@ func mayKeep(s *SV) bool {
 		return len(v) >= 16
 	}
 	return false
+}
+
+// numberText is a number as exact text: the digits it keeps, an integer's,
+// or the shortest form that gives its float back, not the 15 digits Str
+// gives, as Perl prints it.
+func numberText(s *SV) string {
+	switch v := s.val().(type) {
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case float64:
+		if t := s.digits(); t != "" {
+			return t
+		}
+		return strconv.FormatFloat(v, 'g', -1, 64)
+	}
+	return s.Str()
 }
 
 // keptWhole is s as a uint64, when it keeps a whole number's text, or is

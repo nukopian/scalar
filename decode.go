@@ -33,7 +33,9 @@ import (
 // with string or integer keys. Arrays fill slices and arrays. A *SV, SV,
 // *AV or *HV field takes a deep copy (see Clone) of whatever is there, for
 // the parts that stay loose. A type with its own UnmarshalJSON or
-// UnmarshalText, such as time.Time, decodes itself. Keys with no field are
+// UnmarshalText, such as time.Time, decodes itself; UnmarshalText gets a
+// string, or a number's exact text, so *big.Rat gets every digit a number
+// keeps. Keys with no field are
 // ignored, and fields with no key are left as they are.
 //
 // Numbers and strings convert as in Perl, but only where Perl wouldn't
@@ -180,10 +182,16 @@ func (d decoder) value(s *SV, v reflect.Value, path string) error {
 			return nil
 		}
 		if u, ok := v.Addr().Interface().(encoding.TextUnmarshaler); ok {
-			if k := s.Kind(); k != String && k != Bytes {
+			var text string
+			switch s.Kind() {
+			case String, Bytes:
+				text = s.Str()
+			case Int, Float:
+				text = numberText(s) // for *big.Float or *big.Rat, say
+			default:
 				return fail("text for " + v.Type().String())
 			}
-			if err := u.UnmarshalText([]byte(s.Str())); err != nil {
+			if err := u.UnmarshalText([]byte(text)); err != nil {
 				return &DecodeError{Path: path, Msg: err.Error()}
 			}
 			return nil

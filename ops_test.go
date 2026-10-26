@@ -106,7 +106,7 @@ func TestIncDec(t *testing.T) {
 		{`"Zz99"++`, inc("Zz99"), "AAa00", String},
 		{`"zz99"++`, inc("zz99"), "aaa00", String},
 		{`"9"++`, inc("9"), "10", Int},
-		{`"09"++`, inc("09"), "10", Int},
+		{`"09"++`, inc("09"), "10", String}, // a leading zero: a string, as in Perl
 		{`"1.5"++`, inc("1.5"), "2.5", Float},
 		{`"a-b"++`, inc("a-b"), "1", Int},
 		{`"9a"++`, inc("9a"), "10", Int},

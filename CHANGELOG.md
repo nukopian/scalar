@@ -15,13 +15,15 @@ release's entry when `main` is moved to it and tagged
   them back, where it lost them silently before: the id
   `12345678901234567890` and the coordinate `-132.48854465954707381603`,
   read from JSON, YAML or a dump, are written back with every digit.
-  Ordinary numbers keep nothing, and cost a count of their digits.
-  `To[uint64]` and `Decode` read a big whole number exactly, from a kept
-  number or a string of digits, which failed before; two ids that differ
-  only in their last digits no longer compare equal, and `UniqueNum`
-  keeps both. Arithmetic, `Kind` and `Any` still see the float. Reading
-  JSON with long numbers costs about 6 to 9% more, and ordinary JSON
-  about 3%. The reference's
+  Ordinary numbers keep nothing, and cost a count of their digits; a
+  whole number beyond `int64` always keeps them, so it prints as an
+  integer, as Perl prints one up to 2⁶⁴−1. `To[uint64]` and `Decode`
+  read a big whole number exactly, from a kept number or a string of
+  digits, which failed before; two ids that differ only in their last
+  digits no longer compare equal, and `UniqueNum` keeps both.
+  Arithmetic, `Kind` and `Any` still see the float. Reading JSON with
+  long numbers costs about 6 to 9% more, and ordinary JSON about 3%.
+  The reference's
   [Numbers that keep their digits](docs/REFERENCE.md#numbers-that-keep-their-digits)
   says where this differs from Perl, which reads them as floats.
   ([record](docs/changes/2026-10-26-exact-decimals.md); roadmap 3)
@@ -30,9 +32,27 @@ release's entry when `main` is moved to it and tagged
   `18446744073709551615`, where it was `1.84467440737096e+19`, and
   `MarshalJSON` writes the digits it was given, where it wrote the
   float's.
+- `To` and `Decode` fill a type that reads text, such as `*big.Rat` or
+  `*big.Float`, from a number too, with its exact text: every digit it
+  keeps, or the shortest form of its float. They took only strings.
+- Fixed: `%` follows Perl for operands beyond `int64`. A whole number up
+  to 2⁶⁴−1 is exact and a float below 2⁶⁴ is truncated, so `1e19 % 7` is
+  `3`, where it was `0`, as `Int` clamped the float; beyond 2⁶⁴ it's a
+  float remainder, as in Perl, and a remainder beyond `int64` keeps its
+  digits.
+- Fixed: `Inc` increments a string of digits as a string where a number
+  wouldn't give the same text, as Perl does: `"007"` gives `"008"`, where
+  it gave `8`, and `"12345678901234567890"` gives
+  `"12345678901234567891"`, where it gave a float. `"9"` still gives the
+  number `10`.
 - Reading JSON with decimals is faster, about 10% on a feed of
   earthquakes: a decimal no longer tries to parse as an integer first,
   whose failure allocated an error each time.
+- Docs: the reference says where scalar's numbers differ from Perl's, in
+  three places it didn't: JSON writes a float in its shortest form, so
+  `0.1 + 0.2` is `0.30000000000000004`, where JSON::PP writes `0.3`; a
+  negative zero prints as `-0`, where Perl prints `0`; and `2**62` is the
+  exact integer, where Perl gives a float.
 - Docs: roadmap 2, keeping whole numbers' digits as a `uint64`, as Perl
   holds a UV, was investigated and dropped for roadmap 3, which covers
   its uses with one mechanism; its

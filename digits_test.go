@@ -466,3 +466,22 @@ func TestKeptExponents(t *testing.T) {
 		t.Errorf("%%d of a whole number written with an exponent: %s", got)
 	}
 }
+
+// TestKeptWholeAlwaysDigits: a whole number beyond int64 keeps its digits
+// even when a float holds it exactly, as 1e19 does, so it prints as the
+// integer it is, as Perl prints one up to 2⁶⁴−1.
+func TestKeptWholeAlwaysDigits(t *testing.T) {
+	for _, s := range []*SV{
+		must(FromJSON([]byte(`10000000000000000000`))),
+		Value(uint64(10000000000000000000)),
+		must(FromYAML([]byte(`10000000000000000000`))),
+		must(FromDump(`10000000000000000000`)),
+	} {
+		if got := s.Str(); got != "10000000000000000000" {
+			t.Errorf("%s, want 10000000000000000000", got)
+		}
+	}
+	if got := must(FromJSON([]byte(`1e19`))).Str(); got != "1e+19" {
+		t.Errorf("1e19, a float in JSON: %s", got)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -98,18 +99,98 @@ func (s *SV) Div(x any) *SV {
 }
 
 // Mod is Perl's %: both operands are truncated to integers, and a nonzero
-// result takes the sign of the right operand (-7 % 3 is 2). A zero right
-// operand panics, as Perl dies.
-func (s *SV) Mod(x any) *SV {
-	a, b := s.Int(), operand(x).Int()
-	if b == 0 {
+// result takes the sign of the right operand (-7 % 3 is 2). As in Perl, a
+// whole number up to 2⁶⁴−1 is exact, a float is truncated while it's
+// below 2⁶⁴, and once either side is 2⁶⁴ or more the remainder is a
+// float's, of the operands rounded to whole numbers. A zero right operand,
+// or one that truncates to zero, panics, as Perl dies.
+func (s *SV) Mod(x any) *SV { return perlMod(s, operand(x)) }
+
+// modOperand is an operand of % as Perl's pp_modulo takes it: a whole
+// number's magnitude and sign, exactly, if it's an integer, or keeps the
+// digits of one up to 2⁶⁴−1; otherwise whole is false, and f is its float.
+func modOperand(s *SV) (mag uint64, neg, whole bool, f float64) {
+	iv, nv, isInt := s.numify()
+	switch {
+	case isInt && iv < 0:
+		return -uint64(iv), true, true, nv
+	case isInt:
+		return uint64(iv), false, true, nv
+	}
+	if u, ok := s.keptWhole(); ok {
+		return u, false, true, nv
+	}
+	return 0, false, false, nv
+}
+
+// perlMod is Perl's %, as pp_modulo works it out.
+func perlMod(a, b *SV) *SV {
+	right, rightNeg, rightWhole, dright := modOperand(b)
+	useDouble, drightValid := false, false
+	if !rightWhole {
+		rightNeg = dright < 0
+		if rightNeg {
+			dright = -dright
+		}
+		if dright < 0x1p64 {
+			right, drightValid = uint64(dright), true
+		} else {
+			useDouble = true // beyond a uint64, or NaN
+		}
+	}
+	left, leftNeg, leftWhole, dleft := modOperand(a)
+	if useDouble || !leftWhole {
+		leftNeg = dleft < 0
+		if leftNeg {
+			dleft = -dleft
+		}
+		if !useDouble {
+			if dleft < 0x1p64 {
+				left = uint64(dleft)
+			} else {
+				// Perl rounds both, then, as 5.6 did.
+				dleft = math.Floor(dleft + 0.5)
+				useDouble = true
+				if drightValid {
+					dright = math.Floor(dright + 0.5)
+				} else {
+					dright = float64(right)
+				}
+			}
+		}
+	}
+	if useDouble {
+		if dright == 0 {
+			panic("scalar: Illegal modulus zero")
+		}
+		ans := math.Mod(dleft, dright)
+		if leftNeg != rightNeg && ans != 0 {
+			ans = dright - ans
+		}
+		if rightNeg {
+			ans = -ans
+		}
+		if ans == 0 {
+			ans = 0 // not -0, which Perl prints as 0
+		}
+		return &SV{v: ans}
+	}
+	if right == 0 {
 		panic("scalar: Illegal modulus zero")
 	}
-	r := a % b
-	if r != 0 && (r < 0) != (b < 0) {
-		r += b
+	ans := left % right
+	if leftNeg != rightNeg && ans != 0 {
+		ans = right - ans
 	}
-	return &SV{v: r}
+	switch {
+	case rightNeg && ans <= 1<<63:
+		return &SV{v: -int64(ans-1) - 1} // -2⁶³ doesn't negate in int64
+	case rightNeg:
+		return &SV{v: -float64(ans)}
+	case ans <= math.MaxInt64:
+		return &SV{v: int64(ans)}
+	}
+	return svOf(keepNumber(strconv.FormatUint(ans, 10), float64(ans)))
 }
 
 // Pow is Perl's **.
@@ -174,7 +255,11 @@ var magicIncRE = regexp.MustCompile(`^[a-zA-Z]*[0-9]*$`)
 // Inc is Perl's ++: it modifies s in place and returns it. A non-numeric
 // string matching /^[a-zA-Z]*[0-9]*$/ increments as a string, carrying
 // within each character class: "aa" → "ab", "Az" → "Ba", "zz" → "aaa",
-// "a9" → "b0", "Zz99" → "AAa00". Anything else increments as a number.
+// "a9" → "b0", "Zz99" → "AAa00". So does a string of digits that a number
+// wouldn't give back, as Perl increments every string of digits as a
+// string: "007" → "008", and "12345678901234567890" → "12345678901234567891",
+// beyond int64. Anything else increments as a number, so "9" → 10, where
+// Perl's is the string "10", which prints the same.
 func (s *SV) Inc() *SV {
 	switch v := s.val().(type) {
 	case nil:
@@ -185,12 +270,23 @@ func (s *SV) Inc() *SV {
 		}
 	case string:
 		if v != "" && magicIncRE.MatchString(v) {
-			if _, _, _, numeric := parseNumber(v); !numeric {
+			if _, _, _, numeric := parseNumber(v); !numeric || !incAsNumber(v) {
 				return s.Set(magicInc(v))
 			}
 		}
 	}
 	return s.Set(s.Add(1))
+}
+
+// incAsNumber reports whether digits, incremented as a number, give the
+// text Perl's string increment gives: not with a leading zero, which the
+// number drops, nor at int64's maximum or beyond, where it's a float.
+func incAsNumber(digits string) bool {
+	if len(digits) > 1 && digits[0] == '0' {
+		return false
+	}
+	i, err := strconv.ParseInt(digits, 10, 64)
+	return err == nil && i < math.MaxInt64
 }
 
 // Dec is Perl's --: it modifies s in place and returns it. Unlike Inc it is
