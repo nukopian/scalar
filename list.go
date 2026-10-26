@@ -138,6 +138,9 @@ func (a *AV) UniqueStr() *AV {
 // however large; 0 and -0 are the same, and so are all NaNs.
 func (a *AV) UniqueNum() *AV {
 	return a.unique(func(s *SV) any {
+		if d, kept, ok := s.exactDecimal(); ok && kept {
+			return "digits:" + d.text() // a number a float can't hold, exactly
+		}
 		iv, nv, isInt := s.numify()
 		switch {
 		case isInt:

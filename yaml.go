@@ -244,19 +244,19 @@ func (r *yamlReader) scalar(n *yaml.Node, path string) (*SV, error) {
 		}
 		var u uint64
 		if n.Decode(&u) == nil {
-			return Value(u), nil // beyond int64: a float, as Value has it
+			return Value(u), nil // beyond int64: a float that keeps its digits, as Value has it
 		}
 		var f float64
 		if err := n.Decode(&f); err != nil {
 			return nil, r.fail(n, path, "%v", err)
 		}
-		return &SV{v: f}, nil
+		return svOf(keepNumber(n.Value, f)), nil
 	case "!!float":
 		var f float64
 		if err := n.Decode(&f); err != nil {
 			return nil, r.fail(n, path, "%v", err)
 		}
-		return &SV{v: f}, nil
+		return svOf(keepNumber(n.Value, f)), nil
 	case "!!binary":
 		b, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(n.Value), ""))
 		if err != nil {
@@ -378,6 +378,12 @@ func (w *yamlWriter) node(s *SV) *yaml.Node {
 	case int64:
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatInt(v, 10)}
 	case float64:
+		if t := s.digits(); t != "" {
+			if d, _ := parseDecimal(t); d.whole() {
+				return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: t}
+			}
+			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: t}
+		}
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: yamlFloat(v)}
 	case []byte:
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!binary", Value: base64.StdEncoding.EncodeToString(v)}

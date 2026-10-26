@@ -80,6 +80,59 @@ For a value that may be missing, as Go's `*string` or `*float64` fields
 are, use `scalar.To[*float64](s)`: it gives `nil` for undef and a checked
 value otherwise. See [Optional values](#missing-null-and-optional-values).
 
+### Numbers that keep their digits
+
+A number read as text keeps its text as well when a `float64` can't give
+the number back: a decimal of more than about 15 significant digits, such
+as `-132.48854465954707381603`, or a whole number beyond `int64`, such as
+the id `12345678901234567890`. It's read from JSON, YAML, a dump or a
+JSONPath literal, or comes from a Go `uint64` beyond `int64`. Ordinary
+numbers keep nothing, as a `float64` gives back any number of up to 15
+significant digits, so they cost only a count of their digits.
+
+```go
+doc, _ := scalar.FromJSON([]byte(`{"seq": 12345678901234567890, "mag": 4.5}`))
+seq := doc.Get("seq")
+seq.Str()               // "12345678901234567890"
+json.Marshal(doc)       // {"mag":4.5,"seq":12345678901234567890}
+scalar.To[uint64](seq)  // 12345678901234567890, nil
+fmt.Sprintf("%d", seq)  // "12345678901234567890"
+seq.Kind()              // scalar.Float
+seq.Num()               // 1.2345678901234567e+19
+seq.Add(1).Str()        // "1.23456789012346e+19": arithmetic is on the float
+```
+
+- **The digits are written out** by `Str`, `MarshalJSON`, `ToYAML`,
+  `Dump`, `%v` and, for a whole number, `%d`, and read by `To` into a
+  string, a `json.Number` or a type that reads JSON, such as `*big.Int`,
+  and by `Decode` into a `uint64`. `Copy`, `Clone` and `Set` from
+  another scalar carry them. `Dump` writes a kept number as a quoted
+  string, as Data::Dumper quotes a long one, so `FromDump` reads it back
+  as a string, with every digit.
+- **Everything else sees the float:** `Num`, `Int`, arithmetic, `Kind`,
+  which is `Float`, and `Any`, which is a `float64`, so
+  `json.Marshal(s.Any())` loses the digits that `json.Marshal(s)` keeps.
+- **Any write to the scalar drops the text,** so a changed value never
+  prints the old digits.
+- **Comparisons use the digits where the floats tie,** so two ids that
+  differ in the last digit sort apart, are not `NumEq`, and both survive
+  `UniqueNum`. So does a string of digits too long for a float:
+  `Value("12345678901234567890").NumEq("12345678901234567891")` is false.
+  A float compares as a float, as in Perl.
+- **The value is kept, not the spelling.** JSON's text is kept as
+  written; YAML's or a dump's is written as JSON writes it, so `+1.5…`
+  comes back as `1.5…`. A number its float gives back keeps nothing:
+  `19.90` comes back as `19.9`.
+- **Where Perl differs:** Perl reads such a number as a float, and its
+  digits are gone; JSON::PP keeps them only with `allow_bignum`, as a
+  Math::BigInt or Math::BigFloat. And Perl prints a float to 15
+  significant digits, where a kept number's `Str` gives all of them.
+  scalar keeps the digits by default, with no option to ask for them, as
+  `json.Unmarshal` into a struct of scalars couldn't pass one.
+- **Not for money:** keeping digits doesn't make float arithmetic exact.
+  For sums of money, convert to an exact decimal type with `To`, at the
+  edge, as [JSON](#json) shows.
+
 ### True and false
 
 These are false: undef, `""`, `"0"`, `0` and `0.0`. Everything else is true,
@@ -229,7 +282,8 @@ for _, station := range stations.All() {
   [Copies, references and in-place changes](#copies-references-and-in-place-changes).
 - `Any()` returns the scalar as a plain Go value (`nil`, `bool`, `int64`,
   `float64`, `string`, `[]any` or `map[string]any`), for code that doesn't use
-  `scalar`. For a value of a type you choose, use `To`: see
+  `scalar`. A number that [keeps its digits](#numbers-that-keep-their-digits)
+  is its `float64` there. For a value of a type you choose, use `To`: see
   [Into Go values](#into-go-values-to-and-decode).
 - `Bytes()` returns the scalar as a Go `[]byte`: a byte string's own bytes,
   or text's UTF-8. See [Byte strings](#byte-strings).
@@ -349,7 +403,9 @@ fmt.Printf("%d quakes, the largest M%.1f\n", count, mag)   // printf "%d quakes,
 ```
 
 Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
-`"ff"` formats as `0`, not as the hex of its bytes.
+`"ff"` formats as `0`, not as the hex of its bytes. A number that
+[keeps its digits](#numbers-that-keep-their-digits) formats all of them
+under `%v` and `%s`, and, if it's whole, under `%d`.
 
 ### Filling in templates: `Interpolate`
 
@@ -588,7 +644,8 @@ As in Perl:
 - **`UniqueStr` and `UniqueNum` keep the first of each value, in order,** and
   return copies. `UniqueStr` compares as strings, with undef counting as `""`.
   `UniqueNum` compares as numbers, so `1`, `"1"` and `"1.0"` count as the same
-  value. Large integers compare exactly.
+  value. Large integers, and numbers that
+  [keep their digits](#numbers-that-keep-their-digits), compare exactly.
 - **`Sum` of an empty array is undef; `Sum0` is 0, and `Product` is 1.**
   They add and multiply as `Add` and `Mul` do, so integers stay exact while
   the result fits, and become floats when it doesn't.
@@ -1310,7 +1367,8 @@ feed.Find("$.features[?@.properties.alert == 'red'].id")  // events with a red a
 
 **Comparison goes by JSON type**, as RFC 9535 says, not by Perl's string and
 numeric contexts: `1 == 1.0`, but `1 != "1"` and `1 != true`. Two integers
-compare exactly, past float64's 2⁵³, as `NumEq` does. `<` and the like
+compare exactly, past float64's 2⁵³, as `NumEq` does, and so do numbers that
+[keep their digits](#numbers-that-keep-their-digits). `<` and the like
 compare two numbers, or two strings by their characters, and nothing else.
 A byte string's characters are Latin-1, one a byte, as `Eq` and `Length`
 have them, in comparisons, `length` and the regular expressions. A query that selects nothing is Nothing, which equals only Nothing:
@@ -1855,25 +1913,22 @@ out, err := json.Marshal(s)      // encode
 ```
 
 - JSON objects become hashes, arrays become arrays, and `null` becomes undef.
-- Whole numbers stay exact `int64` values. Other numbers become `float64`.
-- **A number that doesn't fit loses digits, silently.** A whole number
-  beyond `int64`, such as the id `12345678901234567890`, becomes a
-  `float64` and is written back as `12345678901234567000`, and a decimal
-  keeps only about 16 significant digits. Perl does better with whole
-  numbers: it keeps one up to 2⁶⁴−1 exact, and JSON::PP keeps the digits
-  of a bigger one. `scalar.To` can't win the digits back, as they're
-  gone once the JSON is read. A number written as a string, such as
-  `"12345678901234567890"`, keeps every digit.
-- **For ids and money, show the Go.** Where a field's digits matter,
-  decode it with `encoding/json` into a `json.Number`, which keeps the
-  number's text, or into an exact decimal type such as
-  [shopspring/decimal](https://github.com/shopspring/decimal)'s:
+- Whole numbers stay exact `int64` values. Other numbers become `float64`,
+  and one a `float64` can't give back, such as the id
+  `12345678901234567890` or the coordinate `-132.48854465954707381603`,
+  keeps its text too, so it's written back with every digit: see
+  [Numbers that keep their digits](#numbers-that-keep-their-digits).
+- **For money, show the Go.** Keeping digits doesn't make arithmetic
+  exact: sums are on the float. For money, decode a field with
+  `encoding/json` into an exact decimal type such as
+  [shopspring/decimal](https://github.com/shopspring/decimal)'s, or a
+  `json.Number`, which keeps the number's text:
 
   ```go
   var rec struct {
-      ID json.Number `json:"id"`
+      Price json.Number `json:"price"`
   }
-  err := json.Unmarshal(data, &rec)  // rec.ID is "12345678901234567890", exact
+  err := json.Unmarshal(data, &rec)  // rec.Price is "19.90", as written
   ```
 - `SV`, `AV` and `HV` all work with `encoding/json`, so you can use them as
   fields in your own structs.
@@ -1914,8 +1969,8 @@ Reading follows YAML 1.2:
 | a mapping, a sequence | a hash, an array |
 | `null`, `~`, or nothing | undef |
 | `true`, `false` | a boolean |
-| `42`, `0x1F`, `0o17` | an integer (a float if it's too big for an `int64`) |
-| `2.5`, `1e3`, `.inf`, `.nan` | a float |
+| `42`, `0x1F`, `0o17` | an integer, or beyond `int64` a float that [keeps its digits](#numbers-that-keep-their-digits) |
+| `2.5`, `1e3`, `.inf`, `.nan` | a float, which keeps its digits if it has more than a float holds |
 | `!!binary aGk=` | a [byte string](#byte-strings) |
 | anything else, including `"42"`, `'007'`, `no`, `yes` and `2026-10-15` | a string, as written |
 | `&base` … `*base` | the same array or hash at each place: shared parts, and loops |
@@ -2407,10 +2462,10 @@ then dropped:
 - **Not for concurrent use, not even reading:** none of these types are safe
   to share between goroutines without your own locking, as some reads write,
   unless the structure is [locked](#locking). See [Concurrency](#concurrency).
-- **JSON numbers can lose digits:** a whole number beyond `int64`, or a
-  decimal with more than about 16 significant digits, becomes a
-  `float64`, where Perl keeps a whole number's digits. See [JSON](#json)
-  for the plain Go that keeps them.
+- **Kept digits are for reading and writing:** a number that
+  [keeps its digits](#numbers-that-keep-their-digits) is written out
+  with all of them, but arithmetic, `Num` and `Any` see its float, so a
+  sum, or `json.Marshal(s.Any())`, has only the float's digits.
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.

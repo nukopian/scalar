@@ -26,7 +26,7 @@ func TestStr(t *testing.T) {
 		{math.Inf(1), "Inf"},
 		{math.NaN(), "NaN"},
 		{"hello", "hello"},
-		{uint64(math.MaxUint64), "1.84467440737096e+19"},
+		{uint64(math.MaxUint64), "18446744073709551615"}, // a float that keeps its digits
 	}
 	for _, tt := range tests {
 		if got := Value(tt.in).Str(); got != tt.want {
@@ -456,7 +456,7 @@ func TestConversions(t *testing.T) {
 		{"uint16", uint16(16), Int, "16"},
 		{"uint32", uint32(32), Int, "32"},
 		{"uint64 fits", uint64(64), Int, "64"},
-		{"uint64 too big", uint64(math.MaxUint64), Float, "18446744073709552000"},
+		{"uint64 beyond int64", uint64(math.MaxUint64), Float, "18446744073709551615"},
 		{"float32", float32(1.5), Float, "1.5"},
 		{"SV value", *Value("v"), String, `"v"`},
 		{"pointer", &n, Int, "7"},

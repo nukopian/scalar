@@ -744,7 +744,7 @@ func (p *pathParser) operand() (any, string) {
 	case c == '\'' || c == '"':
 		return value{sv: &SV{v: p.stringLiteral()}}, "literal"
 	case c == '-' || '0' <= c && c <= '9':
-		return value{sv: &SV{v: p.numberLiteral()}}, "literal"
+		return value{sv: svOf(p.numberLiteral())}, "literal"
 	case 'a' <= c && c <= 'z':
 		name := p.functionName()
 		switch {
@@ -912,5 +912,5 @@ func (p *pathParser) numberLiteral() any {
 	if err != nil {
 		p.fail("a bad number: %v", err)
 	}
-	return f
+	return keepNumber(text, f)
 }

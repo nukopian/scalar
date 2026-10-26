@@ -1,13 +1,13 @@
 # JSON decimals that keep their digits
 
-**Status:** in progress, as an experiment
+**Status:** shipped, unreleased
 
 **Origin:** roadmap 3
 
 **Started:** 2026-10-26, on the `experiment/exact-decimals` branch, from
 cb9a7dcf956ca5c3facf2447904e453a89dedb5c
 
-**Finished:**
+**Finished:** 2026-10-26
 
 ## The plan
 
@@ -108,8 +108,14 @@ decision.
   on every number it keeps. A planted bug in each of copying, clearing
   on write, the keep-or-not test, comparison, the locked cache and a
   copy's own record was caught.
-- **What's left:** Iain decides whether it lands, and whether roadmap 2's
-  `uint64` build is dropped. Landing it needs the reference written
-  first, saying where it differs from Perl: Perl reads such numbers as
-  floats, and prints 15 digits where a kept number's `Str` gives all of
-  them.
+- **Shipped, 2026-10-26.** Iain chose it, and dropped roadmap 2 for it.
+  It landed on develop as one commit, squashing the branch's two, with
+  the reference's new section, "Numbers that keep their digits", which
+  says where it differs from Perl: Perl reads such numbers as floats,
+  and prints 15 digits where a kept number's `Str` gives all of them.
+  Changes from the plan: the copy change above, and the three costs
+  cut on the way. `FuzzFaithful` joins CI's fuzz targets.
+- **What's left:** whether JSON writes a float as Perl does, to 15
+  significant digits, is Iain's decision, separately; and the two bugs
+  roadmap 2 found, in its
+  [change record](2026-10-26-exact-whole-numbers.md).

@@ -25,17 +25,7 @@ it names its number.
 
 ## Now
 
-### 3. JSON decimals that keep their digits
-
-An experiment. A number read as text, from JSON, YAML or a dump, keeps
-its text beside its float when the float can't give the number back: a
-decimal such as `1.23456789012345678901`, or a whole number beyond
-`int64`. It's on for every number, with no option to ask for it, and
-arithmetic stays on the float; money stays with plain Go at the edges.
-It's being built and measured on the `experiment/exact-decimals` branch,
-off develop; the
-[change record](docs/changes/2026-10-26-exact-decimals.md) has the plan
-and what's happened.
+Nothing yet.
 
 ## Next
 

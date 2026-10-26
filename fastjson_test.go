@@ -39,7 +39,7 @@ func sameJSON(a, b *SV) string {
 			}
 		}
 	case Float:
-		if a.Num() != b.Num() {
+		if a.Num() != b.Num() || a.Str() != b.Str() { // Str: any digits kept
 			return fmt.Sprintf("%v vs %v", a.Num(), b.Num())
 		}
 	default:

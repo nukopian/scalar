@@ -66,7 +66,7 @@ func (s *SV) unmarshalJSONSlow(data []byte) error {
 // reference that leads back to itself is an error, as JSON can't represent
 // it; so is a NaN or infinite number, as encoding/json can't either.
 func (s *SV) MarshalJSON() ([]byte, error) {
-	v, err := s.toAny(map[any]bool{})
+	v, err := s.toAny(map[any]bool{}, true)
 	if err != nil {
 		return nil, fmt.Errorf("scalar: can't encode a %w as JSON", err)
 	}
@@ -100,5 +100,5 @@ func normalizeJSONNumber(n json.Number) any {
 		}
 	}
 	f, _ := strconv.ParseFloat(string(n), 64)
-	return f
+	return keepNumber(string(n), f)
 }

@@ -54,7 +54,7 @@ func (h *HV) setNew(key string, v any) (*SV, bool) {
 	}
 	s := &SV{}
 	h.store(key, s)
-	s.v = normalize(v)
+	s.setValue(normalize(v))
 	return s, true
 }
 

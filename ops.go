@@ -332,7 +332,13 @@ func numCompare(a, b *SV) (c int, ok bool) {
 	if math.IsNaN(af) || math.IsNaN(bf) {
 		return 0, false
 	}
-	return cmp.Compare(af, bf), true
+	if c := cmp.Compare(af, bf); c != 0 {
+		return c, true // exact even for kept digits: rounding keeps order
+	}
+	if c, ok := exactCompare(a, b); ok {
+		return c, true // equal floats: the digits decide
+	}
+	return 0, true
 }
 
 func addInt(a, b int64) (int64, bool) {

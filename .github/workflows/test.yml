@@ -88,6 +88,7 @@ jobs:
       - run: go test -run '^$' -fuzz '^FuzzReadJSON$' -fuzztime 30s .
       - run: go test -run '^$' -fuzz '^FuzzNumericPrefix$' -fuzztime 30s .
       - run: go test -run '^$' -fuzz '^FuzzFind$' -fuzztime 30s .
+      - run: go test -run '^$' -fuzz '^FuzzFaithful$' -fuzztime 30s .
 
   # Secrets in any commit, not only the latest: gitleaks over the whole
   # history, since all of it is published with the repository. Its release

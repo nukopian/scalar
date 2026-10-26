@@ -220,7 +220,7 @@ func (d decoder) value(s *SV, v reflect.Value, path string) error {
 		if v.NumMethod() > 0 {
 			return fail(v.Type().String() + ", which Decode can't fill")
 		}
-		x, err := s.toAny(map[any]bool{})
+		x, err := s.toAny(map[any]bool{}, false)
 		if err != nil {
 			return &DecodeError{Path: path, Msg: err.Error()}
 		}
@@ -246,6 +246,13 @@ func (d decoder) value(s *SV, v reflect.Value, path string) error {
 		return nil
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		if u, ok := decodeUint(s); ok {
+			if v.OverflowUint(u) {
+				return fail(v.Type().String())
+			}
+			v.SetUint(u)
+			return nil
+		}
 		i, ok := decodeInt(s)
 		if !ok || i < 0 || v.OverflowUint(uint64(i)) {
 			return fail(v.Type().String())
@@ -426,6 +433,19 @@ func decodeInt(s *SV) (int64, bool) {
 		return 0, false
 	}
 	return int64(f), true
+}
+
+// decodeUint is s as an unsigned field takes it beyond int64: a whole
+// number up to 2⁶⁴−1 that keeps its digits, a string of them, or a whole
+// float. ok is false for what decodeInt takes.
+func decodeUint(s *SV) (uint64, bool) {
+	if u, ok := s.keptWhole(); ok {
+		return u, true
+	}
+	if f, ok := s.val().(float64); ok && f == math.Trunc(f) && f >= 1<<63 && f < 1<<64 {
+		return uint64(f), true
+	}
+	return 0, false
 }
 
 // fieldInfo is a struct field Decode can fill: where it is, through any

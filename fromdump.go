@@ -380,7 +380,7 @@ func (p *dumpParser) number() *SV {
 		p.pos = start
 		p.fail("can't read the number %q", lit)
 	}
-	return &SV{v: f} // out of range: ±Inf, as in Perl
+	return svOf(keepNumber(lit, f)) // out of range: ±Inf, as in Perl, but keeping its digits
 }
 
 // singleQuoted reads a '...' string, where only \\ and \' are escapes.

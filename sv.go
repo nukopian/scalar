@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"slices"
 	"strconv"
@@ -61,6 +62,12 @@ type svRare struct {
 	// array or hash that attaches to it on its first write. Any other write
 	// to the undef drops it.
 	pend any
+
+	// digits is a number's text, kept beside its float when the float
+	// can't give the number back (see keepNumber), and dec its value,
+	// parsed when it's first compared.
+	digits string
+	dec    *decimal
 }
 
 // noCreateSV is an undef that can't be created, for the reason msg.
@@ -91,7 +98,10 @@ func (s *SV) setPend(c any) {
 
 // Value returns a scalar holding x. See Set for how Go values are converted.
 func Value(x any) *SV {
-	return &SV{v: normalize(x)}
+	if s, ok := x.(*SV); ok {
+		return s.Copy() // its digits too, directly, as Sort's copies are made
+	}
+	return svOf(normalize(x))
 }
 
 // Set is Perl's $s = x: it assigns x to s and returns s. To assign to what
@@ -109,7 +119,7 @@ func Value(x any) *SV {
 // contains itself panics, as encoding/json refuses one.
 func (s *SV) Set(x any) *SV {
 	s.vivify()
-	s.v = normalize(x)
+	s.setValue(normalize(x))
 	s.adoptValue()
 	return s
 }
@@ -128,7 +138,9 @@ func (s *SV) Undef() *SV { return s.Set(nil) }
 // container. Like Perl's assignment, the copy is shallow: a copied
 // reference points at the same array or hash. For a deep copy, use Clone.
 func (s *SV) Copy() *SV {
-	return &SV{v: s.val()}
+	c := &SV{v: s.val()}
+	s.copyDigits(c)
+	return c
 }
 
 func (s *SV) vivify() {
@@ -143,6 +155,8 @@ func (s *SV) vivify() {
 			panic("scalar: " + msg)
 		}
 		s.rare.pend = nil
+		s.rare.digits = ""
+		s.rare.dec = nil
 	}
 	if s.viv != nil {
 		f := s.viv
@@ -189,7 +203,7 @@ func (s *SV) Defined() bool { return s.val() != nil }
 // with s. It panics if a reference leads back to itself, which plain Go
 // values can't represent.
 func (s *SV) Any() any {
-	v, err := s.toAny(map[any]bool{})
+	v, err := s.toAny(map[any]bool{}, false)
 	if err != nil {
 		panic("scalar: Any on a " + err.Error())
 	}
@@ -199,7 +213,7 @@ func (s *SV) Any() any {
 // toAny is Any, returning an error for a reference that leads back to
 // itself rather than panicking. inProgress holds the arrays and hashes
 // being converted, so the same one can appear twice without being a cycle.
-func (s *SV) toAny(inProgress map[any]bool) (any, error) {
+func (s *SV) toAny(inProgress map[any]bool, exact bool) (any, error) {
 	switch v := s.val().(type) {
 	case *AV, *HV:
 		if inProgress[v] {
@@ -216,7 +230,7 @@ func (s *SV) toAny(inProgress map[any]bool) (any, error) {
 		out := make([]any, v.Length())
 		for i, e := range v.items {
 			var err error
-			if out[i], err = e.toAny(inProgress); err != nil {
+			if out[i], err = e.toAny(inProgress, exact); err != nil {
 				return nil, err
 			}
 		}
@@ -225,11 +239,14 @@ func (s *SV) toAny(inProgress map[any]bool) (any, error) {
 		out := make(map[string]any, v.Length())
 		for k, e := range v.m {
 			var err error
-			if out[k], err = e.toAny(inProgress); err != nil {
+			if out[k], err = e.toAny(inProgress, exact); err != nil {
 				return nil, err
 			}
 		}
 		return out, nil
+	}
+	if t := s.digits(); exact && t != "" {
+		return json.Number(t), nil // every digit, for MarshalJSON
 	}
 	return s.val(), nil
 }
@@ -276,6 +293,9 @@ func (s *SV) Str() string {
 	case int64:
 		return strconv.FormatInt(v, 10)
 	case float64:
+		if t := s.digits(); t != "" {
+			return t
+		}
 		return formatFloat(v)
 	case string:
 		return v
@@ -363,6 +383,10 @@ func (s *SV) Format(f fmt.State, verb rune) {
 	switch verb {
 	case 'd', 'b', 'o', 'x', 'X', 'c':
 		arg = s.Int()
+		if d, kept, ok := s.exactDecimal(); ok && kept && d.whole() && verb != 'c' {
+			n, _ := new(big.Int).SetString(d.text(), 10)
+			arg = n // a whole number beyond int64, with every digit
+		}
 	case 'e', 'E', 'f', 'F', 'g', 'G':
 		arg = s.Num()
 	case 't':
@@ -731,7 +755,7 @@ const maxValueDepth = 10000
 func normalize(x any) any { return normalizeAt(x, 0) }
 
 // valueAt is Value for what's depth levels inside the value being converted.
-func valueAt(x any, depth int) *SV { return &SV{v: normalizeAt(x, depth)} }
+func valueAt(x any, depth int) *SV { return svOf(normalizeAt(x, depth)) }
 
 // enter checks the depth as a container is entered, so the panic names it.
 func enter(x any, depth int) {
@@ -745,9 +769,9 @@ func normalizeAt(x any, depth int) any {
 	case nil:
 		return nil
 	case *SV:
-		return v.val()
+		return v.packed()
 	case SV:
-		return v.v
+		return v.packed()
 	case bool, string:
 		return v
 	case *AV:
@@ -938,5 +962,5 @@ func uintToNum(u uint64) any {
 	if u <= math.MaxInt64 {
 		return int64(u)
 	}
-	return float64(u)
+	return keepNumber(strconv.FormatUint(u, 10), float64(u))
 }

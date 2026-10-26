@@ -13,9 +13,10 @@ import (
 // GeoJSON summary, generated from a fixed seed: 2,000 events, each with
 // the feed's properties and coordinates. In the big variant, each event
 // also has a seq field above 2⁶³, as some APIs' unsigned ids are, which
-// int64 can't hold.
+// int64 can't hold. In the long variant, the big ids come with coordinates
+// written to 20 or more significant digits, more than a float64 holds.
 
-func usgsFeed(big bool) []byte {
+func usgsFeed(big, long bool) []byte {
 	r := rand.New(rand.NewPCG(3, 4))
 	nets := []string{"ak", "ci", "hv", "nc", "nn", "pr", "se", "us", "uw"}
 	var b strings.Builder
@@ -34,16 +35,22 @@ func usgsFeed(big bool) []byte {
 		if big {
 			fmt.Fprintf(&b, `,"seq":%d`, uint64(1)<<63+r.Uint64N(1<<63))
 		}
-		fmt.Fprintf(&b, `},"geometry":{"type":"Point","coordinates":[%.4f,%.4f,%.2f]},"id":"%s%s"}`,
-			r.Float64()*360-180, r.Float64()*180-90, r.Float64()*700, net, code)
+		lon, lat, depth := fmt.Sprintf("%.4f", r.Float64()*360-180), fmt.Sprintf("%.4f", r.Float64()*180-90), fmt.Sprintf("%.2f", r.Float64()*700)
+		if long {
+			lon += fmt.Sprintf("%016d", r.Int64N(1e16))
+			lat += fmt.Sprintf("%016d", r.Int64N(1e16))
+		}
+		fmt.Fprintf(&b, `},"geometry":{"type":"Point","coordinates":[%s,%s,%s]},"id":"%s%s"}`,
+			lon, lat, depth, net, code)
 	}
 	b.WriteString(`]}`)
 	return []byte(b.String())
 }
 
 var (
-	feedPlain = sync.OnceValue(func() []byte { return usgsFeed(false) })
-	feedBig   = sync.OnceValue(func() []byte { return usgsFeed(true) })
+	feedPlain = sync.OnceValue(func() []byte { return usgsFeed(false, false) })
+	feedBig   = sync.OnceValue(func() []byte { return usgsFeed(true, false) })
+	feedLong  = sync.OnceValue(func() []byte { return usgsFeed(true, true) })
 )
 
 func benchRead(b *testing.B, data []byte) {
@@ -68,10 +75,12 @@ func benchWrite(b *testing.B, data []byte) {
 	}
 }
 
-func BenchmarkReadJSON(b *testing.B)     { benchRead(b, feedPlain()) }
-func BenchmarkReadJSONBig(b *testing.B)  { benchRead(b, feedBig()) }
-func BenchmarkWriteJSON(b *testing.B)    { benchWrite(b, feedPlain()) }
-func BenchmarkWriteJSONBig(b *testing.B) { benchWrite(b, feedBig()) }
+func BenchmarkReadJSON(b *testing.B)      { benchRead(b, feedPlain()) }
+func BenchmarkReadJSONBig(b *testing.B)   { benchRead(b, feedBig()) }
+func BenchmarkWriteJSON(b *testing.B)     { benchWrite(b, feedPlain()) }
+func BenchmarkWriteJSONBig(b *testing.B)  { benchWrite(b, feedBig()) }
+func BenchmarkReadJSONLong(b *testing.B)  { benchRead(b, feedLong()) }
+func BenchmarkWriteJSONLong(b *testing.B) { benchWrite(b, feedLong()) }
 
 // BenchmarkSumMag reads every event's magnitude as a number, as a program
 // summing them would: the arithmetic path a new numeric type could slow.
@@ -90,3 +99,19 @@ func BenchmarkSumMag(b *testing.B) {
 		_ = t
 	}
 }
+
+// BenchmarkClone copies a whole feed, as Clone copies every scalar: the
+// cost of carrying kept digits along.
+func benchClone(b *testing.B, data []byte) {
+	s, err := FromJSON(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for b.Loop() {
+		_ = s.Clone()
+	}
+}
+
+func BenchmarkClone(b *testing.B)     { benchClone(b, feedPlain()) }
+func BenchmarkCloneBig(b *testing.B)  { benchClone(b, feedBig()) }
+func BenchmarkCloneLong(b *testing.B) { benchClone(b, feedLong()) }

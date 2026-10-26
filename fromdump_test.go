@@ -30,8 +30,8 @@ func TestFromDump(t *testing.T) {
 		`2.5`:                 2.5,
 		`1e3`:                 1000.0,
 		`.5`:                  0.5,
-		`"2.5"`:               "2.5", // as Data::Dumper quotes it: a string
-		`9223372036854775808`: 9223372036854775808.0,
+		`"2.5"`:               "2.5",                       // as Data::Dumper quotes it: a string
+		`9223372036854775808`: uint64(9223372036854775808), // a float that keeps its digits
 		`"a\"b\$c\@d\n\t\\"`:  "a\"b$c@d\n\t\\",
 		`"\0\1x\0011\177\e"`:  "\x00\x01x\x011\x7f\x1b",
 		`"caf\x{e9}"`:         "caf" + eAcute,

@@ -11,18 +11,33 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- A number read as text keeps its digits when a `float64` can't give
+  them back, where it lost them silently before: the id
+  `12345678901234567890` and the coordinate `-132.48854465954707381603`,
+  read from JSON, YAML or a dump, are written back with every digit.
+  Ordinary numbers keep nothing, and cost a count of their digits.
+  `To[uint64]` and `Decode` read a big whole number exactly, from a kept
+  number or a string of digits, which failed before; two ids that differ
+  only in their last digits no longer compare equal, and `UniqueNum`
+  keeps both. Arithmetic, `Kind` and `Any` still see the float. Reading
+  JSON with long numbers costs about 6 to 9% more, and ordinary JSON
+  about 3%. The reference's
+  [Numbers that keep their digits](docs/REFERENCE.md#numbers-that-keep-their-digits)
+  says where this differs from Perl, which reads them as floats.
+  ([record](docs/changes/2026-10-26-exact-decimals.md); roadmap 3)
+- Changed: such a number now prints and writes every digit, as does a Go
+  `uint64` beyond `int64`: `Value(uint64(math.MaxUint64)).Str()` is
+  `18446744073709551615`, where it was `1.84467440737096e+19`, and
+  `MarshalJSON` writes the digits it was given, where it wrote the
+  float's.
 - Reading JSON with decimals is faster, about 10% on a feed of
   earthquakes: a decimal no longer tries to parse as an integer first,
   whose failure allocated an error each time.
-- Docs: the [reference](docs/REFERENCE.md#json) warns that a JSON number
-  too big for an `int64`, or with more than about 16 significant digits,
-  loses digits silently when read, where Perl keeps a whole number's
-  digits, and shows the plain Go that keeps them, with `json.Number` or
-  an exact decimal type. The [roadmap](ROADMAP.md) plans to keep a whole
-  number's digits in scalar too, as Perl does (item 2, since dropped for
-  item 3, with its [change record](docs/changes/2026-10-26-exact-whole-numbers.md)),
-  and keeps decimals' as item 3, now an experiment, with its own
-  [change record](docs/changes/2026-10-26-exact-decimals.md).
+- Docs: roadmap 2, keeping whole numbers' digits as a `uint64`, as Perl
+  holds a UV, was investigated and dropped for roadmap 3, which covers
+  its uses with one mechanism; its
+  [change record](docs/changes/2026-10-26-exact-whole-numbers.md) keeps
+  what it found.
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the
