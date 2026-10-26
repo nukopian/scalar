@@ -19,8 +19,9 @@ release's entry when `main` is moved to it and tagged
   loses digits silently when read, where Perl keeps a whole number's
   digits, and shows the plain Go that keeps them, with `json.Number` or
   an exact decimal type. The [roadmap](ROADMAP.md) plans to keep a whole
-  number's digits in scalar too, as Perl does (item 2, in Next), and
-  keeps decimals' as an idea (3).
+  number's digits in scalar too, as Perl does (item 2, now being worked
+  on, with its [change record](docs/changes/2026-10-26-exact-whole-numbers.md)),
+  and keeps decimals' as an idea (3).
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the

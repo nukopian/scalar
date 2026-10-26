@@ -60,4 +60,5 @@ What's known, Steps, Done when.
 
 Newest first.
 
-None yet.
+- [JSON whole numbers that keep their digits](2026-10-26-exact-whole-numbers.md),
+  roadmap 2: in progress.

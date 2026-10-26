@@ -25,46 +25,18 @@ it names its number.
 
 ## Now
 
-Nothing yet.
+### 2. JSON whole numbers that keep their digits
+
+A whole number from 2⁶³ to 2⁶⁴−1, such as the id `12345678901234567890`,
+keeps every digit, held as a `uint64` as Perl holds a UV, and arithmetic
+on whole numbers is exact wherever Perl's is. It's built and being
+tested on a branch before it reaches develop; the
+[change record](docs/changes/2026-10-26-exact-whole-numbers.md) has the
+plan and what's happened.
 
 ## Next
 
-### 2. JSON whole numbers that keep their digits
-
-**What:** a JSON whole number too big for an `int64`, such as the id
-`12345678901234567890`, keeps its digits as text beside the `float64`
-it becomes, so `Str()`, `MarshalJSON`, `Dump`, YAML output and
-`scalar.To` into an exact type, such as shopspring/decimal's, give
-every digit, while `Num()`, arithmetic and `Any()` still see the float.
-Go `uint64` values above `int64`, which become floats too, keep theirs
-the same way. Decimals stay as they are, as in Perl; idea 3 is keeping
-theirs.
-
-**Why:** big ids are common in API JSON, and today they lose their last
-digits silently: `12345678901234567890` is written back as
-`12345678901234567000`, and `To` can't win them back. Perl keeps them:
-JSON::PP reads such a number as a plain string with every digit, and
-Perl adds the float beside it when the number is first used as a
-number, so both mean the same number (Perl's ordinary storage, not
-Scalar::Util's `dualvar`, whose two can disagree). A number up to
-2⁶⁴−1 is an exact UV in Perl, with exact arithmetic; scalar's arithmetic
-there stays float, a deviation to document.
-
-**How, as far as it's known:** the text goes in the scalar's `rare`
-field, so the float stays in `v` and the code that switches on
-`float64` is unchanged. Both JSON decoders end in
-`normalizeJSONNumber`, and the fast path's integers of up to 18 digits
-never reach it, so the common case costs nothing. Every write passes
-through `vivify()`, which clears the text, so a changed value never
-prints the old digits. `Copy` and `Clone` carry it.
-
-**Done when** whole numbers that don't fit an `int64` round-trip through
-`FromJSON` and `MarshalJSON` with every digit; a differential test
-compares them with JSON::PP; a test shows that every mutator clears the
-text; the JSON benchmarks show no real cost; the fast-paths comparison
-and `FuzzReadJSON` cover it; and the reference's JSON section and
-Caveats say what's kept, and what isn't: decimals, and exact arithmetic
-above `int64`.
+Nothing yet.
 
 ## Later
 
@@ -89,12 +61,14 @@ branch.
 
 ### 3. JSON decimals that keep their digits
 
-Added 2026-10-26. Item 2 done for decimals too: a JSON decimal with
-more digits than a `float64` holds, such as `1.23456789012345678901`,
-keeps its text beside the float, the same way, so money and
-measurements survive a round trip and `scalar.To` into an exact decimal
-type. Perl doesn't do this by default: JSON::PP reads such a number as a
-float, `1.23456789012346`, unless `allow_bignum` makes it a
-Math::BigFloat. So it would be a deviation from Perl, documented in the
-reference, or an option like `allow_bignum`. Waits on item 2, which
-builds the storage it would reuse.
+Added 2026-10-26. A JSON decimal with more digits than a `float64`
+holds, such as `1.23456789012345678901`, keeps its text beside the
+float, so money and measurements survive a round trip and `scalar.To`
+into an exact decimal type. Perl doesn't do this by default: JSON::PP
+reads such a number as a float, `1.23456789012346`, unless
+`allow_bignum` makes it a Math::BigFloat. So it would be a deviation
+from Perl, documented in the reference, or an option like
+`allow_bignum`. Item 2 holds whole numbers as a `uint64`, so this would
+need storage of its own; the
+[`experiment/exact-integers`](https://github.com/nukopian/scalar/tree/experiment/exact-integers)
+branch built and measured text beside the float.
