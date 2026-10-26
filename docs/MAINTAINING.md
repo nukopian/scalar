@@ -29,11 +29,17 @@ next to them:
   what `go get` installs.
 - There are no feature branches, for now: changes are made one at a time.
 - [ROADMAP.md](../ROADMAP.md) holds what scalar means to do: features
-  and outcomes, in Now, Next and Later. It's public, on both branches,
-  and in every release. Now holds three items at most, so the roadmap
-  stays a queue to pull from, not a list pushing work; an item in Now has
-  a plan written to be picked up cold; one leaves when it ships, in the
-  commit that adds it to the CHANGELOG.
+  and outcomes, in Now, Next and Later, and Ideas, kept so they aren't
+  lost. It's public, on both branches, and in every release. Now holds
+  three items at most, so the roadmap stays a queue to pull from, not a
+  list pushing work; an item in Now has a plan written to be picked up
+  cold; one leaves when it ships, in the commit that adds it to the
+  CHANGELOG, whose line ends "(roadmap 7)". Every item has a number, the
+  next one when it's added (the roadmap's opening says which), kept as it
+  moves between groups and never used again; a heading such as
+  `### 7. Title` holds it, as a Markdown numbered list would renumber
+  itself. An idea is that heading, the date it was added, and a line or
+  two, and is added in a `docs:` commit whenever one comes up.
 - `TODO.md`, when there is one, lists work planned for a later session:
   the concrete steps of a roadmap item being worked on, or tasks from
   other repositories' sessions. Its tasks come before the roadmap's
@@ -120,7 +126,9 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    feature word for word into ROADMAP.md, or a decision awaiting Iain
    to a Claude Doc, and delete the file before going on. Check
    ROADMAP.md too: what shipped is out of it, and Now is what's really
-   being worked on.
+   being worked on. Prune the Ideas: list them by number, and Iain
+   keeps, promotes or drops each. A promoted idea keeps its number; a
+   dropped one is deleted, and the commit message names its number.
 
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in

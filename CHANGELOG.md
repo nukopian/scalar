@@ -11,7 +11,13 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- The roadmap numbers its items, and has a fourth group, Ideas, after
+  Later, for what might be done, or never, kept so it isn't lost. A
+  number stays with its item as it moves between groups and is never
+  used again, so an item can be named by number, in pruning and in the
+  CHANGELOG ("(roadmap 7)"). Later now means meant to be done, but not
+  yet planned, and the regex engine chosen per pattern is idea 1.
+  Wash-ups prune the ideas.
 
 ## v0.5.9 (2026-10-26)
 
