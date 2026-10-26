@@ -11,6 +11,16 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+## v0.6.0 (2026-10-26)
+
+Numbers that keep their digits, and %, ++ and To nearer Perl
+
+A number read as text, from JSON, YAML or a dump, keeps its digits when
+a `float64` can't hold them, so long decimals and big ids are written
+back exactly. Some output changes, hence the minor version: such a
+number, and a Go `uint64` beyond `int64`, now prints and writes every
+digit, and `%` and `++` give Perl's answers where they didn't.
+
 - A number read as text keeps its digits when a `float64` can't give
   them back, where it lost them silently before: the id
   `12345678901234567890` and the coordinate `-132.48854465954707381603`,

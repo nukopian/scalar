@@ -1,6 +1,6 @@
 # JSON decimals that keep their digits
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.0
 
 **Origin:** roadmap 3
 
