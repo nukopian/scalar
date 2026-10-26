@@ -11,6 +11,9 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- Reading JSON with decimals is faster, about 10% on a feed of
+  earthquakes: a decimal no longer tries to parse as an integer first,
+  whose failure allocated an error each time.
 - Docs: the [reference](docs/REFERENCE.md#json) warns that a JSON number
   too big for an `int64`, or with more than about 16 significant digits,
   loses digits silently when read, where Perl keeps a whole number's

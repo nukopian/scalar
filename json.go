@@ -93,8 +93,11 @@ func (h *HV) MarshalJSON() ([]byte, error) {
 func jsonNumber(text []byte) json.Number { return json.Number(text) }
 
 func normalizeJSONNumber(n json.Number) any {
-	if i, err := strconv.ParseInt(string(n), 10, 64); err == nil {
-		return i
+	// A decimal or exponent skips ParseInt, whose failure allocates.
+	if isIntText(string(n)) {
+		if i, err := strconv.ParseInt(string(n), 10, 64); err == nil {
+			return i
+		}
 	}
 	f, _ := strconv.ParseFloat(string(n), 64)
 	return f
