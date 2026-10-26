@@ -11,6 +11,8 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
 ## v0.6.0 (2026-10-26)
 
 Numbers that keep their digits, and %, ++ and To nearer Perl

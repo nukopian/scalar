@@ -267,7 +267,9 @@ planned. grammar's CLAUDE.md has the same rule.
   tag on it; it's protected, so a push to it needs CI passing. Add what
   changed for users to `CHANGELOG.md` under Unreleased in the same
   commit, and update `ROADMAP.md` there if it ships, starts or drops a
-  feature. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
+  feature. Unreleased is never blank: a release leaves `Nothing yet.`
+  under it, and the first change after replaces that line;
+  `TestChangelogUnreleased` checks both. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
   and GitHub work done by hand.
 - Every commit ends with a `Co-Authored-By` trailer for the Claude model
   that worked on it, currently
