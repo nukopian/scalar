@@ -21,7 +21,8 @@ release's entry when `main` is moved to it and tagged
   an exact decimal type. The [roadmap](ROADMAP.md) plans to keep a whole
   number's digits in scalar too, as Perl does (item 2, now being worked
   on, with its [change record](docs/changes/2026-10-26-exact-whole-numbers.md)),
-  and keeps decimals' as an idea (3).
+  and keeps decimals' as item 3, now an experiment, with its own
+  [change record](docs/changes/2026-10-26-exact-decimals.md).
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the

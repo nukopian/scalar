@@ -25,12 +25,24 @@ it names its number.
 
 ## Now
 
+### 3. JSON decimals that keep their digits
+
+An experiment. A number read as text, from JSON, YAML or a dump, keeps
+its text beside its float when the float can't give the number back: a
+decimal such as `1.23456789012345678901`, or a whole number beyond
+`int64`. It's on for every number, with no option to ask for it, and
+arithmetic stays on the float; money stays with plain Go at the edges.
+It's being built and measured on the `experiment/exact-decimals` branch,
+off develop; the
+[change record](docs/changes/2026-10-26-exact-decimals.md) has the plan
+and what's happened.
+
 ### 2. JSON whole numbers that keep their digits
 
 An investigation, not decided, and it may be dropped. Experiments on
 two branches show what keeping the digits of a whole number from 2⁶³ to
 2⁶⁴−1 would cost, and a build holds one as a `uint64`, as Perl holds a
-UV. Whether it lands depends on idea 3, keeping decimals' digits, which
+UV. Whether it lands depends on item 3, keeping decimals' digits, which
 is the outcome that matters most: a design for whole numbers alone could
 leave decimals needing a second mechanism. The
 [change record](docs/changes/2026-10-26-exact-whole-numbers.md) has the
@@ -60,18 +72,3 @@ backtracking, at the cost of lookaround, backreferences and Unicode
 experiment, with its tests and measurements, is on the
 [`experiment/regex-engine`](https://github.com/nukopian/scalar/tree/experiment/regex-engine)
 branch.
-
-### 3. JSON decimals that keep their digits
-
-Added 2026-10-26. A JSON decimal with more digits than a `float64`
-holds, such as `1.23456789012345678901`, keeps its text beside the
-float, so money and measurements survive a round trip and `scalar.To`
-into an exact decimal type. Perl doesn't do this by default: JSON::PP
-reads such a number as a float, `1.23456789012346`, unless
-`allow_bignum` makes it a Math::BigFloat. So it would be a deviation
-from Perl, documented in the reference, or an option like
-`allow_bignum`. Item 2's build holds whole numbers as a `uint64`, so this
-would need storage of its own; the
-[`experiment/exact-integers`](https://github.com/nukopian/scalar/tree/experiment/exact-integers)
-branch built and measured text beside the float, for whole numbers only:
-decimals weren't tried.
