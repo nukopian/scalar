@@ -72,5 +72,44 @@ decision.
   `0.1 + 0.2` is written `0.30000000000000004`, where JSON::PP writes
   `0.3`, to 15 significant digits. The reference doesn't say so; Iain is
   to decide whether to document it or match Perl, separately.
-- **What's left:** the experiment is being built; this record is
-  updated as it goes.
+- **Built and measured,** on the `experiment/exact-decimals` branch, not
+  yet pushed: about 100 lines changed in 15 files, and a new file,
+  `digits.go`. Against develop, median of 6 on an Apple M2: reading
+  ordinary JSON costs 2.9% more, with no extra allocations; 2,000 big
+  ids, 5.9%; 6,000 long numbers, 9.3%; writing, 1.5 to 2.5%; comparing
+  two floats, 3.3%; sorting 1,000 ordinary numbers, 4%.
+- **Three costs were found and cut,** each measured. Comparing kept
+  digits on every comparison made float comparison 58% slower and a sort
+  of close big ids 517% slower; floats are now compared first, as
+  rounding never reverses an order, and the digits only when floats
+  tie. Keeping JSON's text as written made every number's text escape to
+  the heap, 14,000 extra allocations on the ordinary feed; the text is
+  now copied only when it's kept. Parsing kept digits on every
+  comparison allocated; they're parsed once and cached, except in a
+  locked scalar, which may be read concurrently: a race test shows a
+  cache there would be a data race.
+- **Copies,** 2026-10-26: `Copy`, `Clone` and `Value` of a scalar,
+  which `Sort`'s copy goes through, made a kept number's copy through
+  the readers' carrier, three allocations each. They now give the copy
+  the text directly, with its own record of it, sharing the parsed
+  digits, which never change. Cloning the long feed went from 4.81 ms
+  to 4.49 ms, and the big-id feed from 4.68 ms to 4.40 ms; develop
+  clones them in 4.23 to 4.36 ms, so a kept number now costs one
+  allocation more than develop. A sort of close big ids gained only
+  4.6%, to 0.26 ms against develop's 0.16 ms: its copies come from
+  elements never compared, with no parse to share. A `uint64`, as in
+  roadmap 2's build, copies for nothing; text always costs something,
+  the price of one mechanism for decimals and big ids alike.
+- **Tested:** the whole suite on Perl 5.36, 5.38, 5.40 and 5.42, and the
+  copy change on 5.36 and 5.42; `-race`, `-short` and Go 1.25; staticcheck and govulncheck at CI's pinned
+  versions. `FuzzFaithful` checks whether to keep a number against exact
+  arithmetic (`math/big`), and found two flaws in that oracle, for
+  exponents beyond `big.Rat`'s reach; JSON::PP's `allow_bignum` agrees
+  on every number it keeps. A planted bug in each of copying, clearing
+  on write, the keep-or-not test, comparison, the locked cache and a
+  copy's own record was caught.
+- **What's left:** Iain decides whether it lands, and whether roadmap 2's
+  `uint64` build is dropped. Landing it needs the reference written
+  first, saying where it differs from Perl: Perl reads such numbers as
+  floats, and prints 15 digits where a kept number's `Str` gives all of
+  them.
