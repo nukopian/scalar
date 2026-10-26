@@ -1,6 +1,10 @@
 package scalar
 
 import (
+	"encoding/json"
+	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -318,5 +322,152 @@ func TestSubstPlainReplacement(t *testing.T) {
 	}
 	if got := Value(`a1`).S(`\d`, `\n`, "r").Str(); got != `a\n` {
 		t.Errorf("backslashes are literal: %q", got)
+	}
+}
+
+// substCase is S with a replacement string, with and without "g".
+type substCase struct {
+	Input   string `json:"input"`
+	Pattern string `json:"pattern"`
+	Repl    string `json:"repl"`
+	G       bool   `json:"g"`
+}
+
+// substCases pairs each pattern and input with each replacement.
+func substCases(patterns [][2]string, repls []string) []substCase {
+	var cases []substCase
+	for _, p := range patterns {
+		for _, r := range repls {
+			for _, g := range []bool{false, true} {
+				cases = append(cases, substCase{p[1], p[0], r, g})
+			}
+		}
+	}
+	return cases
+}
+
+func (c substCase) run() (string, int) {
+	flags := ""
+	if c.G {
+		flags = "g"
+	}
+	s := Value(c.Input)
+	out := s.S(c.Pattern, c.Repl, flags+"r").Str()
+	return out, int(s.S(c.Pattern, c.Repl, flags).Int())
+}
+
+// S expands the documented references, and the others regexp2 knows, as
+// regexp2's Replace did, which S used before it expanded them itself.
+// Not compared: references to groups that don't exist, which regexp2 left
+// as they were, and which give nothing in Perl and now in scalar.
+func TestSubstExpandMatchesRegexp2(t *testing.T) {
+	groupRef := regexp.MustCompile(`\$\{?(\d+)`)
+	cases := substCases([][2]string{
+		{`(\d+) km`, quakeLine},
+		{`(?<y>\d+)-(\d+)`, "2026-10 and 2025-03"}, // named groups numbered last
+		{`(?<mag>\d)\.(?<frac>\d)`, quakeLine},
+		{`≈([\d,]+)`, "≈12,500 - ≈15,000 m"},
+		{`(a)|(b)`, "abc"},
+		{`x*`, "abc"},
+		{`(nowhere)`, quakeLine},
+	}, []string{
+		"$1", "${1}", "${1}0", "<$&>", "$0", "$$", "[$`]", "[$']", "${y}", "${mag}",
+		"${nope}", "$mag", "$", "${1", `\1`, "$2$1", "$1 and $1",
+	})
+	for _, c := range cases {
+		limit := 1
+		if c.G {
+			limit = -1
+		}
+		rx := compile(c.Pattern, "")
+		missing := false
+		for _, ref := range groupRef.FindAllStringSubmatch(c.Repl, -1) {
+			n, _ := strconv.Atoi(ref[1])
+			missing = missing || n >= len(rx.GetGroupNumbers())
+		}
+		if missing {
+			continue
+		}
+		want, err := rx.Replace(c.Input, c.Repl, -1, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := c.run(); got != want {
+			t.Errorf("%q =~ s/%s/%s/ (g=%v) = %q, regexp2 gives %q", c.Input, c.Pattern, c.Repl, c.G, got, want)
+		}
+	}
+}
+
+// Where Perl's spelling and scalar's agree, S's replacement strings give
+// what Perl's s/// gives, references to groups that don't exist, $+ and
+// $+{name} included. Not compared: $$, which is a $ in scalar and the
+// process ID in Perl; ${name} and $0, which are variables in Perl; and
+// patterns that mix named and unnamed groups, which scalar numbers
+// differently.
+func TestSubstExpandMatchesPerl(t *testing.T) {
+	needPerl(t)
+	cases := substCases([][2]string{
+		{`(\d+) km`, quakeLine},
+		{`(?<mag>\d)\.(?<frac>\d)`, quakeLine},
+		{`≈([\d,]+)`, "≈12,500 - ≈15,000 m"},
+		{`(a)|(b)`, "abc"},
+		{`(a)(x)?`, "aaa"},
+		{`x*`, "abc"},
+		{`(nowhere)`, quakeLine},
+	}, []string{
+		"$1", "${1}0", "<$&>", "[$`]", "[$']", "$2$1", "$5", "$10", "$+",
+		"[$+{mag}]", "[$+{frac}]", "[$+{nope}]",
+	})
+	in, _ := json.Marshal(cases)
+	const script = `
+use v5.36; no warnings;
+use JSON::PP;
+my @out;
+for my $c (@{ JSON::PP->new->utf8->decode(do { local $/; <STDIN> }) }) {
+	my ($s, $re, $r) = ($c->{input}, qr/$c->{pattern}/, '"' . $c->{repl} . '"');
+	my $n = $c->{g} ? ($s =~ s/$re/$r/gee) : ($s =~ s/$re/$r/ee);
+	push @out, [$s, 0 + ($n || 0)];
+}
+print JSON::PP->new->utf8->encode(\@out);
+`
+	cmd := exec.Command("perl", "-e", script)
+	cmd.Stdin = strings.NewReader(string(in))
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("perl: %v: %s", err, stderr.String())
+	}
+	var want []struct {
+		Out string
+		N   int
+	}
+	var rows [][]any
+	if err := json.Unmarshal(out, &rows); err != nil {
+		t.Fatalf("perl's output: %v", err)
+	}
+	for _, r := range rows {
+		want = append(want, struct {
+			Out string
+			N   int
+		}{r[0].(string), int(r[1].(float64))})
+	}
+	if len(want) != len(cases) {
+		t.Fatalf("perl gave %d results for %d cases", len(want), len(cases))
+	}
+	for i, c := range cases {
+		if got, n := c.run(); got != want[i].Out || n != want[i].N {
+			t.Errorf("%q =~ s/%s/%s/ (g=%v) = %q, %d; Perl gives %q, %d", c.Input, c.Pattern, c.Repl, c.G, got, n, want[i].Out, want[i].N)
+		}
+	}
+}
+
+// Perl's $_ is its topic variable, which scalar doesn't have, so $_ is
+// left as it is, as are references that aren't finished.
+func TestSubstExpandLeftAlone(t *testing.T) {
+	for _, repl := range []string{"$_", "$+{mag", "${1", "$", "${nope}", "$mag"} {
+		if got := Value("M 4.6").S(`(?<mag>\d)\.\d`, repl, "r").Str(); got != "M "+repl {
+			t.Errorf("s/.../%s/ = %q", repl, got)
+		}
 	}
 }

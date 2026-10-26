@@ -11,7 +11,17 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Faster: `S` with a replacement string that refers to the match, such as
+  `"$1"`, is about 1.6 times as fast on one line, and 1.8 times with `g`,
+  with 40% fewer allocations. It expands each match as it's found, in one
+  pass, where regexp2's `Replace` needed a second to count.
+- New: replacement strings take Perl's `$+{name}` for a named group, and
+  `$+` for the highest-numbered group that took part.
+- Changed: in a replacement string, a group that doesn't exist, such as
+  `$5` when the pattern has two, gives nothing, as in Perl, rather than
+  being left as written; and `$_` is left as written, rather than being
+  the whole input. The documented references, `$1`, `${name}`, `$&` and
+  `$$`, are unchanged.
 
 ## v0.5.8 (2026-10-25)
 

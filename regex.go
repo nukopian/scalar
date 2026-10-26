@@ -279,9 +279,10 @@ func (s *SV) Named(re any, flags ...string) *HV {
 	return h
 }
 
-// S is Perl's s///. repl is either a replacement string, in which $1,
-// ${name}, $& and $$ are expanded, or a func(*AV) any (or func(*AV) string)
-// that receives the match as M lays it out, like s///e.
+// S is Perl's s///. repl is either a replacement string, in which $1 and
+// ${1}, ${name} and $+{name}, $&, $`, $', $+ and $$ are expanded (see
+// expand), or a func(*AV) any (or func(*AV) string) that receives the match
+// as M lays it out, like s///e.
 //
 // Flags: "g" replaces every match; "r" leaves s alone and returns the new
 // string. Without "r", s is modified in place (only if something matched)
@@ -324,19 +325,16 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 			check(rx, err)
 			break
 		}
-		// regexp2 expands $1, ${name} and so on only in Replace, which
-		// doesn't say how many it replaced, so count them first.
-		for range matches(rx, []rune(str)) {
+		// Expanding each match as it's found takes one pass, where
+		// regexp2's Replace needs a second to count, and expands as Perl
+		// does where regexp2 doesn't.
+		var runes []rune // str, if $` or $' needs it
+		var err error
+		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
 			n++
-			if n == limit {
-				break
-			}
-		}
-		if n > 0 {
-			var err error
-			out, err = rx.Replace(str, r, -1, limit)
-			check(rx, err)
-		}
+			return expand(r, &m, str, &runes)
+		}, -1, limit)
+		check(rx, err)
 	case func(*AV) any:
 		var err error
 		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
@@ -359,6 +357,100 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 		out = str
 	}
 	return s.substituted(out, n, isBytes, f)
+}
+
+// expand returns S's replacement string repl for the match m in str, as
+// Perl's s/// expands it: $1 and ${1} for a group, numbered as M numbers
+// them; ${name} and $+{name} for a named group; $& (or $0) for the whole
+// match; $` and $' for the text before and after it; $+ for the
+// highest-numbered group that took part; and $$ for a $. A group that
+// doesn't exist or didn't take part gives nothing, except in ${name},
+// which is left as it is, as is anything else. runes holds str as runes,
+// made the first time $` or $' needs it.
+func expand(repl string, m *regexp2.Match, str string, runes *[]rune) string {
+	groups := m.Groups()
+	group := func(n int) string {
+		if n >= len(groups) || len(groups[n].Captures) == 0 {
+			return ""
+		}
+		return groups[n].String()
+	}
+	named := func(name string) (string, bool) {
+		g := m.GroupByName(name)
+		if g == nil {
+			return "", false
+		}
+		if len(g.Captures) == 0 {
+			return "", true
+		}
+		return g.String(), true
+	}
+	text := func() []rune {
+		if *runes == nil {
+			*runes = []rune(str)
+		}
+		return *runes
+	}
+
+	var b strings.Builder
+	for i := 0; i < len(repl); i++ {
+		if repl[i] != '$' || i+1 == len(repl) {
+			b.WriteByte(repl[i])
+			continue
+		}
+		rest := repl[i+1:]
+		switch c := rest[0]; {
+		case c == '$':
+			b.WriteByte('$')
+			i++
+		case c == '&':
+			b.WriteString(group(0))
+			i++
+		case c == '`':
+			b.WriteString(string(text()[:m.Index]))
+			i++
+		case c == '\'':
+			b.WriteString(string(text()[m.Index+m.Length:]))
+			i++
+		case c >= '0' && c <= '9':
+			j := 1
+			for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
+				j++
+			}
+			n, err := strconv.Atoi(rest[:j])
+			if err == nil {
+				b.WriteString(group(n))
+			}
+			i += j
+		case strings.HasPrefix(rest, "+{") && strings.Contains(rest, "}"):
+			end := strings.IndexByte(rest, '}')
+			text, _ := named(rest[2:end])
+			b.WriteString(text)
+			i += end + 1
+		case c == '+' && !strings.HasPrefix(rest, "+{"):
+			for n := len(groups) - 1; n > 0; n-- {
+				if len(groups[n].Captures) > 0 {
+					b.WriteString(groups[n].String())
+					break
+				}
+			}
+			i++
+		case c == '{' && strings.Contains(rest, "}"):
+			end := strings.IndexByte(rest, '}')
+			name := rest[1:end]
+			if n, err := strconv.Atoi(name); err == nil {
+				b.WriteString(group(n))
+			} else if text, ok := named(name); ok {
+				b.WriteString(text)
+			} else {
+				b.WriteString(repl[i : i+end+2])
+			}
+			i += end + 1
+		default:
+			b.WriteByte('$')
+		}
+	}
+	return b.String()
 }
 
 // substituted finishes S: with "r", the new string; otherwise s takes it, if

@@ -1680,8 +1680,21 @@ name := scalar.Value("Smith, John")
 name.S(`(\w+), (\w+)`, "$2 $1")   // "John Smith"
 ```
 
-In a replacement string you can use `$1`, `${name}`, `$&` (the whole match)
-and `$$` (a literal `$`).
+In a replacement string you can use:
+
+| Write | For |
+|---|---|
+| `$1`, or `${1}` when a digit follows | a group, numbered as [`M` numbers them](#matching) |
+| `${name}` or `$+{name}` | a named group |
+| `$&` | the whole match |
+| `` $` `` and `$'` | the text before and after the match |
+| `$+` | the highest-numbered group that took part |
+| `$$` | a literal `$`, which Perl writes `\$` |
+
+As in Perl, a group that doesn't exist, or didn't take part, gives nothing.
+`$_`, Perl's topic variable, has no meaning here, so it's left as it is, as
+is `${name}` for a name the pattern doesn't have, so that a mistyped name
+shows in the result.
 
 With `r`, `s` isn't changed and you get the new string back:
 
