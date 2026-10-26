@@ -63,4 +63,4 @@ Newest first.
 - [JSON decimals that keep their digits](2026-10-26-exact-decimals.md),
   roadmap 3: in progress, as an experiment.
 - [JSON whole numbers that keep their digits](2026-10-26-exact-whole-numbers.md),
-  roadmap 2: in progress.
+  roadmap 2: dropped.

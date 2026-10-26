@@ -1,12 +1,12 @@
 # JSON whole numbers that keep their digits
 
-**Status:** in progress, as an investigation that may be dropped
+**Status:** dropped
 
 **Origin:** roadmap 2
 
 **Started:** 2026-10-26, in d86c548e0cef495a174f025ef93383151667062c
 
-**Finished:**
+**Finished:** 2026-10-26
 
 ## The plan
 
@@ -84,7 +84,7 @@ above `int64`.
   `"008"`; the build follows Perl in each. A negative zero prints as
   `-0`, where Perl prints `0`: not changed, and documented.
 - **The build** is on the
-  [`experiment/uv-integers`](https://github.com/nukopian/scalar/tree/experiment/uv-integers)
+  `experiment/uv-integers`
   branch (f4361b546add10a5fa8fb497109103624e07c087), to be tested before
   it reaches develop. A differential test runs 77,222 cases of every
   operator through Perl 5.36 to 5.42, each difference in a named group;
@@ -102,6 +102,19 @@ above `int64`.
   beside it. The branch stays as it is, off develop, while an experiment
   costs idea 3's designs, reusing this one's benchmarks and tests rather
   than covering whole numbers again.
-- **What's left:** the idea 3 experiment; then Iain decides whether this
-  lands, changes or is dropped, and this record is finished in the
-  commit that ships or drops it.
+- **Dropped, 2026-10-26.** Roadmap 3's experiment keeps a number's text
+  beside its float when the float can't give it back, which covers a big
+  id's round trip, `To[uint64]` and exact comparisons, the reasons for
+  this item, with one mechanism for decimals and big ids alike, and Iain
+  chose it. The `uint64` build would have added only exact arithmetic on
+  ids beyond `int64`, and Perl's integer `Kind` for them, at the cost of
+  a second mechanism and of changes to `Kind` and `**`. Its branch,
+  `experiment/uv-integers`, is deleted; the build is commit
+  f4361b546add10a5fa8fb497109103624e07c087, and this record keeps what it
+  found. The `experiment/exact-integers` branch stays, as roadmap 3
+  builds on its text beside the float.
+- **What's left:** two bugs this found on develop, each a small change of
+  its own: `1e19 % 7` is `0` where Perl gives `3`, as `%` truncates a
+  float beyond `int64` through `Int()`, and `"007"++` is `8` where Perl
+  gives `"008"`. Also `**`, which gives an exact whole number where Perl
+  gives a float for a power of two, as `2**62` does.

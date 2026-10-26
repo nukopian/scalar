@@ -37,17 +37,6 @@ off develop; the
 [change record](docs/changes/2026-10-26-exact-decimals.md) has the plan
 and what's happened.
 
-### 2. JSON whole numbers that keep their digits
-
-An investigation, not decided, and it may be dropped. Experiments on
-two branches show what keeping the digits of a whole number from 2⁶³ to
-2⁶⁴−1 would cost, and a build holds one as a `uint64`, as Perl holds a
-UV. Whether it lands depends on item 3, keeping decimals' digits, which
-is the outcome that matters most: a design for whole numbers alone could
-leave decimals needing a second mechanism. The
-[change record](docs/changes/2026-10-26-exact-whole-numbers.md) has the
-plan and what's happened.
-
 ## Next
 
 Nothing yet.
