@@ -51,7 +51,11 @@ it in one place, for looking back.
 aa0262168067f242e16096f2717479144839c2eb has the wording, and its
 `docs/MAINTAINING.md`, `CLAUDE.md`, `ROADMAP.md` and
 `scripts/readme-pdf.sh` changes there are the pattern (the script needs
-`cd "$root"` before the loop, as the records' glob is relative). Its
+`cd "$root"` before the loop, as the records' glob is relative). Take
+the release step from grammar's ded2edb9f438da9dc69a16af99c06ec8983ca6bd
+instead: its `grep -n 'shipped, unreleased$'` matches only the status
+lines and the records' list, where the first version listed the
+records' README every time, as its rules contain the phrase. Its
 first record, `docs/changes/2026-10-26-limit-errors-that-say-where.md`
 at 6e61995ea186d466f7833385c0f2fa8bbdd419fb, is a worked example:
 `git -C ../grammar show 6e61995ea186d466f7833385c0f2fa8bbdd419fb`.
