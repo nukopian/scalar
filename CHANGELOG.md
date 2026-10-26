@@ -15,11 +15,7 @@ release's entry when `main` is moved to it and tagged
 
 Numbers that keep their digits, and %, ++ and To nearer Perl
 
-A number read as text, from JSON, YAML or a dump, keeps its digits when
-a `float64` can't hold them, so long decimals and big ids are written
-back exactly. Some output changes, hence the minor version: such a
-number, and a Go `uint64` beyond `int64`, now prints and writes every
-digit, and `%` and `++` give Perl's answers where they didn't.
+A minor version, as some output changes: see Changed and Fixed below.
 
 - A number read as text keeps its digits when a `float64` can't give
   them back, where it lost them silently before: the id
@@ -37,11 +33,9 @@ digit, and `%` and `++` give Perl's answers where they didn't.
   [Numbers that keep their digits](docs/REFERENCE.md#numbers-that-keep-their-digits)
   says where this differs from Perl, which reads them as floats.
   ([record](docs/changes/2026-10-26-exact-decimals.md); roadmap 3)
-- Changed: such a number now prints and writes every digit, as does a Go
-  `uint64` beyond `int64`: `Value(uint64(math.MaxUint64)).Str()` is
-  `18446744073709551615`, where it was `1.84467440737096e+19`, and
-  `MarshalJSON` writes the digits it was given, where it wrote the
-  float's.
+- Changed: `Str` and `MarshalJSON` of such a number, and of a Go `uint64`
+  beyond `int64`: `Value(uint64(math.MaxUint64)).Str()` is
+  `18446744073709551615`, where it was `1.84467440737096e+19`.
 - `To` and `Decode` fill a type that reads text, such as `*big.Rat` or
   `*big.Float`, from a number too, with its exact text: every digit it
   keeps, or the shortest form of its float. They took only strings.
