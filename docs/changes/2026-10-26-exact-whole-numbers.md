@@ -1,6 +1,6 @@
 # JSON whole numbers that keep their digits
 
-**Status:** in progress
+**Status:** in progress, as an investigation that may be dropped
 
 **Origin:** roadmap 2
 
@@ -95,6 +95,13 @@ above `int64`.
   integers +0.7%, floats +4.4%, numeric strings +4.4%; a float comparison
   +5.0%; sorting 1,000 numbers +5.7%, or +32.4% when a third are big ids,
   which now compare exactly; reading and writing JSON within 2%.
-- **What's left:** Iain reviews the branch and its deviations; then it's
-  rebased onto develop, and this record is finished in the commit that
-  ships it.
+- **An investigation, 2026-10-26.** Iain made roadmap 2 an ongoing
+  investigation, which may yet be dropped: idea 3, keeping decimals'
+  digits, was the outcome that mattered most, and the `uint64` design
+  keeps whole numbers only, so decimals would need a second mechanism
+  beside it. The branch stays as it is, off develop, while an experiment
+  costs idea 3's designs, reusing this one's benchmarks and tests rather
+  than covering whole numbers again.
+- **What's left:** the idea 3 experiment; then Iain decides whether this
+  lands, changes or is dropped, and this record is finished in the
+  commit that ships or drops it.

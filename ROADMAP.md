@@ -27,10 +27,12 @@ it names its number.
 
 ### 2. JSON whole numbers that keep their digits
 
-A whole number from 2⁶³ to 2⁶⁴−1, such as the id `12345678901234567890`,
-keeps every digit, held as a `uint64` as Perl holds a UV, and arithmetic
-on whole numbers is exact wherever Perl's is. It's built and being
-tested on a branch before it reaches develop; the
+An investigation, not decided, and it may be dropped. Experiments on
+two branches show what keeping the digits of a whole number from 2⁶³ to
+2⁶⁴−1 would cost, and a build holds one as a `uint64`, as Perl holds a
+UV. Whether it lands depends on idea 3, keeping decimals' digits, which
+is the outcome that matters most: a design for whole numbers alone could
+leave decimals needing a second mechanism. The
 [change record](docs/changes/2026-10-26-exact-whole-numbers.md) has the
 plan and what's happened.
 
@@ -68,7 +70,8 @@ into an exact decimal type. Perl doesn't do this by default: JSON::PP
 reads such a number as a float, `1.23456789012346`, unless
 `allow_bignum` makes it a Math::BigFloat. So it would be a deviation
 from Perl, documented in the reference, or an option like
-`allow_bignum`. Item 2 holds whole numbers as a `uint64`, so this would
-need storage of its own; the
+`allow_bignum`. Item 2's build holds whole numbers as a `uint64`, so this
+would need storage of its own; the
 [`experiment/exact-integers`](https://github.com/nukopian/scalar/tree/experiment/exact-integers)
-branch built and measured text beside the float.
+branch built and measured text beside the float, for whole numbers only:
+decimals weren't tried.
