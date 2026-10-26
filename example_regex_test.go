@@ -98,6 +98,20 @@ func ExampleMustCompile() {
 	// true
 }
 
+func ExampleCompileWith() {
+	_, err := scalar.CompileWith(scalar.Stdlib, `(?<=M)\d\.\d`) // RE2 has no lookbehind
+	fmt.Println(err != nil)
+	// Output:
+	// true
+}
+
+func ExampleMustCompileWith() {
+	station := scalar.MustCompileWith(scalar.Stdlib, `net (?P<net>\w+) \| code (?P<code>\d+)`)
+	fmt.Println(scalar.Value("felt 1342 | net ci | code 40249711").Named(station).Get("code"))
+	// Output:
+	// 40249711
+}
+
 func ExampleRegexp_String() {
 	fmt.Println(scalar.MustCompile(`\d+`, "i"))
 	// Output:

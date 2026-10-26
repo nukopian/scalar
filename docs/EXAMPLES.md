@@ -4131,6 +4131,32 @@ M? then M?
 true
 ```
 
+#### `CompileWith`
+
+CompileWith is Compile, with engine in place of regexp2.
+
+```go
+_, err := scalar.CompileWith(scalar.Stdlib, `(?<=M)\d\.\d`) // RE2 has no lookbehind
+fmt.Println(err != nil)
+```
+
+```
+true
+```
+
+#### `MustCompileWith`
+
+MustCompileWith is CompileWith, panicking if the pattern is invalid.
+
+```go
+station := scalar.MustCompileWith(scalar.Stdlib, `net (?P<net>\w+) \| code (?P<code>\d+)`)
+fmt.Println(scalar.Value("felt 1342 | net ci | code 40249711").Named(station).Get("code"))
+```
+
+```
+40249711
+```
+
 #### `Regexp.String`
 
 String returns the pattern as written.
