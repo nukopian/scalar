@@ -383,9 +383,15 @@ func (s *SV) Format(f fmt.State, verb rune) {
 	switch verb {
 	case 'd', 'b', 'o', 'x', 'X', 'c':
 		arg = s.Int()
-		if d, kept, ok := s.exactDecimal(); ok && kept && d.whole() && verb != 'c' {
-			n, _ := new(big.Int).SetString(d.text(), 10)
-			arg = n // a whole number beyond int64, with every digit
+		// A whole number beyond int64, with every digit, built from its
+		// digits, as its text may have an exponent; one of more than 4,096
+		// digits, as 1e999999999 has, clamps as Int does.
+		if d, kept, ok := s.exactDecimal(); ok && kept && d.whole() && verb != 'c' && d.point <= 4096 {
+			n, _ := new(big.Int).SetString(d.digits+strings.Repeat("0", d.point-len(d.digits)), 10)
+			if d.neg {
+				n.Neg(n)
+			}
+			arg = n
 		}
 	case 'e', 'E', 'f', 'F', 'g', 'G':
 		arg = s.Num()

@@ -115,6 +115,14 @@ decision.
   and prints 15 digits where a kept number's `Str` gives all of them.
   Changes from the plan: the copy change above, and the three costs
   cut on the way. `FuzzFaithful` joins CI's fuzz targets.
+- **The wash-up before release** found two bugs here, for a kept number
+  written with an exponent, such as a JSON `1e400`: `ToYAML` tagged it
+  `!!int`, which no YAML reader takes, and `FromYAML` refused a float
+  beyond a `float64`'s range; and `%d` printed `<nil>`, as it parsed the
+  number's text, which has an exponent from 10²¹, as an integer. Both
+  are fixed, with a test that failed first. job-meta's `grammarrules` and
+  `titleeval` give the same output with this release as with v0.5.10,
+  and grammar's, job-meta's and jdc-lab's tests pass with it.
 - **What's left:** whether JSON writes a float as Perl does, to 15
   significant digits, is Iain's decision, separately; and the two bugs
   roadmap 2 found, in its

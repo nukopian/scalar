@@ -254,7 +254,13 @@ func (r *yamlReader) scalar(n *yaml.Node, path string) (*SV, error) {
 	case "!!float":
 		var f float64
 		if err := n.Decode(&f); err != nil {
-			return nil, r.fail(n, path, "%v", err)
+			// Beyond a float64, such as 1e400: ±Inf or 0, as FromJSON
+			// reads it, keeping its digits.
+			g, perr := strconv.ParseFloat(n.Value, 64)
+			if !errors.Is(perr, strconv.ErrRange) {
+				return nil, r.fail(n, path, "%v", err)
+			}
+			f = g
 		}
 		return svOf(keepNumber(n.Value, f)), nil
 	case "!!binary":
@@ -379,7 +385,7 @@ func (w *yamlWriter) node(s *SV) *yaml.Node {
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatInt(v, 10)}
 	case float64:
 		if t := s.digits(); t != "" {
-			if d, _ := parseDecimal(t); d.whole() {
+			if isIntText(t) { // !!int only for digits: 1e400 is whole, but YAML reads it as a float
 				return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: t}
 			}
 			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: t}

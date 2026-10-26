@@ -438,3 +438,31 @@ func TestKeptCopyIsItsOwn(t *testing.T) {
 		}
 	}
 }
+
+// TestKeptExponents: a kept number written with an exponent, such as a
+// JSON 1e400, which no float holds, goes out and comes back through every
+// writer and reader, and formats without failing.
+func TestKeptExponents(t *testing.T) {
+	for _, in := range []string{"1e400", "-1e400", "1E+999999999", "1e-400", "12345678901234567890123e5"} {
+		s := must(FromJSON([]byte("[" + in + "]")))
+		y, err := s.ToYAML()
+		if err != nil {
+			t.Fatalf("%s: ToYAML: %v", in, err)
+		}
+		back, err := FromYAML(y)
+		if err != nil {
+			t.Errorf("%s: ToYAML wrote %q, which FromYAML can't read: %v", in, y, err)
+		} else if got := back.Get(0).Str(); got != in {
+			t.Errorf("%s: through YAML: %s", in, got)
+		}
+		e := s.Get(0)
+		for _, verb := range []string{"%d", "%x", "%v", "%5.2f"} {
+			if got := fmt.Sprintf(verb, e); strings.Contains(got, "nil") || strings.Contains(got, "%!") {
+				t.Errorf("%s: %s gives %q", in, verb, got)
+			}
+		}
+	}
+	if got := fmt.Sprintf("%d", must(FromJSON([]byte(`12345678901234567890123e5`)))); got != "1234567890123456789012300000" {
+		t.Errorf("%%d of a whole number written with an exponent: %s", got)
+	}
+}
