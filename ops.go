@@ -34,6 +34,8 @@ func (s *SV) numify() (iv int64, nv float64, isInt bool) {
 		return 0, 0, true
 	case int64:
 		return v, float64(v), true
+	case uint64:
+		return 0, float64(v), false // arithmetic beyond int64 is float, as the plan has it
 	case float64:
 		return 0, v, false
 	case string:
@@ -328,6 +330,11 @@ func numCompare(a, b *SV) (c int, ok bool) {
 	bi, bf, bInt := b.numify()
 	if aInt && bInt {
 		return cmp.Compare(ai, bi), true
+	}
+	if exactInts != exactOff {
+		if c, ok := exactCompare(a, b); ok {
+			return c, true
+		}
 	}
 	if math.IsNaN(af) || math.IsNaN(bf) {
 		return 0, false

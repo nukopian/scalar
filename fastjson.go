@@ -31,7 +31,7 @@ func readJSON(data []byte) (*SV, bool) {
 	if r.i != len(data) {
 		return nil, false // trailing data: encoding/json says what's wrong
 	}
-	return &SV{v: v}, true
+	return svOf(v), true
 }
 
 // jsonMaxDepth is encoding/json's limit on nesting, past which it fails.
@@ -119,7 +119,7 @@ func (r *jsonReader) object() (any, bool) {
 		if !ok {
 			return nil, false
 		}
-		h.m[k.(string)] = &SV{v: v} // a repeated key: the last wins, as in encoding/json
+		h.m[k.(string)] = svOf(v) // a repeated key: the last wins, as in encoding/json
 		r.space()
 		if r.i >= len(r.data) {
 			return nil, false
@@ -154,7 +154,7 @@ func (r *jsonReader) array() (any, bool) {
 		if !ok {
 			return nil, false
 		}
-		a.items = append(a.items, &SV{v: v})
+		a.items = append(a.items, svOf(v))
 		r.space()
 		if r.i >= len(r.data) {
 			return nil, false

@@ -39,7 +39,7 @@ func sameJSON(a, b *SV) string {
 			}
 		}
 	case Float:
-		if a.Num() != b.Num() {
+		if a.Num() != b.Num() || a.Str() != b.Str() {
 			return fmt.Sprintf("%v vs %v", a.Num(), b.Num())
 		}
 	default:
@@ -156,7 +156,7 @@ func TestReadJSONDeep(t *testing.T) {
 }
 
 func FuzzReadJSON(f *testing.F) {
-	for _, s := range []string{`{"a":[1,2.5,"x",null,true]}`, `"😀"`, `[1,]`, "\"\xff\"", `-0e0`} {
+	for _, s := range []string{`{"a":[1,2.5,"x",null,true]}`, `"😀"`, `[1,]`, "\"\xff\"", `-0e0`, `[12345678901234567890,-123456789012345678901234]`} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {

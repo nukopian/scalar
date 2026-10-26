@@ -377,7 +377,12 @@ func (w *yamlWriter) node(s *SV) *yaml.Node {
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: strconv.FormatBool(v)}
 	case int64:
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatInt(v, 10)}
+	case uint64:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.FormatUint(v, 10)}
 	case float64:
+		if d := s.digits(); d != "" {
+			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: d}
+		}
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: yamlFloat(v)}
 	case []byte:
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!binary", Value: base64.StdEncoding.EncodeToString(v)}

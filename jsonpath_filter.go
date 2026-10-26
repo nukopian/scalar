@@ -189,7 +189,7 @@ func kindOf(s *SV) jsonKind {
 		return jNull
 	case bool:
 		return jBool
-	case int64, float64:
+	case int64, uint64, float64:
 		return jNumber
 	case string, []byte:
 		return jString

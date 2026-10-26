@@ -220,7 +220,7 @@ func (d decoder) value(s *SV, v reflect.Value, path string) error {
 		if v.NumMethod() > 0 {
 			return fail(v.Type().String() + ", which Decode can't fill")
 		}
-		x, err := s.toAny(map[any]bool{})
+		x, err := s.toAny(map[any]bool{}, false)
 		if err != nil {
 			return &DecodeError{Path: path, Msg: err.Error()}
 		}
@@ -246,6 +246,13 @@ func (d decoder) value(s *SV, v reflect.Value, path string) error {
 		return nil
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		if u, ok := s.exactUint(); ok {
+			if v.OverflowUint(u) {
+				return fail(v.Type().String())
+			}
+			v.SetUint(u)
+			return nil
+		}
 		i, ok := decodeInt(s)
 		if !ok || i < 0 || v.OverflowUint(uint64(i)) {
 			return fail(v.Type().String())

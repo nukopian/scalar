@@ -55,7 +55,7 @@ func (c cloner) sv(s *SV) *SV {
 		// where the caller's own slice could change.
 		return &SV{v: v}
 	}
-	return &SV{v: s.v}
+	return svOf(s.packed())
 }
 
 func (c cloner) av(a *AV) *AV {
