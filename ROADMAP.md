@@ -22,4 +22,11 @@ Nothing yet.
 
 ## Later
 
-Nothing yet.
+- **Possibly: a regex engine chosen per pattern.** Being considered, not
+  decided. `CompileWith(scalar.Stdlib, pattern)` would match with Go's
+  regexp, 1.2 to 2.6 times as fast in the experiment's benchmarks and
+  never backtracking, at the cost of lookaround, backreferences and
+  Unicode `\w`; other engines, such as coregex, could plug in the same
+  way. The experiment, with its tests and measurements, is on the
+  [`experiment/regex-engine`](https://github.com/nukopian/scalar/tree/experiment/regex-engine)
+  branch.
