@@ -11,6 +11,16 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.9 (2026-10-26)
+
+Faster substitution with replacement strings, expanded as Perl expands them
+
+No change to the API. Two changes in behaviour, both in replacement
+strings and both outside what the reference documented: a reference to a
+group that doesn't exist, and `$_`.
+
 - Faster: `S` with a replacement string that refers to the match, such as
   `"$1"`, is about 1.6 times as fast on one line, and 1.8 times with `g`,
   with 40% fewer allocations. It expands each match as it's found, in one
