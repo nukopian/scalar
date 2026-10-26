@@ -1856,6 +1856,25 @@ out, err := json.Marshal(s)      // encode
 
 - JSON objects become hashes, arrays become arrays, and `null` becomes undef.
 - Whole numbers stay exact `int64` values. Other numbers become `float64`.
+- **A number that doesn't fit loses digits, silently.** A whole number
+  beyond `int64`, such as the id `12345678901234567890`, becomes a
+  `float64` and is written back as `12345678901234567000`, and a decimal
+  keeps only about 16 significant digits. Perl does better with whole
+  numbers: it keeps one up to 2⁶⁴−1 exact, and JSON::PP keeps the digits
+  of a bigger one. `scalar.To` can't win the digits back, as they're
+  gone once the JSON is read. A number written as a string, such as
+  `"12345678901234567890"`, keeps every digit.
+- **For ids and money, show the Go.** Where a field's digits matter,
+  decode it with `encoding/json` into a `json.Number`, which keeps the
+  number's text, or into an exact decimal type such as
+  [shopspring/decimal](https://github.com/shopspring/decimal)'s:
+
+  ```go
+  var rec struct {
+      ID json.Number `json:"id"`
+  }
+  err := json.Unmarshal(data, &rec)  // rec.ID is "12345678901234567890", exact
+  ```
 - `SV`, `AV` and `HV` all work with `encoding/json`, so you can use them as
   fields in your own structs.
 - Hashes are encoded with their keys sorted, so the same data always produces
@@ -2388,6 +2407,10 @@ then dropped:
 - **Not for concurrent use, not even reading:** none of these types are safe
   to share between goroutines without your own locking, as some reads write,
   unless the structure is [locked](#locking). See [Concurrency](#concurrency).
+- **JSON numbers can lose digits:** a whole number beyond `int64`, or a
+  decimal with more than about 16 significant digits, becomes a
+  `float64`, where Perl keeps a whole number's digits. See [JSON](#json)
+  for the plain Go that keeps them.
 - **No compile-time checks:** a misspelled key won't fail to compile. It just
   reads as undef. Keep these types at the edges of your program, and use
   structs for anything you depend on.

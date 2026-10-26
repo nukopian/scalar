@@ -16,7 +16,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 1 means the same item in a commit message months later. Next
-number: 2.
+number: 3.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 1)", and links to its
@@ -51,3 +51,14 @@ backtracking, at the cost of lookaround, backreferences and Unicode
 experiment, with its tests and measurements, is on the
 [`experiment/regex-engine`](https://github.com/nukopian/scalar/tree/experiment/regex-engine)
 branch.
+
+### 2. JSON numbers that keep their digits
+
+Added 2026-10-26. When a JSON number can't be held exactly, an
+`int64` or `float64`, keep its text beside the float, so `Str()`,
+`MarshalJSON` and `scalar.To` into an exact type, such as
+shopspring/decimal's, give every digit, while `Num()` still gives the
+float. Big ids are common in API JSON, and today they lose digits
+silently, where Perl keeps a whole number up to 2⁶⁴−1 exact and JSON::PP
+keeps the digits of a bigger one. It changes behaviour, so it would be
+measured for cost and tested against Perl.

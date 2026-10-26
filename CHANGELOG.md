@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- Docs: the [reference](docs/REFERENCE.md#json) warns that a JSON number
+  too big for an `int64`, or with more than about 16 significant digits,
+  loses digits silently when read, where Perl keeps a whole number's
+  digits, and shows the plain Go that keeps them, with `json.Number` or
+  an exact decimal type. The [roadmap](ROADMAP.md)'s idea 2 is keeping
+  them in scalar too.
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the
   plan as it was written, then what happened, with changes from the
