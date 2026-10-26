@@ -11,11 +11,20 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-- The roadmap numbers its items, and has a fourth group, Ideas, after
-  Later, for what might be done, or never, kept so it isn't lost. A
-  number stays with its item as it moves between groups and is never
-  used again, so an item can be named by number, in pruning and in the
-  CHANGELOG ("(roadmap 7)"). Later now means meant to be done, but not
+Nothing yet.
+
+## v0.5.10 (2026-10-26)
+
+Documentation only: the roadmap numbers its items, and keeps ideas
+
+No change in behaviour or in the API: only the roadmap and the
+maintainers' guide.
+
+- Docs: the [roadmap](ROADMAP.md) numbers its items, and has a fourth
+  group, Ideas, after Later, for what might be done, or never, kept so
+  it isn't lost. A number stays with its item as it moves between
+  groups and is never used again, so an item can be named by number, in
+  pruning and in the CHANGELOG ("(roadmap 7)"). Later now means meant to be done, but not
   yet planned, and the regex engine chosen per pattern is idea 1.
   Wash-ups prune the ideas.
 
