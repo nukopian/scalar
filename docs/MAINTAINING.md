@@ -33,13 +33,21 @@ next to them:
   lost. It's public, on both branches, and in every release. Now holds
   three items at most, so the roadmap stays a queue to pull from, not a
   list pushing work; an item in Now has a plan written to be picked up
-  cold; one leaves when it ships, in the commit that adds it to the
-  CHANGELOG, whose line ends "(roadmap 7)". Every item has a number, the
+  cold, in its change record; one leaves when it ships, in the commit
+  that adds it to the CHANGELOG, whose line ends "(roadmap 7)" and
+  links to the record. Every item has a number, the
   next one when it's added (the roadmap's opening says which), kept as it
   moves between groups and never used again; a heading such as
   `### 7. Title` holds it, as a Markdown numbered list would renumber
   itself. An idea is that heading, the date it was added, and a line or
   two, and is added in a `docs:` commit whenever one comes up.
+- [docs/changes/](changes/README.md) holds a record of each planned
+  change: the plan as it was written, and what happened, with changes
+  from the plan, measurements, and what was tried and reverted. A
+  record is opened when work starts on a roadmap item or a `TODO.md`
+  task with steps, named for that day and the change, and finished in
+  the commit that ships or drops it; its README has the rules and the
+  template.
 - `TODO.md`, when there is one, lists work planned for a later session:
   the concrete steps of a roadmap item being worked on, or tasks from
   other repositories' sessions. Its tasks come before the roadmap's
@@ -134,7 +142,15 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    rename the heading to the version and date, as in
    `## v0.5.2 (2026-10-21)`, start the entry with a sentence that sums it
    up (it becomes the tag's title), and add an empty Unreleased above it.
-   Commit (`docs: changes for v0.5.2`), push, and wait for CI.
+   In each change record whose status is "shipped, unreleased", and its
+   line in the records' README, put the version in its place, as in
+   "shipped in v0.5.2"; the `grep` lists both, and nothing once they're
+   done. Commit (`docs: changes for v0.5.2`), push, and wait for CI.
+
+   ```
+   cd ~/Git/github.com/nukopian/scalar
+   grep -n 'shipped, unreleased$' docs/changes/*.md
+   ```
 
 3. **Write the tag message from the entry,** and read it. The entry is
    also the GitHub release's notes, and the tag message is the same with

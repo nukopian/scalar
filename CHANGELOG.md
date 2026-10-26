@@ -11,7 +11,11 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Docs: each planned change keeps a record in
+  [docs/changes/](docs/changes/README.md), opened when work starts: the
+  plan as it was written, then what happened, with changes from the
+  plan, measurements, and what was tried and reverted. The CHANGELOG
+  links to it.
 
 ## v0.5.10 (2026-10-26)
 

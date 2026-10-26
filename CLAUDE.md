@@ -117,8 +117,10 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
 `docs/PROCESS.md` (Iain's essay on how scalar and grammar were made, the
 why behind these rules; his words, so change it only when he asks), with
 `CHANGELOG.md` (what each release changed), `ROADMAP.md` (what scalar
-means to do next, and why) and `docs/MAINTAINING.md` (branches, releases,
-and the git and GitHub work done by hand) beside them.
+means to do next, and why), `docs/changes/` (a record of each planned
+change: the plan, and what happened) and `docs/MAINTAINING.md`
+(branches, releases, and the git and GitHub work done by hand) beside
+them.
 
 - Every exported function and method has an example in the right
   `example_*_test.go` file. `TestEveryFeatureHasExample` enforces this.
@@ -168,8 +170,9 @@ and gaps found by reading them have led to real features.
 ## Planned work
 
 - **`ROADMAP.md` holds what scalar means to do:** features and outcomes,
-  not session tasks. **Now** is what's being worked on, each item with a
-  full plan in `TODO.md`'s task format, and at most three items, so it
+  not session tasks. **Now** is what's being worked on, each item a
+  paragraph and a link to its change record, which holds the full plan
+  in `TODO.md`'s task format, and at most three items, so it
   stays a queue to pull from, not a fire-hose (Iain, 2026-10-25): another
   starts only when one ships or goes back to Next; **Next** is decided
   but not started (what, why, done when); **Later** is meant to be done,
@@ -185,6 +188,15 @@ and gaps found by reading them have led to real features.
   2026-10-26). A shipped item's CHANGELOG line ends "(roadmap 7)". When
   Iain mentions an idea in passing, offer in one line to add it ("add as
   idea 2?"), and add it in a `docs:` commit.
+- **A planned change keeps a record** in `docs/changes/` (Iain,
+  2026-10-26): opened when work starts on a roadmap item or a `TODO.md`
+  task with steps, named `2026-10-26-short-title.md` for that day,
+  holding the plan word for word, then what happened: the outcome,
+  changes from the plan and why, measurements, what was tried and
+  reverted, and what's left. The plan isn't edited once work starts.
+  The record is finished in the commit that ships or drops the change,
+  the CHANGELOG line links to it, and a dropped change keeps its record.
+  `docs/changes/README.md` has the template.
 - **The roadmap is public, on `main`,** and in every release, so people
   following scalar can see what's coming. What's kept out of the README
   is kept out of it too. Its PDF is built with the others.
