@@ -60,5 +60,9 @@ Added 2026-10-26. When a JSON number can't be held exactly, an
 shopspring/decimal's, give every digit, while `Num()` still gives the
 float. Big ids are common in API JSON, and today they lose digits
 silently, where Perl keeps a whole number up to 2⁶⁴−1 exact and JSON::PP
-keeps the digits of a bigger one. It changes behaviour, so it would be
-measured for cost and tested against Perl.
+keeps the digits of a bigger one. That's the Perl to follow and test
+against: JSON::PP reads such a number as a string, and Perl adds the
+float beside it when the number is first used as a number, so both mean
+the same number. It isn't Scalar::Util's `dualvar`, whose string and
+number can disagree. It changes behaviour, so it would be measured for
+cost.
