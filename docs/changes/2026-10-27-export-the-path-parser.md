@@ -1,6 +1,6 @@
 # Export the path parser
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.1
 
 **Origin:** a TODO task from grammar's session (grammar c1094f72bbe7031b3faf2fa27576ece30059f51e)
 
@@ -68,5 +68,5 @@ against the grammar (roadmap 16)" can go ahead.
   cache's: `TestAtSteps` checks both, and fails with the cache's slice
   planted in.
 - **Changes from the plan:** none.
-- **What's left:** the release, then telling Iain grammar's task
+- **What's left:** telling grammar, through its `TODO.md`, that its task
   "Check match paths against the grammar (roadmap 16)" can go ahead.

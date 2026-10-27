@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.6.1 (2026-10-27)
+
+AtSteps, At's path parser for other packages
+
 - `AtSteps` reads a path into its steps exactly as `At` does, with
   `At`'s own parser, for code that checks paths against a known shape,
   such as grammar's `CheckPath`
