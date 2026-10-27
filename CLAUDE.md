@@ -25,7 +25,7 @@ good error messages over speed, unless a measurement shows a real cost.
     programming to scalar's undef. They don't copy any one language's API,
     Scala's included. `TestThenMonadLaws` checks the monad laws, the rules
     that style itself sets.
-  - XPath and JSONPath for `Path`, `At`, `DeleteAt` and `Find`, with
+  - XPath and JSONPath for `At`, `DeleteAt` and `Find`, with
     Python's slices.
   - CPAN modules for sets and bags.
   - Go's iterators and generics for `All` and `To`.
