@@ -20,8 +20,9 @@ trap 'rm -rf "${tmp:?}"' EXIT
 
 # build makes one PDF: build FILE.md OUT.pdf
 build() {
-	case $1 in
-	*CHANGELOG.md | */docs/changes/* | docs/changes/*)
+	# By its full path, so that changes/x.md, given from docs/, is refused too.
+	case $(cd "$(dirname "$1")" && pwd)/$(basename "$1") in
+	*/CHANGELOG.md | */docs/changes/*)
 		echo "$0: $1: the CHANGELOG and change records have no PDF" >&2
 		exit 2
 		;;

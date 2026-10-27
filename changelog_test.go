@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -30,7 +31,7 @@ func checkUnreleased(changelog string) error {
 	}
 	section, _, _ := strings.Cut(rest, "\n## ")
 	section = strings.TrimSpace(section)
-	nothing := strings.Contains(section, "Nothing yet.")
+	nothing := slices.Contains(strings.Split(section, "\n"), "Nothing yet.") // a line of its own, not quoted in an entry
 	entries := strings.HasPrefix(section, "- ") || strings.Contains(section, "\n- ")
 	switch {
 	case section == "":
@@ -60,6 +61,7 @@ func TestCheckUnreleased(t *testing.T) {
 		"forgotten at a release":  {"", false},
 		"not replaced by a first": {"Nothing yet.\n\n- Fixed: something.", false},
 		"something else":          {"Coming soon.", false},
+		"an entry quoting it":     {"- Unreleased is never blank: a release leaves `Nothing yet.` under it.", true},
 	} {
 		err := checkUnreleased(head + c.section + tail)
 		if (err == nil) != c.ok {
