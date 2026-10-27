@@ -226,7 +226,7 @@ a worked example of every function and method, see the
   GitHub work done by hand.
 
 To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
-pandoc and Prince. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
+pandoc and Prince, but the Changes, which are read as Markdown. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
 developed: the rules, and the reasons for them.
 
 ## Status

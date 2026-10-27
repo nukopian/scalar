@@ -138,7 +138,9 @@ them.
   `#anchor`s.
 - PDFs of the documents are for reading offline, and git-ignored:
   `scripts/readme-pdf.sh` builds them all (pandoc and Prince). Don't commit
-  them; module downloads would carry them.
+  them; module downloads would carry them. The CHANGELOG and the change
+  records have none: they're read as Markdown, and the script refuses
+  them.
 
 Why: the documents are how people learn the package, its author included,
 and gaps found by reading them have led to real features.

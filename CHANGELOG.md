@@ -11,7 +11,9 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- The CHANGELOG and change records no longer get PDFs: they're read
+  as Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
+  the other documents' PDFs, and refuses these.
 
 ## v0.6.0 (2026-10-26)
 
