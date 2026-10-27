@@ -60,6 +60,8 @@ What's known, Steps, Done when.
 
 Newest first.
 
+- [Export the path parser](2026-10-27-export-the-path-parser.md),
+  a TODO task from grammar: shipped, unreleased.
 - [JSON decimals that keep their digits](2026-10-26-exact-decimals.md),
   roadmap 3: shipped in v0.6.0
 - [JSON whole numbers that keep their digits](2026-10-26-exact-whole-numbers.md),

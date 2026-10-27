@@ -6,19 +6,20 @@ import (
 	"strings"
 )
 
-// stepKind is what a step of an At path is.
-type stepKind int
+// StepKind is what a step of an At path is.
+type StepKind int
 
 const (
-	stepKey    stepKind = iota // a hash key: name, {key} or ["quoted"]
-	stepIndex                  // an array index: [0]
-	stepEither                 // .0 after a dot: an index into an array, or a key into a hash
+	StepKey    StepKind = iota // a hash key: name, {key} or ["quoted"]
+	StepIndex                  // an array index: [0]
+	StepEither                 // .0 after a dot: an index into an array, or a key into a hash
 )
 
-type atStep struct {
-	kind  stepKind
-	key   string // for stepKey, and the digits of a stepEither
-	index int    // for stepIndex and stepEither
+// AtStep is one step of an At path, as AtSteps returns it.
+type AtStep struct {
+	Kind  StepKind
+	Key   string // for StepKey, and the digits of a StepEither
+	Index int    // for StepIndex and StepEither
 }
 
 // At is Get with the route as one string, in dot, bracket or Perl's brace
@@ -53,30 +54,30 @@ func (s *SV) At(path string) *SV {
 
 // walk takes one step from cur, as Get does: through a hash or an array,
 // autovivifying cur if it's undef.
-func (st atStep) walk(cur *SV) *SV {
-	switch st.kind {
-	case stepKey:
-		return cur.HV().get(st.key)
-	case stepIndex:
-		return cur.AV().get(st.index)
+func (st AtStep) walk(cur *SV) *SV {
+	switch st.Kind {
+	case StepKey:
+		return cur.HV().get(st.Key)
+	case StepIndex:
+		return cur.AV().get(st.Index)
 	}
-	if _, isHash := cur.val().(*HV); isHash { // stepEither
-		return cur.HV().get(st.key)
+	if _, isHash := cur.val().(*HV); isHash { // StepEither
+		return cur.HV().get(st.Key)
 	}
-	return cur.AV().get(st.index) // an array, or nothing yet: an array
+	return cur.AV().get(st.Index) // an array, or nothing yet: an array
 }
 
 // peek takes one step from cur, as GetOK does, without creating anything:
 // nil if the step doesn't exist.
-func (st atStep) peek(cur *SV) *SV {
+func (st AtStep) peek(cur *SV) *SV {
 	switch v := cur.v.(type) {
 	case *HV:
-		if st.kind != stepIndex {
-			return v.m[st.key]
+		if st.Kind != StepIndex {
+			return v.m[st.Key]
 		}
 	case *AV:
-		if st.kind != stepKey {
-			if i, inRange := v.index(st.index); inRange && i < len(v.items) {
+		if st.Kind != StepKey {
+			if i, inRange := v.index(st.Index); inRange && i < len(v.items) {
 				return v.items[i] // nil for a hole, which doesn't exist
 			}
 		}
@@ -94,7 +95,7 @@ func (s *SV) AtOK(path string) (v *SV, ok bool) {
 
 // peekSteps walks steps without creating anything, for AtOK and templates:
 // the value at the end, and whether every step exists.
-func (s *SV) peekSteps(steps []atStep) (v *SV, ok bool) {
+func (s *SV) peekSteps(steps []AtStep) (v *SV, ok bool) {
 	cur := s
 	if cur == nil {
 		return &SV{}, false
@@ -153,13 +154,13 @@ func (s *SV) DeleteOK(keys ...any) (v *SV, ok bool) {
 	if !ok {
 		return &SV{}, false
 	}
-	return parent.deleteSteps([]atStep{subscript("DeleteOK", keys[last])})
+	return parent.deleteSteps([]AtStep{subscript("DeleteOK", keys[last])})
 }
 
 // deleteSteps removes what the last of steps leads to, walking the others
 // without creating anything, for Delete, DeleteAt and DeleteOK, and says
 // whether there was anything there to remove.
-func (s *SV) deleteSteps(steps []atStep) (*SV, bool) {
+func (s *SV) deleteSteps(steps []AtStep) (*SV, bool) {
 	if len(steps) == 0 || s == nil {
 		return &SV{}, false // s itself can't be deleted
 	}
@@ -172,14 +173,14 @@ func (s *SV) deleteSteps(steps []atStep) (*SV, bool) {
 	last := steps[len(steps)-1]
 	switch v := cur.val().(type) {
 	case *HV:
-		if last.kind != stepIndex {
-			_, there := v.m[last.key]
-			return v.Delete(last.key), there // a locked hash panics either way
+		if last.Kind != StepIndex {
+			_, there := v.m[last.Key]
+			return v.Delete(last.Key), there // a locked hash panics either way
 		}
 	case *AV:
-		if last.kind != stepKey {
-			there := v.Exists(last.index)
-			return v.Delete(last.index), there
+		if last.Kind != StepKey {
+			there := v.Exists(last.Index)
+			return v.Delete(last.Index), there
 		}
 	}
 	return &SV{}, false
@@ -193,11 +194,19 @@ func CheckPath(path string) error {
 	return err
 }
 
-var atCache = boundedCache[string, []atStep]{limit: cacheLimit}
+// AtSteps returns the steps At takes for path, or the error CheckPath
+// returns if it's malformed, for code that reads paths as At does, such as
+// a check that a path fits a known shape. The steps are the caller's to
+// change.
+func AtSteps(path string) ([]AtStep, error) {
+	return parseAt(path) // a fresh slice, never atCache's
+}
+
+var atCache = boundedCache[string, []AtStep]{limit: cacheLimit}
 
 // compileAt parses an At path, from the cache if it's been seen before. A
 // malformed path panics, as a bad regex does.
-func compileAt(path string) []atStep {
+func compileAt(path string) []AtStep {
 	if steps, ok := atCache.load(path); ok {
 		return steps
 	}
@@ -214,7 +223,7 @@ type atError struct{ msg string }
 
 // parseAt parses an At path into steps, or returns an error if it's
 // malformed.
-func parseAt(path string) (steps []atStep, err error) {
+func parseAt(path string) (steps []AtStep, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			e, ok := r.(atError)
@@ -255,9 +264,9 @@ func parseAt(path string) (steps []atStep, err error) {
 				fail(i, "expected a name")
 			}
 			if n, err := strconv.Atoi(name); err == nil && isInteger(name) {
-				steps = append(steps, atStep{kind: stepEither, key: name, index: n})
+				steps = append(steps, AtStep{Kind: StepEither, Key: name, Index: n})
 			} else {
-				steps = append(steps, atStep{kind: stepKey, key: name})
+				steps = append(steps, AtStep{Kind: StepKey, Key: name})
 			}
 			i = end
 		default:
@@ -280,7 +289,7 @@ func parseAt(path string) (steps []atStep, err error) {
 
 // parseBracket parses [n] or ["key"] or ['key'] starting at path[i], and
 // returns the step and the offset just after the closing bracket.
-func parseBracket(path string, i int, fail func(int, string, ...any)) (atStep, int) {
+func parseBracket(path string, i int, fail func(int, string, ...any)) (AtStep, int) {
 	i++ // past [
 	if i < len(path) && (path[i] == '"' || path[i] == '\'') {
 		return parseQuoted(path, i, ']', fail)
@@ -294,12 +303,12 @@ func parseBracket(path string, i int, fail func(int, string, ...any)) (atStep, i
 	if err != nil || !isInteger(digits) {
 		fail(i, "expected an index or a quoted key in [...], got %q", digits)
 	}
-	return atStep{kind: stepIndex, index: n}, i + end + 1
+	return AtStep{Kind: StepIndex, Index: n}, i + end + 1
 }
 
 // parseBrace parses {key}, {"key"} or {'key'} starting at path[i], and
 // returns the step and the offset just after the closing brace.
-func parseBrace(path string, i int, fail func(int, string, ...any)) (atStep, int) {
+func parseBrace(path string, i int, fail func(int, string, ...any)) (AtStep, int) {
 	i++ // past {
 	if i < len(path) && (path[i] == '"' || path[i] == '\'') {
 		return parseQuoted(path, i, '}', fail)
@@ -316,7 +325,7 @@ func parseBrace(path string, i int, fail func(int, string, ...any)) (atStep, int
 			if i == start {
 				fail(i, "expected a key in {...}")
 			}
-			return atStep{kind: stepKey, key: key.String()}, i + 1
+			return AtStep{Kind: StepKey, Key: key.String()}, i + 1
 		default:
 			key.WriteByte(path[i])
 		}
@@ -326,7 +335,7 @@ func parseBrace(path string, i int, fail func(int, string, ...any)) (atStep, int
 // parseQuoted parses a quoted key starting at path[i], the quote, which must
 // be followed by closer, and returns the step and the offset just after the
 // closer.
-func parseQuoted(path string, i int, closer byte, fail func(int, string, ...any)) (atStep, int) {
+func parseQuoted(path string, i int, closer byte, fail func(int, string, ...any)) (AtStep, int) {
 	quote := path[i]
 	var key strings.Builder
 	for i++; ; i++ {
@@ -340,7 +349,7 @@ func parseQuoted(path string, i int, closer byte, fail func(int, string, ...any)
 			if i+1 >= len(path) || path[i+1] != closer {
 				fail(i+1, "expected %c after the quoted key", closer)
 			}
-			return atStep{kind: stepKey, key: key.String()}, i + 2
+			return AtStep{Kind: StepKey, Key: key.String()}, i + 2
 		default:
 			key.WriteByte(path[i])
 		}

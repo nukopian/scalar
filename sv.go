@@ -657,12 +657,12 @@ func (s *SV) Delete(keys ...any) *SV {
 	if len(keys) == 1 {
 		st := subscript("Delete", keys[0])
 		st.deref(s)
-		v, _ := s.deleteSteps([]atStep{st})
+		v, _ := s.deleteSteps([]AtStep{st})
 		return v
 	}
 	cur, st := s.subscripts("Delete", keys)
 	st.deref(cur)
-	v, _ := cur.deleteSteps([]atStep{st})
+	v, _ := cur.deleteSteps([]AtStep{st})
 	return v
 }
 
@@ -670,7 +670,7 @@ func (s *SV) Delete(keys ...any) *SV {
 // whose name method is, walks all but the last as Get does, and returns
 // where that leads and the last key as a step. One key takes a direct path
 // in each, which is the usual case.
-func (s *SV) subscripts(method string, keys []any) (*SV, atStep) {
+func (s *SV) subscripts(method string, keys []any) (*SV, AtStep) {
 	if len(keys) == 0 {
 		panic("scalar: " + method + " needs a key")
 	}
@@ -688,12 +688,12 @@ func (s *SV) subscripts(method string, keys []any) (*SV, atStep) {
 // deref autovivifies an undef s into the hash or array that st looks in, as
 // Perl's exists and delete do, and panics, as Perl dies, if s is anything
 // else, or an undef that can't be created.
-func (st atStep) deref(s *SV) {
+func (st AtStep) deref(s *SV) {
 	if s != nil && s.v == nil && s.noViv {
 		return // nothing to create, and nothing there: Exists is false, Delete deletes nothing
 	}
 	msg := "Not a HASH reference"
-	if st.kind == stepKey {
+	if st.Kind == StepKey {
 		if s.HV() != nil {
 			return
 		}
@@ -708,12 +708,12 @@ func (st atStep) deref(s *SV) {
 
 // subscript is key as one step of a path, for the method named, which
 // panics if it's neither a string nor an int.
-func subscript(method string, key any) atStep {
+func subscript(method string, key any) AtStep {
 	switch k := key.(type) {
 	case string:
-		return atStep{kind: stepKey, key: k}
+		return AtStep{Kind: StepKey, Key: k}
 	case int:
-		return atStep{kind: stepIndex, index: k}
+		return AtStep{Kind: StepIndex, Index: k}
 	}
 	panic(fmt.Sprintf("scalar: %s key must be a string or an int, got %T", method, key))
 }

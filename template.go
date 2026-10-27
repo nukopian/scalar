@@ -63,7 +63,7 @@ type Template struct {
 // templatePart is a piece of a template: text, or a value to fill in.
 type templatePart struct {
 	text  string   // text to copy, when steps is nil
-	steps []atStep // the path of a value
+	steps []AtStep // the path of a value
 	list  bool     // @: join an array's elements
 }
 

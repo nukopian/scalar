@@ -622,6 +622,32 @@ func ExampleCheckPath() {
 	// <nil>
 }
 
+func ExampleAtSteps() {
+	steps, err := scalar.AtSteps(`features[0].properties["mag"].0`) // the steps At takes
+	if err != nil {
+		panic(err)
+	}
+	for _, st := range steps {
+		switch st.Kind {
+		case scalar.StepKey:
+			fmt.Printf("key %q\n", st.Key)
+		case scalar.StepIndex:
+			fmt.Printf("index %d\n", st.Index)
+		case scalar.StepEither:
+			fmt.Printf("index %d, or key %q\n", st.Index, st.Key) // whichever the container is
+		}
+	}
+	_, err = scalar.AtSteps("properties..mag")
+	fmt.Println(err) // as CheckPath says
+	// Output:
+	// key "features"
+	// index 0
+	// key "properties"
+	// key "mag"
+	// index 0, or key "0"
+	// scalar: bad path "properties..mag" at offset 11: expected a name
+}
+
 func ExampleStrCmp() {
 	fmt.Println(scalar.Array("b", "10", "a", "9").Sort(scalar.StrCmp).Join(" ")) // sort { $a cmp $b }
 	// Output:

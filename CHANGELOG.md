@@ -11,6 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- `AtSteps` reads a path into its steps exactly as `At` does, with
+  `At`'s own parser, for code that checks paths against a known shape,
+  such as grammar's `CheckPath`
+  ([record](docs/changes/2026-10-27-export-the-path-parser.md)).
 - The CHANGELOG and change records no longer get PDFs: they're read
   as Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
   the other documents' PDFs, and refuses these.

@@ -1,9 +1,16 @@
-# TODO
+# Export the path parser
 
-## Export the path parser, for grammar's CheckPath
+**Status:** shipped, unreleased
 
-**From:** grammar's session, 2026-10-27 (grammar c1094f72bbe7031b3faf2fa27576ece30059f51e)
-**Waiting on:** nothing
+**Origin:** a TODO task from grammar's session (grammar c1094f72bbe7031b3faf2fa27576ece30059f51e)
+
+**Started:** 2026-10-27, in 296c1cdb2a0d035f5967e66e5d3b71abf8c2d78c
+
+**Finished:** 2026-10-27
+
+## The plan
+
+The plan as it was when work started, from `TODO.md`, word for word.
 
 **What:** export the parser that `At` uses, so another package can
 read a path into its steps exactly as `At` does: for example
@@ -47,3 +54,19 @@ when naming things.
 **Done when** the parser is exported, tested and documented, in a
 tagged release; then tell Iain grammar's TODO task "Check match paths
 against the grammar (roadmap 16)" can go ahead.
+
+## What happened
+
+- **Outcome:** `AtSteps(path string) ([]AtStep, error)` is At's own
+  parser, exported: `AtStep` has `Kind` (`StepKey`, `StepIndex` or
+  `StepEither`), `Key` and `Index`, and nothing else. The names follow
+  `At`, whose paths they read, rather than the plan's `ParsePath`
+  (Iain chose them). The internal step type was renamed to the
+  exported one, so `At`, `AtOK`, `DeleteAt`, `CheckPath` and templates
+  share it with the export and can't drift. A malformed path gives
+  `CheckPath`'s error, and the steps are a fresh slice, never the
+  cache's: `TestAtSteps` checks both, and fails with the cache's slice
+  planted in.
+- **Changes from the plan:** none.
+- **What's left:** the release, then telling Iain grammar's task
+  "Check match paths against the grammar (roadmap 16)" can go ahead.

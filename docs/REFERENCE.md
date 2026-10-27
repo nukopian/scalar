@@ -1138,6 +1138,13 @@ A path that comes from outside the program, such as a config file or a
 flag, can be checked first: `scalar.CheckPath(path)` returns the error
 `At` would panic with, or nil.
 
+Code that reads paths as `At` does, such as a check that a path can fit
+a grammar's captures, gets its steps from `scalar.AtSteps(path)`, which
+is `At`'s own parser. Each `AtStep` has a `Kind`: `StepKey`, with its
+`Key`; `StepIndex`, with its `Index`; or `StepEither`, a number after a
+dot, with both. A malformed path gives `CheckPath`'s error, and the
+steps are the caller's to change.
+
 `At` parses each path once and keeps it, for up to 4,096 different paths,
 so a path written in the program costs nothing to parse after its first
 use. A route built from data, such as one for each station, is better

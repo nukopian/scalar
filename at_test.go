@@ -1,6 +1,7 @@
 package scalar
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -129,6 +130,41 @@ func TestAtErrors(t *testing.T) {
 		if err := CheckPath(path); err != nil {
 			t.Errorf("CheckPath(%q) = %v", path, err)
 		}
+	}
+}
+
+// AtSteps is At's own parser: it errs as CheckPath does, and the steps it
+// returns are a copy, so changing them can't change what At does.
+func TestAtSteps(t *testing.T) {
+	for _, path := range []string{"a..b", "a[x]", `a["x`, "a{}", ".a"} {
+		_, err := AtSteps(path)
+		if want := CheckPath(path); err == nil || err.Error() != want.Error() {
+			t.Errorf("AtSteps(%q) error = %v, want %v", path, err, want)
+		}
+	}
+	got, err := AtSteps(`$.content[-1]{log.level}["x"].0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []AtStep{
+		{Kind: StepKey, Key: "content"},
+		{Kind: StepIndex, Index: -1},
+		{Kind: StepKey, Key: "log.level"},
+		{Kind: StepKey, Key: "x"},
+		{Kind: StepEither, Key: "0", Index: 0},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("AtSteps = %+v, want %+v", got, want)
+	}
+
+	doc := Value(map[string]any{"a": map[string]any{"b": 1, "c": 2}})
+	if got := doc.At("a.b").Int(); got != 1 { // At caches a.b's steps
+		t.Fatalf("At(a.b) = %d, want 1", got)
+	}
+	steps, _ := AtSteps("a.b")
+	steps[1].Key = "c"
+	if got := doc.At("a.b").Int(); got != 1 {
+		t.Errorf("At(a.b) = %d after changing AtSteps' result, want 1", got)
 	}
 }
 
