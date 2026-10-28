@@ -1,9 +1,14 @@
 # Working on scalar
 
-These are the working rules for this repository. scalar is developed by
-Iain Campbell with Claude (see the README's Acknowledgements), and these
-rules are how that partnership has run since the first commit. Each rule
-comes with the reason for it.
+@../claude-practice/PRACTICE.md
+
+The shared practice above, from
+[nukopian/claude-practice](https://github.com/nukopian/claude-practice),
+covers planned work, the roadmap, change records, branches, commits,
+releases, wash-ups, documents and secrets. These are scalar's own rules
+on top of it; where they differ, these win. scalar is developed by Iain
+Campbell with Claude (see the README's Acknowledgements), and these
+rules are how that partnership has run since the first commit.
 
 ## What scalar is for
 
@@ -99,15 +104,8 @@ else.
   push protection are on. The README's Security section tells users
   this: keep it true when any of these change.
   [MAINTAINING.md](docs/MAINTAINING.md#security-checks) has the commands.
-- gitleaks scans the whole history for secrets: in CI on every push, and
-  by hand (`gitleaks git --redact .`) before a repository goes public,
-  before a tag, and after any history rewrite, before it's pushed. A leak
-  stops the work like a failing test: once history is published, it
-  can't be taken back.
 
-## Documentation keeps up with the code
-
-A feature isn't done until its documentation is.
+## Documents
 
 The documents: `README.md` (what scalar is, a synopsis, the rationale),
 `docs/HOWTO.md` (tasks), `docs/REFERENCE.md` (each feature in depth),
@@ -134,147 +132,23 @@ them.
   best done.
 - Compile Markdown snippets to check them, using a temporary test file
   that you delete afterwards.
-- Every link between the documents must resolve, including the
-  `#anchor`s.
-- PDFs of the documents are for reading offline, and git-ignored:
-  `scripts/readme-pdf.sh` builds them all (pandoc and Prince). Don't commit
-  them; module downloads would carry them. The CHANGELOG and the change
-  records have none: they're read as Markdown, and the script refuses
-  them.
+- The PDFs (see the practice) are never committed here: module
+  downloads would carry them.
 
 Why: the documents are how people learn the package, its author included,
 and gaps found by reading them have led to real features.
 
-## How changes are made
+## How changes are made here
 
-- **Measure, don't predict.** For a speculative performance change:
-  branch from a clean tree, record baseline benchmarks, and profile first,
-  because the profile's share sets a ceiling on the gain. Put the change
-  behind a switch with a differential test. Keep what pays, revert what
-  doesn't, and record reverted ideas and their numbers in the reference
-  so they aren't retried blind. Predictions here have been wrong more than
-  once.
-- **Wash-ups.** After a run of features, review them together for crashes,
-  memory, correctness, inefficiency and slop. Reproduce each finding
-  before reporting it, rank the findings, and write failing tests before
-  fixes. Re-run the Perl differential tests to show nothing else changed.
-  The wash-up before a release also checks `ROADMAP.md`, and prunes its
-  Ideas: list them by number, and Iain keeps, promotes or drops each (a
-  dropped one is deleted, its number named in the commit). What shipped is
-  out of it, and Now is what's really being worked on.
-- **Dogfooding.** Use scalar in real programs, note where it fought you,
-  and fix the frequent friction. Check the fix by reworking those
-  programs with their output unchanged. Do this alongside each wash-up.
 - **Show the Go.** When scalar code handles data that's already typed,
   show the plain Go version beside it and recommend it. scalar belongs at
   the edges, where the shape isn't known yet.
-
-## Planned work
-
-- **`ROADMAP.md` holds what scalar means to do:** features and outcomes,
-  not session tasks. **Now** is what's being worked on, each item a
-  paragraph and a link to its change record, which holds the full plan
-  in `TODO.md`'s task format, and at most three items, so it
-  stays a queue to pull from, not a fire-hose (Iain, 2026-10-25): another
-  starts only when one ships or goes back to Next; **Next** is decided
-  but not started (what, why, done when); **Later** is meant to be done,
-  but not yet planned, in a line or two; **Ideas** might be done, or
-  never, kept so they aren't lost: a numbered heading, the date added
-  and a line or two, newest last. Most useful first in each. The
-  CHANGELOG is the past, the README the present, and the roadmap the
-  future.
-- **Every roadmap item has a number,** in its heading (`### 7. Title`,
-  never a Markdown numbered list, which renumbers itself): the next one
-  when it's added, which the roadmap's opening gives ("Next number: 2"),
-  kept as it moves between groups and never used again (Iain,
-  2026-10-26). A shipped item's CHANGELOG line ends "(roadmap 7)". When
-  Iain mentions an idea in passing, offer in one line to add it ("add as
-  idea 2?"), and add it in a `docs:` commit.
-- **A planned change keeps a record** in `docs/changes/` (Iain,
-  2026-10-26): opened when work starts on a roadmap item or a `TODO.md`
-  task with steps, named `2026-10-26-short-title.md` for that day,
-  holding the plan word for word, then what happened: the outcome,
-  changes from the plan and why, measurements, what was tried and
-  reverted, and what's left. The plan isn't edited once work starts.
-  The record is finished in the commit that ships or drops the change,
-  the CHANGELOG line links to it, and a dropped change keeps its record.
-  `docs/changes/README.md` has the template.
-- **The roadmap is public, on `main`,** and in every release, so people
-  following scalar can see what's coming. What's kept out of the README
-  is kept out of it too. Its PDF is built with the others.
-- **The roadmap is kept current:** an item leaves when it ships, in the
-  commit that adds it to the CHANGELOG, and a change that ships, starts
-  or drops a feature updates it in the same commit.
-- **`TODO.md` comes first:** its tasks take priority over the roadmap's
-  items. When a session takes up an item, its next steps go into
-  `TODO.md`, or are done at once.
-- **At the start of a session, check for `TODO.md`** at the top of the
-  repository, on `develop`. If it's there, read it, ask Iain whether each
-  task should still be done, and do the ones he confirms. Remove each
-  task in the commit that completes it, so the history shows which
-  commit did which, and delete the file with the last one. A task he
-  drops is removed too, saying why in the commit message.
-- **Before each commit, `git pull --ff-only` and re-read `TODO.md`.**
-  Sessions in the other repositories add tasks here, mid-session too, and
-  a commit that completes a task must remove it.
-- **Work planned for a later session goes into `TODO.md`,** committed on
-  `develop`, with enough to do it cold: what, why, the files involved,
-  and how to check it's done. Not only in Claude's memory or the chat,
-  which Iain can't review and a fresh session may not have.
-- **Each task opens with where it came from and what it waits on,** so
-  a session can see at a glance which tasks it can do now, and whom to
-  tell when one is done. As grammar's first such task did:
-
-  ```markdown
-  ## Mark each match with scalar's Autovivify(false)
-
-  **From:** scalar's session, 2026-10-25 (scalar 5fd3f0dd76c34de50c011d0389719abf85dcc0f2)
-  **Waiting on:** a scalar release with Autovivify
-  ```
-
-  `From` names the repository whose session added it, the date, and the
-  full hash of the commit that prompted it, or, if that work isn't
-  committed yet, the last commit and "work uncommitted". `Waiting on`
-  is "nothing" when the task can be done now.
-- **A task added to another repository's `TODO.md` is committed and
-  pushed there at once,** after `git pull --ff-only`, as its own `docs:`
-  commit: on `develop` for grammar and jdc-lab, on `main` for job-meta.
-  `TODO.md` changes only through commits. Left uncommitted, it makes
-  that repository's next pull refuse to run, and the session that does
-  the task never sees it arrive. A code fix made in another working copy
-  to get past a bug may still stay uncommitted.
-- **`TODO.md` never reaches `main`.** `main` is a fast-forward of
-  `develop`, so a release waits until the file is gone: each task done,
-  or, to outlast the release, a feature moved word for word into
-  `ROADMAP.md`, or a decision awaiting Iain to a Claude Doc. There are
-  no GitHub issues for planned work (Iain, 2026-10-25). The release steps
-  in [MAINTAINING.md](docs/MAINTAINING.md) check for it.
-- **A release ends by looking in the other repositories' `TODO.md`**
-  for tasks waiting on it, and telling Iain which can now be done.
-  Nothing else tells their sessions it has landed.
-
-Why: planned work survives between sessions in the open, where Iain
-reviews it like any other change, and a release never carries an
-unfinished list, while the roadmap shows anyone following scalar what's
-planned. grammar's CLAUDE.md has the same rule.
-
-## Commits
-
-- Conventional commits, such as `feat: ...`, `fix: ...`, `docs: ...`,
-  `test: ...` or `ci: ...`. Say why as well as what.
-- Claude commits and pushes changes once they're done and checked, and
-  Iain reviews them. Commits are signed.
-- Work is committed and pushed to `develop`. `main` is the latest release
-  and moves only at a release, by a fast-forward to `develop`, with the
-  tag on it; it's protected, so a push to it needs CI passing. Add what
-  changed for users to `CHANGELOG.md` under Unreleased in the same
-  commit, and update `ROADMAP.md` there if it ships, starts or drops a
-  feature. Unreleased is never blank: a release leaves `Nothing yet.`
-  under it, and the first change after replaces that line;
-  `TestChangelogUnreleased` checks both. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps and the git
-  and GitHub work done by hand.
-- Every commit ends with a `Co-Authored-By` trailer for the Claude model
-  that worked on it, currently
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Keep the README's Acknowledgements accurate: credit goes where the work
-  was done.
+- **Benchmarks:** reverted ideas and their numbers go in the reference.
+- **Wash-ups** re-run the Perl differential tests to show nothing else
+  changed.
+- **The other repositories** whose `TODO.md` this one hands tasks to,
+  and checks at a release, are grammar's and jdc-lab's, both on
+  `develop`, and job-meta's, on `main`.
+- **`TestChangelogUnreleased`** checks the CHANGELOG's Unreleased
+  section. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps
+  and the git and GitHub work done by hand.
