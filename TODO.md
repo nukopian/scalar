@@ -14,7 +14,9 @@ task has no roadmap number and keeps its name.
 records): a record is looked up by its roadmap number far more often
 than by its date, and a search for `r7` finds it, where a bare 7 matches
 every date and figure. jdc-lab has renamed its own (jdc-lab
-6e589dbf47910ddb758821ac283050fb221b04a4), which shows the way.
+6e589dbf47910ddb758821ac283050fb221b04a4), as has grammar (grammar
+78bee6780fc6e97a9bb17fab0956f4699531bfdf, which also rewords
+`docs/changes/README.md`'s naming rule), which show the way.
 
 **What's known:** the records to rename, from each one's Origin line:
 
