@@ -214,7 +214,8 @@ scalar's `Linear` goes further, so that the answers never differ.
   in its own commit, as the first finding of the wash-up before the next
   release. The fourth run found that regexp2 reads `\'0'` as a
   backreference to group 0: `\<name>` and `\'name'` are an old .NET form
-  of `\k<name>`. Linear now refuses `\<` and `\'` outside a class.
+  of `\k<name>`. Linear now refuses `\<` and `\'` outside a class. A fifth ten-minute run, after
+  the wash-up's fixes, ran 8,128,256 inputs with no difference.
 - **The wash-up** also found that a `RegexWarn` matching its own pattern
   deadlocked, as the warning was given inside a `sync.Once`; it's now an
   atomic flag. The fold traps are now named, `İ`, `ſ` and the Kelvin
