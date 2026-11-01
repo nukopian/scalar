@@ -16,7 +16,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 1 means the same item in a commit message months later. Next
-number: 4.
+number: 5.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 1)", and links to its
@@ -51,3 +51,42 @@ backtracking, at the cost of lookaround, backreferences and Unicode
 experiment, with its tests and measurements, is on the
 [`experiment/regex-engine`](https://github.com/nukopian/scalar/tree/experiment/regex-engine)
 branch.
+
+### 4. Profile scalar's allocations under a consumer's workload
+
+Added 2026-11-01. Run a program that uses scalar, such as grammar's
+matches or jdc-lab's pipeline, profile it, and if scalar shows up, find
+its cost and cut it, as grammar's roadmap 9 did for its matcher.
+
+That item shows the method works. jdc-lab found the cost: chunking its
+job ads was its slowest stage, and most of that time was the matcher
+allocating. grammar then added a benchmark shaped like the lab's use
+(`FindAll` over many short lines), profiled it (`mallocgc` was 60% of
+the CPU), and counted calls with temporary counters to find the one
+site making most of the allocations. Reusing per-match scratch space
+behind a fast-path switch cut the lab's allocations by 74% and its time
+by 39%, with every output unchanged
+([record](https://github.com/nukopian/grammar/blob/v0.4.3/docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)).
+grammar's own `FindAll` benchmark improved by only 7%: the lab's
+workload found what grammar's benchmarks missed. That fix doesn't carry
+over, as scalar has no matcher of its own (it uses regexp2), but the
+method does.
+
+A brief run of scalar's benchmarks with `-benchmem` (Apple M2, Go
+1.26.10, at c28d87cfa6e6a758d0c93597c84bc8b3c7565474) suggests where to
+look. None of these has been profiled, and no consumer has yet reported
+scalar as a cost:
+
+| Benchmark | Allocations | Possible cause, unchecked |
+|---|---:|---|
+| `SortNum` | 2,001 for 1,000 elements | about two per element, perhaps a conversion |
+| `AtUnlocked` | 6 per lookup, none when locked | perhaps the path parsed again on every call |
+| `AddInt`, `MulInt` and the like | 2 per operation, 56 B, about 33 ns | the result and one more |
+| `SExpand/g/long` | about 2,400 | the result built anew for each match |
+
+The reference's "Does locking make reads faster?" already measured that
+caching `At`'s lookups wouldn't pay, so a consumer's profile, not these
+figures, should decide what's worth doing. One place to start: grammar
+makes new state for every text `FindAll` searches, and builds scalar
+values for each match, so the lab's remaining cost may include
+scalar's.
