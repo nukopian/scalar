@@ -21,11 +21,15 @@ having. Small fixes don't need one.
 - **What happened is added as the work goes,** and finished when the
   change ships or is dropped, in the same commit. When it ships, the
   status says "shipped, unreleased", and the release names its version.
-- **It's named for the day work started and the change,** such as
-  `2026-10-26-short-title.md`: dates never collide between sessions
-  or repositories, and sort in order. A roadmap item keeps its number
-  as its name in commits and the CHANGELOG, and the record gives it in
-  its header.
+- **It's named for the day work started, then, for a roadmap item,
+  "r" and its number, then the change,** such as
+  `2026-10-26-r3-exact-decimals.md` for roadmap 3: dates never collide
+  between sessions or repositories, and sort in order, and a search for
+  `r3` finds the record, where a bare 3 would match every date and
+  figure. A record for a `TODO.md` task has no number, such as
+  `2026-10-27-export-the-path-parser.md`. A roadmap item keeps its
+  number as its name in commits and the CHANGELOG, and the record gives
+  it in its header too.
 - **It's public,** on `main` and in every release, like the rest of
   `docs/`, so nothing personal goes in it.
 
@@ -62,7 +66,7 @@ Newest first.
 
 - [Export the path parser](2026-10-27-export-the-path-parser.md),
   a TODO task from grammar: shipped in v0.6.1.
-- [JSON decimals that keep their digits](2026-10-26-exact-decimals.md),
+- [JSON decimals that keep their digits](2026-10-26-r3-exact-decimals.md),
   roadmap 3: shipped in v0.6.0
-- [JSON whole numbers that keep their digits](2026-10-26-exact-whole-numbers.md),
+- [JSON whole numbers that keep their digits](2026-10-26-r2-exact-whole-numbers.md),
   roadmap 2: dropped.

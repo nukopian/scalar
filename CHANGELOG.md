@@ -46,7 +46,7 @@ A minor version, as some output changes: see Changed and Fixed below.
   The reference's
   [Numbers that keep their digits](docs/REFERENCE.md#numbers-that-keep-their-digits)
   says where this differs from Perl, which reads them as floats.
-  ([record](docs/changes/2026-10-26-exact-decimals.md); roadmap 3)
+  ([record](docs/changes/2026-10-26-r3-exact-decimals.md); roadmap 3)
 - Changed: `Str` and `MarshalJSON` of such a number, and of a Go `uint64`
   beyond `int64`: `Value(uint64(math.MaxUint64)).Str()` is
   `18446744073709551615`, where it was `1.84467440737096e+19`.
@@ -74,7 +74,7 @@ A minor version, as some output changes: see Changed and Fixed below.
 - Docs: roadmap 2, keeping whole numbers' digits as a `uint64`, as Perl
   holds a UV, was investigated and dropped for roadmap 3, which covers
   its uses with one mechanism; its
-  [change record](docs/changes/2026-10-26-exact-whole-numbers.md) keeps
+  [change record](docs/changes/2026-10-26-r2-exact-whole-numbers.md) keeps
   what it found.
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the

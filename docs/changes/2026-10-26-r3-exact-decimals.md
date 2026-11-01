@@ -126,4 +126,4 @@ decision.
 - **What's left:** whether JSON writes a float as Perl does, to 15
   significant digits, is Iain's decision, separately; and the two bugs
   roadmap 2 found, in its
-  [change record](2026-10-26-exact-whole-numbers.md).
+  [change record](2026-10-26-r2-exact-whole-numbers.md).
