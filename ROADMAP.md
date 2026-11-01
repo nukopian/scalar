@@ -32,7 +32,21 @@ it names its number.
 
 ## Now
 
-Nothing yet.
+### 1. A regex engine chosen per pattern
+
+**Serves:** speed
+
+**Size:** L (5)
+
+`scalar.Linear`, Go's regexp, beside `scalar.Backtracking`, regexp2 and
+the default, chosen for one pattern with `MustCompileWith` or for the
+whole program with `DefaultEngine`. Nothing changes unless a program
+asks. `Linear` never gives a different answer from `Backtracking`, only
+a faster one: a pattern it can't run is an error when chosen for one
+pattern, and falls back with a warning when chosen for the program, and
+a match on text where the engines could differ goes to `Backtracking`.
+The [change record](docs/changes/2026-11-01-r1-regex-engines.md) has the
+plan and what's happened.
 
 ## Next
 
@@ -47,17 +61,6 @@ Nothing yet.
 An idea is a numbered heading, the date it was added, its size, and a
 line or two on what and why. Each wash-up prunes them: each is kept,
 promoted to Later or Next with its number, or dropped.
-
-### 1. A regex engine chosen per pattern
-
-Added 2026-10-26. **Size:** M (3). Being considered, not decided.
-`CompileWith(scalar.Stdlib, pattern)` would match with Go's regexp, 1.2
-to 2.6 times as fast in the experiment's benchmarks and never
-backtracking, at the cost of lookaround, backreferences and Unicode
-`\w`; other engines, such as coregex, could plug in the same way. The
-experiment, with its tests and measurements, is on the
-[`experiment/regex-engine`](https://github.com/nukopian/scalar/tree/experiment/regex-engine)
-branch.
 
 ### 4. Profile scalar's allocations under a consumer's workload
 
