@@ -18,6 +18,13 @@ keeps it as it moves between groups, and a number is never used again,
 so that 1 means the same item in a commit message months later. Next
 number: 5.
 
+Each item has a size too, a guess at how much work it is, as a T-shirt
+size and its story points: XS 1, S 2, M 3 and L 5. About a day is S, a
+few days M, and a week or two L. An item bigger than L is broken into
+items that aren't, each saying what it was split from. Items that can't
+be done one without another say so ("Moves with:"), and move between
+groups together.
+
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 1)", and links to its
 record. An idea that's dropped is deleted, and the commit that drops
@@ -37,13 +44,13 @@ Nothing yet.
 
 ## Ideas
 
-An idea is a numbered heading, the date it was added, and a line or two
-on what and why. Each wash-up prunes them: each is kept, promoted to
-Later or Next with its number, or dropped.
+An idea is a numbered heading, the date it was added, its size, and a
+line or two on what and why. Each wash-up prunes them: each is kept,
+promoted to Later or Next with its number, or dropped.
 
 ### 1. A regex engine chosen per pattern
 
-Added 2026-10-26. Being considered, not decided.
+Added 2026-10-26. **Size:** M (3). Being considered, not decided.
 `CompileWith(scalar.Stdlib, pattern)` would match with Go's regexp, 1.2
 to 2.6 times as fast in the experiment's benchmarks and never
 backtracking, at the cost of lookaround, backreferences and Unicode
@@ -54,9 +61,10 @@ branch.
 
 ### 4. Profile scalar's allocations under a consumer's workload
 
-Added 2026-11-01. Run a program that uses scalar, such as grammar's
-matches or jdc-lab's pipeline, profile it, and if scalar shows up, find
-its cost and cut it, as grammar's roadmap 9 did for its matcher.
+Added 2026-11-01. **Size:** M (3). Run a program that uses scalar,
+such as grammar's matches or jdc-lab's pipeline, profile it, and if
+scalar shows up, find its cost and cut it, as grammar's roadmap 9 did
+for its matcher.
 
 That item shows the method works. jdc-lab found the cost: chunking its
 job ads was its slowest stage, and most of that time was the matcher
