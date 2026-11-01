@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.6.2 (2026-11-01)
+
+scalar.Linear, Go's regex engine with Backtracking's answers, and S keeps its timeouts
+
 - `scalar.Linear` runs regexes on Go's own engine, beside
   `scalar.Backtracking`, regexp2, which stays the default: nothing
   changes unless a program asks. `MustCompileWith(scalar.Linear, re)`

@@ -65,7 +65,7 @@ What's known, Steps, Done when.
 Newest first.
 
 - [A regex engine chosen per pattern](2026-11-01-r1-regex-engines.md),
-  roadmap 1: shipped, unreleased.
+  roadmap 1: shipped in v0.6.2.
 - [Export the path parser](2026-10-27-export-the-path-parser.md),
   a TODO task from grammar: shipped in v0.6.1.
 - [JSON decimals that keep their digits](2026-10-26-r3-exact-decimals.md),

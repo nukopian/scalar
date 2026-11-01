@@ -1,6 +1,6 @@
 # A regex engine chosen per pattern
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.2
 
 **Origin:** roadmap 1
 
