@@ -19,11 +19,11 @@ so that 1 means the same item in a commit message months later. Next
 number: 5.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
-size and its story points: XS 1, S 2, M 3 and L 5. About a day is S, a
-few days M, and a week or two L. An item bigger than L is broken into
-items that aren't, each saying what it was split from. Items that can't
-be done one without another say so ("Moves with:"), and move between
-groups together.
+size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
+with each other; they aren't a measure of time. An item bigger than L
+is broken into items that aren't, each saying what it was split from.
+Items that can't be done one without another say so ("Moves with:"),
+and move between groups together.
 
 When an item ships, it moves from here to the CHANGELOG, whose line
 for it ends with its number, such as "(roadmap 1)", and links to its
