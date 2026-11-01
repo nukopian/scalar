@@ -5,6 +5,9 @@ import (
 	"math/rand/v2"
 	"strings"
 	"testing"
+	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // withEngine runs f with DefaultEngine set to e, and warnings collected
@@ -105,7 +108,7 @@ var linearPatterns = []string{
 	`(?i)ſ`, `(?i)İ`, `(?i)\x{212a}`, `(?i)[\x{100}-\x{200}]`, `(?i)[é-ü]`, `(?i)σ+`, `(?i)Σ`,
 	`(?i)s`, `(?i)k`, `(?i)[a-z]+`, `(?i)[^a-z]+`, `(?i:ca) ok`, `(?i)été`, `(?i)\w+`, `(?i)i`,
 	// What Linear can't run, so both run on Backtracking.
-	`(?<=\$)\d+`, `\b(\w+) \1\b`, `(?>a+)b`, `CA\Z`, `[[:alpha:]]+`, `[a-z-[aeiou]]+`,
+	`\'0'*`, `(a)\<1>`, `\<b\>`, `[\<\']+`, `(?<=\$)\d+`, `\b(\w+) \1\b`, `(?>a+)b`, `CA\Z`, `[[:alpha:]]+`, `[a-z-[aeiou]]+`,
 	`(a?)*`, `(a|)*b`, `(a*)+`, `\G\w`,
 }
 
@@ -184,7 +187,7 @@ func FuzzLinear(f *testing.F) {
 func TestLinearTakes(t *testing.T) {
 	for _, pattern := range []string{
 		`^M (\d+\.\d) - (\d+) km`, `(?<net>\w+)`, `\s*\|\s*`, `[\w.-]+@[\w-]+`, `CA$`, `\bCA\b`,
-		`(?i)ridgecrest`, `\p{Lu}`, `(?m)^\w+$`, `x*`, `(a)|b`, `\x{e9}+`, `a{2,3}?`,
+		`(?i)ridgecrest`, `\p{Lu}`, `[\<\']`, `(?m)^\w+$`, `x*`, `(a)|b`, `\x{e9}+`, `a{2,3}?`,
 	} {
 		if _, err := CompileWith(Linear, pattern); err != nil {
 			t.Errorf("Linear refused %q: %v", pattern, err)
@@ -194,6 +197,8 @@ func TestLinearTakes(t *testing.T) {
 		`(?<=\$)\d+`:            "lookbehind",
 		`(?!x)`:                 "lookahead",
 		`(\w+) \1`:              "backreference",
+		`(a)\'1'`:               "backreference",
+		`(?<n>a)\<n>`:           "backreference",
 		`\k<x>(?<x>a)`:          "named backreference",
 		`(?>a+)`:                "atomic group",
 		`CA\Z`:                  `\Z`,
@@ -223,6 +228,24 @@ func TestLinearTakes(t *testing.T) {
 	}
 	if _, err := CompileWith(Linear, `(`); err == nil || !strings.Contains(err.Error(), "bad regex") {
 		t.Errorf(`CompileWith(Linear, "(") = %v, want Backtracking's error`, err)
+	}
+}
+
+// The fold traps are every rune beyond ASCII that regexp2 lowercases to
+// ASCII, or that Go's regexp folds to ASCII, as the two engines do under i.
+func TestFoldTraps(t *testing.T) {
+	var traps []rune
+	for r := rune(utf8.RuneSelf); r <= unicode.MaxRune; r++ {
+		folds := unicode.ToLower(r) < utf8.RuneSelf
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			folds = folds || f < utf8.RuneSelf
+		}
+		if folds {
+			traps = append(traps, r)
+		}
+	}
+	if string(traps) != string(foldTraps[:]) {
+		t.Errorf("fold traps are %q, want %q", traps, foldTraps)
 	}
 }
 
@@ -302,6 +325,24 @@ func TestRegexWarn(t *testing.T) {
 		RegexWarn = nil
 		Value("x").M(`(?<=y)x nil-warn`) // no panic
 	})
+}
+
+// A RegexWarn that matches the same pattern doesn't deadlock.
+func TestRegexWarnReentrant(t *testing.T) {
+	pattern := `(?<=a)b reentrant`
+	done := make(chan bool)
+	go func() {
+		withEngine(Linear, func() {
+			RegexWarn = func(string) { Value("ab reentrant").M(pattern) }
+			Value("ab reentrant").M(pattern)
+		})
+		close(done) // once withEngine has put DefaultEngine back
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RegexWarn calling M on its own pattern deadlocked")
+	}
 }
 
 // A *Regexp keeps the engine it was compiled with.

@@ -1910,7 +1910,9 @@ the log elsewhere. Replace it to send warnings somewhere else, or set it to
 engines. A pattern that uses any of these is one it can't run:
 
 - lookahead and lookbehind: `(?=…)`, `(?!…)`, `(?<=…)`, `(?<!…)`;
-- backreferences: `\1`, `\k<name>`;
+- backreferences: `\1`, `\k<name>`; and `\<` and `\'`, which `Backtracking`
+  reads as the start of an old form of backreference, `\<name>`, so write
+  `<` and `'` without the backslash;
 - atomic groups `(?>…)`, possessive quantifiers such as `a++`, and
   conditionals `(?(…)…)`;
 - `\Z` and `\G`;
@@ -2627,6 +2629,9 @@ then dropped:
     unknown flag, a regex that runs past `RegexTimeout`, a pattern that's
     neither a string nor a `*Regexp`, a nil `*Regexp`, or the flags `i`,
     `m`, `s` or `x` given again with a `*Regexp`
+  - a pattern `scalar.Linear` can't run, in `MustCompileWith` (use
+    `CompileWith` to get an error instead), or an `Engine` other than
+    `Backtracking` and `Linear`
   - a malformed JSONPath in `Find`
   - a template letter other than `H`, `h`, `B`, `b`, `f`, `d` and `F` in
     `Pack` or `Unpack`, or `<` or `>` after anything but a float

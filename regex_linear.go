@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 	"unicode/utf8"
 )
@@ -89,23 +90,21 @@ func defaultLinear(pattern string, f flagSet) *linear {
 	if DefaultEngine != Linear {
 		return nil
 	}
-	return linearFor(pattern, f).warned(pattern)
+	return linearFor(pattern, f).warn(pattern)
 }
 
 // A linearCompiled is a pattern compiled for Linear, or why it couldn't be.
 type linearCompiled struct {
 	l      *linear
 	reason string
-	warn   sync.Once
+	warned atomic.Bool // not a sync.Once, so RegexWarn can match this pattern itself
 }
 
-func (c *linearCompiled) warned(pattern string) *linear {
-	if c.reason != "" {
-		c.warn.Do(func() {
-			if w := RegexWarn; w != nil {
-				w(fmt.Sprintf("scalar: regex %q uses %s, which Linear can't run, so it runs on Backtracking", pattern, c.reason))
-			}
-		})
+func (c *linearCompiled) warn(pattern string) *linear {
+	if c.reason != "" && c.warned.CompareAndSwap(false, true) {
+		if w := RegexWarn; w != nil {
+			w(fmt.Sprintf("scalar: regex %q uses %s, which Linear can't run, so it runs on Backtracking", pattern, c.reason))
+		}
 	}
 	return c.l
 }
@@ -169,22 +168,14 @@ func (l *linear) useUnicode(rest string) bool {
 	return true
 }
 
-// foldTrap reports whether r, beyond ASCII, matches an ASCII pattern under
-// i differently in the two engines: regexp2 lowercases it, as İ becomes i,
-// and Go's regexp folds it, as ſ matches s.
+// foldTraps are the runes beyond ASCII that match an ASCII pattern under i
+// differently in the two engines: regexp2 lowercases İ to i, and Go's
+// regexp folds ſ to s and the Kelvin sign to k. TestFoldTraps checks that
+// there are no others.
+var foldTraps = [...]rune{'İ', 'ſ', '\u212a'}
+
 func foldTrap(r rune) bool {
-	if r < utf8.RuneSelf {
-		return false
-	}
-	if unicode.ToLower(r) < utf8.RuneSelf {
-		return true
-	}
-	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
-		if f < utf8.RuneSelf {
-			return true
-		}
-	}
-	return false
+	return r == foldTraps[0] || r == foldTraps[1] || r == foldTraps[2]
 }
 
 // first is the first match of l in str, laid out as regexp's
@@ -626,23 +617,12 @@ func (p *linearParser) chars(lo, hi rune) {
 	if hi >= utf8.RuneSelf {
 		p.l.ascii = true
 	}
-	for _, r := range foldTraps() {
+	for _, r := range foldTraps {
 		if lo <= r && r <= hi {
 			p.cant(fmt.Sprintf("%q with the i flag, which the engines fold differently", r))
 		}
 	}
 }
-
-// foldTraps is every rune for which foldTrap is true.
-var foldTraps = sync.OnceValue(func() []rune {
-	var traps []rune
-	for r := rune(utf8.RuneSelf); r <= unicode.MaxRune; r++ {
-		if foldTrap(r) {
-			traps = append(traps, r)
-		}
-	}
-	return traps
-})
 
 func (p *linearParser) group() node {
 	if !p.peek('?') {
@@ -804,6 +784,8 @@ func (p *linearParser) charEscape(c rune) (string, rune) {
 		p.cant(`\` + string(c))
 	case 'k':
 		p.cant("a named backreference")
+	case '<', '\'':
+		p.cant(`\< or \', which Backtracking reads as a backreference before a name and its closer (write < or ' alone)`)
 	case 'Q', 'E':
 		p.cant(`\Q…\E`)
 	}
@@ -904,6 +886,8 @@ func (p *linearParser) classItem(c rune) (string, rune, bool) {
 		return p.property(c), 0, false
 	case 'b':
 		p.cant(`\b in a class`)
+	case '<', '\'':
+		return `\` + string(c), c, true // no backreferences in a class
 	}
 	text, r := p.charEscape(c)
 	return text, r, true

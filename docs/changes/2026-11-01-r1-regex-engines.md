@@ -212,7 +212,17 @@ scalar's `Linear` goes further, so that the answers never differ.
   regexp2's `ReplaceFunc` returns an empty string and no error, so `S`
   with `g` on `Backtracking` could empty a scalar silently. It's fixed
   in its own commit, as the first finding of the wash-up before the next
-  release.
+  release. The fourth run found that regexp2 reads `\'0'` as a
+  backreference to group 0: `\<name>` and `\'name'` are an old .NET form
+  of `\k<name>`. Linear now refuses `\<` and `\'` outside a class.
+- **The wash-up** also found that a `RegexWarn` matching its own pattern
+  deadlocked, as the warning was given inside a `sync.Once`; it's now an
+  atomic flag. The fold traps are now named, `İ`, `ſ` and the Kelvin
+  sign, with `TestFoldTraps` checking them against every rune, where a
+  scan of every rune found them on the first pattern with `i`: that took
+  about 90 ms, and the check of each rune of the text 8.9% less time on
+  `M` with `i` over text beyond ASCII. The reference's caveats list the
+  panics the engines add.
 - **What's left:** nothing for this item. Two ideas, not on the roadmap:
   a pattern beyond ASCII under `i` could run on text beyond ASCII where
   no character's lowercase and fold differ; and other engines, such as

@@ -62,6 +62,9 @@ func BenchmarkRegex(b *testing.B) {
 		{"M/unicode", `(\w+), (\w+)$`, func(rx *Regexp) {
 			Value("M 2.1 - 4 km NW of Ōtaki, Aotearoa").M(rx)
 		}},
+		{"M/unicode/i", `(?i)\d+ KM NW OF (\w+)`, func(rx *Regexp) {
+			Value("M 2.1 - 4 km NW of Ōtaki, Aotearoa").M(rx)
+		}},
 	} {
 		for _, engine := range []struct {
 			name   string

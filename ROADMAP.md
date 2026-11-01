@@ -66,8 +66,8 @@ by 39%, with every output unchanged
 ([record](https://github.com/nukopian/grammar/blob/v0.4.3/docs/changes/2026-10-31-r9-fewer-closures-in-the-matcher.md)).
 grammar's own `FindAll` benchmark improved by only 7%: the lab's
 workload found what grammar's benchmarks missed. That fix doesn't carry
-over, as scalar has no matcher of its own (it uses regexp2), but the
-method does.
+over, as scalar has no matcher of its own (it uses regexp2 or Go's
+regexp), but the method does.
 
 A brief run of scalar's benchmarks with `-benchmem` (Apple M2, Go
 1.26.10, at c28d87cfa6e6a758d0c93597c84bc8b3c7565474) suggests where to
