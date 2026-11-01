@@ -98,3 +98,26 @@ figures, should decide what's worth doing. One place to start: grammar
 makes new state for every text `FindAll` searches, and builds scalar
 values for each match, so the lab's remaining cost may include
 scalar's.
+
+**First profile, 2026-11-01:** scalar isn't a cost yet. jdc-lab's
+`BenchmarkAdOfSamples`, chunking 2,000 ads (Apple M2, Go 1.26.10,
+`-benchtime 3x`; jdc-lab 199ef5b42ff8679f2c6033167c8abcc4a443cd79
+through its `go.work`, with scalar
+c18c75e434dfea89e2bb79bdfc537a2ad49314ff and grammar
+690b8ee3bd0939ca640a802b393b90139554354b, which has v0.4.3's matcher
+changes), took 1.38 s, 1.30 GB and 24.5 million allocations an
+iteration. Scalar's share:
+
+| Measure | Scalar | Mostly |
+|---|---:|---|
+| CPU | 2.3% | allocation, through grammar's `FindAll` |
+| bytes allocated | 5.3% | `Hash`, 3.5%: grammar builds a hash for each match |
+| allocations | 5.5% | `Hash` and `svOf` |
+
+grammar's matcher (`once`, `seq.from`, `step`) is still about a
+quarter of the CPU. None of the benchmarks in the first table shows
+up, so scalar's own figures would have pointed the wrong way. Removing
+every one of scalar's allocations would save at most about 5% of the
+lab's, so nothing is worth cutting yet. As grammar's matcher gets
+cheaper, scalar's share will grow: profile again after grammar's next
+matcher change, starting with `Hash` as grammar calls it.
