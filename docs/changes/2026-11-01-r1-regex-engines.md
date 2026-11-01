@@ -1,11 +1,13 @@
 # A regex engine chosen per pattern
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Origin:** roadmap 1
 
 **Started:** 2026-11-01, on `develop`, from
 55165748fece092f29a023dcd9815df7867fd813
+
+**Finished:** 2026-11-01
 
 ## The plan
 
@@ -134,4 +136,84 @@ scalar's `Linear` goes further, so that the answers never differ.
 
 ## What happened
 
-Nothing yet.
+- **Outcome:** each Done when is met. Every existing test passes
+  unchanged, and the default path's benchmarks are within noise of the
+  baseline. The engine table, the random patterns, the regex tests run
+  again on `Linear`, and `FuzzLinear` find no answer that differs, and
+  each planted bug is caught. `Linear` is faster on every benchmark.
+- **The design as built:** `Engine` is an `int` type with two constants,
+  `Backtracking` (its zero value) and `Linear`; any other value panics,
+  so it's sealed in effect. A `*Regexp` always holds regexp2's compiled
+  pattern, so `Linear` refuses nothing regexp2 accepts silently, gives
+  the same errors for bad patterns, and has it ready for a match it hands
+  over. `regex_linear.go` holds the engine: a parser of regexp2's syntax
+  that writes Go's, taking only what it knows, and the per-match checks.
+- **Changes from the plan:**
+  - Text that isn't valid UTF-8 goes to `Backtracking`, rather than being
+    matched as regexp2 matches it. It's simpler, and gives the same
+    answer.
+  - The `i` flag needed more than the plan's check of the text. Reviewing
+    the planted bugs showed that a pattern holding `ſ`, `İ` or the Kelvin
+    sign differs even on ASCII text: `(?i)ſ` matches `s` in Go's regexp
+    alone. These three, the only runes that fold differently (computed
+    from Go's `unicode` tables, which both engines use), are refused
+    under `i`, in the pattern or in a class range. And a pattern with
+    other characters beyond ASCII under `i` needs ASCII text: `(?i)σ`
+    matches the final `ς` in Go's regexp alone.
+  - `Split` needs no hand-over for patterns that can match nothing: the
+    empty matches Go's regexp drops are ones `Split` skips anyway.
+  - A `[` inside a class is refused, though regexp2 reads `[[:alpha:]]`
+    as a plain set, which Linear could copy. Such a pattern almost
+    certainly means a POSIX class, which neither engine gives, and the
+    warning says so.
+  - The how-to's example of `DefaultEngine` sets `RegexWarn` to nil, as
+    a warning comes once per pattern and `go test -count=2` would then
+    see it only once. `TestRegexWarn` starts from an empty cache, for the
+    same reason.
+- **Measurements:** `BenchmarkRegex`, the median of 6 on an Apple M2,
+  `Backtracking` against `Linear`: `M` with 5 captures 1.71 µs to 695 ns
+  (2.5×), no match 202 to 105 ns (1.9×), `M` with `g` over 200 lines 141
+  to 111 µs (1.3×), `Named` 925 to 402 ns (2.3×), `S` with `${1}` and `g`
+  5.92 to 2.74 µs (2.2×), `S` with a function 4.85 to 2.42 µs (2.0×),
+  `Split` 3.38 to 2.79 µs (1.2×), and `M` with `$` on text beyond ASCII
+  4.01 to 1.19 µs (3.4×). The default path against develop at
+  eaa4523a87ab6457665de03166e613f08f2e21fc, `BenchmarkRegex` and
+  `BenchmarkSExpand` with `benchstat`: −0.13% overall, the largest change +1.36% (4 ns) on `S` with no match.
+  Of the engine table's 390 patterns and flags, `Linear` took 324, and
+  ran 87% of their matches on the table's texts itself.
+- **Planted bugs,** each caught: dropping the check for `$` and a final
+  newline, for `\b` and text beyond ASCII, for the fold traps in the text,
+  for empty matches with `g`, or for bad UTF-8 (the table, the random
+  patterns and `TestLinearHandsOver`); dropping the refusal of fold traps
+  in the pattern (the table and `TestLinearTakes`); dropping the
+  requirement of ASCII text for a pattern beyond ASCII under `i` (the
+  table, once `(?i)σ+` was added: before, only `TestLinearHandsOver`);
+  dropping the refusal of a capture in a repeat that can match nothing
+  (the table and the random patterns); dropping the renumbering of
+  groups (the random patterns and the regex tests on `Linear`); `\w`,
+  `\s` or `\d` left as Go's, or `\w` without the joiners (the table); and
+  dropping the refusal of `[` in a class (`TestLinearTakes`).
+- **Found while testing:** `(a)?` was refused as a capture in a repeat
+  that can match nothing, as the check looked at the repeat rather than
+  its body. Fixed before commit.
+- **Fuzzing:** `FuzzLinear` ran 683,531 inputs in 60 seconds with no
+  difference; it then took the flags as input as well, after missing
+  `(?i)ſ`, and ran 905,287 in 60 seconds with no difference. A ten-minute
+  run then had a worker killed after eight minutes, on a pattern matching
+  each of 8,000 bad bytes: the test's replacement expands `` $` `` and
+  `$'` at every match, so its output grows as the square of the text, and
+  that input took a gigabyte, on both engines alike. The fuzzer now skips
+  text over 1 KiB. The next ten-minute run failed on `.+00` over 1 KiB of
+  bad UTF-8, where both runs go to `Backtracking`: one hit the 100 ms
+  `RegexTimeout` under the load of eight fuzz workers, and the other
+  didn't. A timeout depends on the machine, not the pattern alone, so
+  the comparison now skips a case where either run timed out. The third
+  run found a bug that isn't `Linear`'s: when a later match times out,
+  regexp2's `ReplaceFunc` returns an empty string and no error, so `S`
+  with `g` on `Backtracking` could empty a scalar silently. It's fixed
+  in its own commit, as the first finding of the wash-up before the next
+  release.
+- **What's left:** nothing for this item. Two ideas, not on the roadmap:
+  a pattern beyond ASCII under `i` could run on text beyond ASCII where
+  no character's lowercase and fold differ; and other engines, such as
+  coregex, could be let in by opening `Engine`.

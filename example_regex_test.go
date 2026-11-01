@@ -98,6 +98,26 @@ func ExampleMustCompile() {
 	// true
 }
 
+func ExampleCompileWith() {
+	_, err := scalar.CompileWith(scalar.Linear, `(?<=M)\d\.\d`) // a magnitude, after an M
+	fmt.Println(err)
+	mag, _ := scalar.CompileWith(scalar.Backtracking, `(?<=M)\d\.\d`) // lookbehind needs Backtracking
+	fmt.Println(scalar.Value("M4.8 near Ridgecrest").M(mag).Get(0))
+	// Output:
+	// scalar: Linear can't run regex "(?<=M)\\d\\.\\d": it uses lookbehind
+	// 4.8
+}
+
+func ExampleMustCompileWith() {
+	place := scalar.MustCompileWith(scalar.Linear, `(\d+) km (\w+) of (?<place>[^,]+), (\w+)$`)
+	s := scalar.Value("M 2.1 - 4 km NW of Ōtaki, Aotearoa")
+	fmt.Println(s.M(place).Get(2), s.Named(place).Get("place")) // the same answers as Backtracking
+	fmt.Println(s.M(place).Get(4))                              // named groups come after the others
+	// Output:
+	// NW Ōtaki
+	// Ōtaki
+}
+
 func ExampleRegexp_String() {
 	fmt.Println(scalar.MustCompile(`\d+`, "i"))
 	// Output:

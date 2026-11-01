@@ -160,6 +160,24 @@ func Example_figuresFromText() {
 	// 1204 12431
 }
 
+// place runs on Linear, Go's engine, compiled once.
+var place = scalar.MustCompileWith(scalar.Linear, `(\d+) km (\w+) of ([^,]+), (.+)$`)
+
+// Making regex-heavy code faster.
+func Example_fasterRegex() {
+	p := scalar.Value("4 km NW of Ōtaki, New Zealand").M(place)
+	fmt.Println(p.Get(1), p.Get(2), p.Get(3))
+
+	defer func(e scalar.Engine, w func(string)) { scalar.DefaultEngine, scalar.RegexWarn = e, w }(scalar.DefaultEngine, scalar.RegexWarn)
+	scalar.RegexWarn = nil                                                  // no warning, here; by default it's logged
+	scalar.DefaultEngine = scalar.Linear                                    // every pattern, from here on
+	fmt.Println(scalar.Value("M4.8, depth 10 km").M(`(?<=M)\d\.\d`).Get(0)) // lookbehind: on Backtracking
+
+	// Output:
+	// 4 NW Ōtaki
+	// 4.8
+}
+
 // Counting quakes by region over several days, ignoring case, and listing
 // the most common first.
 func Example_countRegions() {

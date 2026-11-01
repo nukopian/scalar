@@ -29,6 +29,9 @@ import (
 // pattern, as in (?i). Invalid patterns, unknown flags and timeouts panic,
 // as Perl would die.
 //
+// Patterns run on DefaultEngine, Backtracking unless a program chooses
+// Linear, Go's regexp, which gives the same answers faster (see Engine).
+//
 // One difference from Perl: named groups are numbered after all unnamed
 // groups, so in (?<y>\d+)-(\d+) the unnamed group is $1 and y is $2. Use
 // Named to get named groups by name.
@@ -36,6 +39,7 @@ import (
 // RegexTimeout caps how long a single match may run, so that a pathological
 // pattern meeting unexpected input can't hang the program. Set it before
 // first use; patterns already compiled keep the timeout they were built with.
+// A match on Linear needs no timeout, as it takes time in step with the text.
 var RegexTimeout = 100 * time.Millisecond
 
 var regexCache = boundedCache[cacheKey, *regexp2.Regexp]{limit: cacheLimit}
@@ -106,25 +110,29 @@ func compileErr(pattern string, f flagSet) (*regexp2.Regexp, error) {
 //	re := scalar.MustCompile(`m(\d\.\d)`, "i") // my $re = qr/m(\d\.\d)/i;
 //	s.M(re, "g")                                 // $s =~ /$re/g
 type Regexp struct {
-	rx *regexp2.Regexp
+	rx  *regexp2.Regexp
+	lin *linear // Linear's form, if it runs the pattern
 }
 
 // Compile compiles pattern with flags, any of "i", "m", "s" and "x", or
 // returns an error if the pattern is invalid. An unknown flag panics, as it's
-// a mistake in the program rather than in the pattern.
+// a mistake in the program rather than in the pattern. It uses
+// DefaultEngine; CompileWith names the engine.
 func Compile(pattern string, flags ...string) (*Regexp, error) {
-	rx, err := compileErr(pattern, parseFlags("Compile", "imsx", flags))
+	f := parseFlags("Compile", "imsx", flags)
+	rx, err := compileErr(pattern, f)
 	if err != nil {
 		return nil, fmt.Errorf("scalar: %w", err)
 	}
-	return &Regexp{rx}, nil
+	return &Regexp{rx, defaultLinear(pattern, f)}, nil
 }
 
 // MustCompile is Compile, panicking if the pattern is invalid. Use it for
 // patterns in the program, in package-level variables, so that a bad one
 // fails as soon as the program starts, as with regexp.MustCompile.
 func MustCompile(pattern string, flags ...string) *Regexp {
-	return &Regexp{compile(pattern, parseFlags("MustCompile", "imsx", flags))}
+	f := parseFlags("MustCompile", "imsx", flags)
+	return &Regexp{compile(pattern, f), defaultLinear(pattern, f)}
 }
 
 // String returns the pattern as written.
@@ -133,11 +141,12 @@ func (r *Regexp) String() string { return r.rx.String() }
 // regex resolves the pattern argument of op: a pattern string, compiled with
 // the flags f, or a *Regexp, whose own flags apply. Giving a *Regexp the
 // flags it was compiled with (or any others of "imsx") panics: they belong
-// with Compile, as with qr//.
-func regex(op string, re any, f flagSet) *regexp2.Regexp {
+// with Compile, as with qr//. lin is the pattern's form for Linear, if
+// it has one.
+func regex(op string, re any, f flagSet) (rx *regexp2.Regexp, lin *linear) {
 	switch re := re.(type) {
 	case string:
-		return compile(re, f)
+		return compile(re, f), defaultLinear(re, f)
 	case *Regexp:
 		if re == nil {
 			panic(fmt.Sprintf("scalar: %s given a nil *Regexp", op))
@@ -147,7 +156,7 @@ func regex(op string, re any, f flagSet) *regexp2.Regexp {
 				panic(fmt.Sprintf("scalar: %s: flag %q belongs with Compile when the pattern is a *Regexp, as with qr//", op, c))
 			}
 		}
-		return re.rx
+		return re.rx, re.lin
 	default:
 		panic(fmt.Sprintf("scalar: %s pattern must be a string or *Regexp, got %T", op, re))
 	}
@@ -218,8 +227,11 @@ func groupSV(g *regexp2.Group, isBytes bool) *SV {
 // re is a pattern string or a *Regexp (see Compile).
 func (s *SV) M(re any, flags ...string) *AV {
 	f := parseFlags("M", "imsxg", flags)
-	rx := regex("M", re, f)
+	rx, lin := regex("M", re, f)
 	str, isBytes := s.text()
+	if lin.use(str, f.has('g')) {
+		return lin.m(str, isBytes, f.has('g'))
+	}
 	if !f.has('g') {
 		if m := firstRegexMatch(rx, str); m != nil {
 			return matchAV(m, isBytes)
@@ -248,9 +260,17 @@ func (s *SV) M(re any, flags ...string) *AV {
 // at once, use M with "g".
 func (s *SV) Matches(re any, flags ...string) iter.Seq[*AV] {
 	f := parseFlags("Matches", "imsx", flags)
-	rx := regex("Matches", re, f)
+	rx, lin := regex("Matches", re, f)
 	str, isBytes := s.text()
 	return func(yield func(*AV) bool) {
+		if lin.use(str, true) {
+			for idx := range lin.all(str) {
+				if !yield(indexAV(str, idx, isBytes)) {
+					return
+				}
+			}
+			return
+		}
 		for m := range matches(rx, []rune(str)) {
 			if !yield(matchAV(m, isBytes)) {
 				return
@@ -263,8 +283,11 @@ func (s *SV) Matches(re any, flags ...string) iter.Seq[*AV] {
 // is no match, otherwise a hash of named groups; ones that didn't
 // participate are undef. re is a pattern string or a *Regexp.
 func (s *SV) Named(re any, flags ...string) *HV {
-	rx := regex("Named", re, parseFlags("Named", "imsx", flags))
+	rx, lin := regex("Named", re, parseFlags("Named", "imsx", flags))
 	str, isBytes := s.text()
+	if lin.use(str, false) {
+		return lin.named(str, isBytes)
+	}
 	m := firstRegexMatch(rx, str)
 	if m == nil {
 		return nil
@@ -309,8 +332,12 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 		return s.substituted(strings.Replace(str, pat, text, limit), n, isBytes, f)
 	}
 
-	rx := regex("S", re, f)
+	rx, lin := regex("S", re, f)
 	str, isBytes := s.text()
+	if lin.use(str, limit != 1) {
+		out, n := lin.s(str, isBytes, repl, limit)
+		return s.substituted(out, n, isBytes, f)
+	}
 	n := 0
 	var out string
 	switch r := repl.(type) {
@@ -491,7 +518,22 @@ func (s *SV) Split(re any, limit ...int) *AV {
 		return out
 	}
 
-	rx := regex("Split", re, "")
+	rx, lin := regex("Split", re, "")
+	if lin.use(str, false) {
+		out = lin.split(str, isBytes, lim)
+	} else {
+		out = splitRegexp2(rx, str, isBytes, lim)
+	}
+	if lim == 0 {
+		for out.Length() > 0 && out.Get(-1).Str() == "" {
+			out.Pop()
+		}
+	}
+	return out
+}
+
+func splitRegexp2(rx *regexp2.Regexp, str string, isBytes bool, lim int) *AV {
+	out := &AV{}
 	runes := []rune(str)
 	pos, splits := 0, 0
 	for m := range matches(rx, runes) {
@@ -512,12 +554,6 @@ func (s *SV) Split(re any, limit ...int) *AV {
 		splits++
 	}
 	out.Push(textResult(string(runes[pos:]), isBytes))
-
-	if lim == 0 {
-		for out.Length() > 0 && out.Get(-1).Str() == "" {
-			out.Pop()
-		}
-	}
 	return out
 }
 

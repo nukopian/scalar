@@ -4163,6 +4163,38 @@ M? then M?
 true
 ```
 
+#### `CompileWith`
+
+CompileWith is Compile, with engine in place of DefaultEngine.
+
+```go
+_, err := scalar.CompileWith(scalar.Linear, `(?<=M)\d\.\d`) // a magnitude, after an M
+fmt.Println(err)
+mag, _ := scalar.CompileWith(scalar.Backtracking, `(?<=M)\d\.\d`) // lookbehind needs Backtracking
+fmt.Println(scalar.Value("M4.8 near Ridgecrest").M(mag).Get(0))
+```
+
+```
+scalar: Linear can't run regex "(?<=M)\\d\\.\\d": it uses lookbehind
+4.8
+```
+
+#### `MustCompileWith`
+
+MustCompileWith is CompileWith, panicking if the pattern is invalid or, with Linear, uses something Linear can't run.
+
+```go
+place := scalar.MustCompileWith(scalar.Linear, `(\d+) km (\w+) of (?<place>[^,]+), (\w+)$`)
+s := scalar.Value("M 2.1 - 4 km NW of Ōtaki, Aotearoa")
+fmt.Println(s.M(place).Get(2), s.Named(place).Get("place")) // the same answers as Backtracking
+fmt.Println(s.M(place).Get(4))                              // named groups come after the others
+```
+
+```
+NW Ōtaki
+Ōtaki
+```
+
 #### `Regexp.String`
 
 String returns the pattern as written.

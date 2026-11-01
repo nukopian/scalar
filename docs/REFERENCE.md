@@ -1599,7 +1599,10 @@ unchanged.
 
 Regexes use [regexp2](https://github.com/dlclark/regexp2) instead of Go's
 standard `regexp`. Its syntax is close to Perl's. Unlike Go's standard engine,
-it supports lookahead, lookbehind, backreferences and atomic groups.
+it supports lookahead, lookbehind, backreferences and atomic groups. A
+program can choose Go's engine instead, for one pattern or for all of them,
+and get the same answers faster: see
+[Choosing an engine](#choosing-an-engine-backtracking-and-linear).
 
 One difference from Perl remains: case-insensitive matching pairs single
 characters only. Perl also uses the folds where one character matches
@@ -1842,8 +1845,167 @@ Change `RegexTimeout` at startup, before running any patterns.
 
 An invalid pattern or an unknown flag also panics, just as Perl would die.
 
-For a simple pattern on a hot path, Go's standard `regexp` package is faster
-and can never backtrack.
+A match on `scalar.Linear` needs no timeout, as it can't backtrack: see
+the next section.
+
+### Choosing an engine: `Backtracking` and `Linear`
+
+scalar has two regex engines:
+
+- **`scalar.Backtracking`** is regexp2, which everything above describes.
+  It's the default.
+- **`scalar.Linear`** is Go's standard `regexp`. It takes time in step with
+  the length of the text, so it never needs a timeout, and it was 1.2 to
+  3.4 times as fast in scalar's benchmarks.
+
+Nothing changes unless a program asks for `Linear`.
+
+**What `Linear` promises: it never gives a different answer from
+`Backtracking`.** Every operation, on every text, gives what `Backtracking`
+would: the same matches, the same captures with the same group numbers, the
+same substitutions and the same splits. Choosing `Linear` can make a program
+faster, but it can't change its results. To keep that promise, `Linear`
+refuses patterns it can't run as `Backtracking` does, and hands some matches
+to `Backtracking`, as the rest of this section describes. So it doesn't
+promise that nothing ever backtracks.
+
+#### Asking for it
+
+| To | Write | If `Linear` can't run the pattern |
+|---|---|---|
+| use `Linear` for one pattern | `scalar.MustCompileWith(scalar.Linear, re)` | it panics |
+| the same, for a pattern from outside the program | `scalar.CompileWith(scalar.Linear, re)` | it returns an error |
+| use `Linear` for every pattern | `scalar.DefaultEngine = scalar.Linear`, at the start of `main` | it runs on `Backtracking`, with a warning |
+| keep a pattern on `Backtracking` | `scalar.MustCompileWith(scalar.Backtracking, re)` | — |
+
+With `DefaultEngine` set, `Linear` runs the pattern strings given to `M`,
+`Matches`, `Named`, `S` and `Split`, and the patterns compiled by `Compile`
+and `MustCompile`. Set it once, before any patterns run, as with
+`RegexTimeout`.
+
+A `*Regexp` keeps the engine it was compiled with, whatever `DefaultEngine`
+says. A package whose patterns need `Backtracking`, for lookbehind say, can
+compile them with `MustCompileWith(scalar.Backtracking, …)`, so that a
+program using it can set `DefaultEngine` without warnings.
+
+#### The warning
+
+When `DefaultEngine` is `Linear` and a pattern uses something `Linear` can't
+run, the pattern runs on `Backtracking`, and scalar says so, once for that
+pattern:
+
+```
+scalar: regex "(?<=M)\\d\\.\\d" uses lookbehind, which Linear can't run, so it runs on Backtracking
+```
+
+The warning goes to `scalar.RegexWarn`, a `func(msg string)` that writes it
+through Go's `log` package, to standard error unless the program has sent
+the log elsewhere. Replace it to send warnings somewhere else, or set it to
+`nil` to say nothing. "Once" holds while the pattern stays in the cache of
+4,096 patterns.
+
+#### What `Linear` can't run
+
+`Linear` takes only the constructs it knows behave the same in both
+engines. A pattern that uses any of these is one it can't run:
+
+- lookahead and lookbehind: `(?=…)`, `(?!…)`, `(?<=…)`, `(?<!…)`;
+- backreferences: `\1`, `\k<name>`;
+- atomic groups `(?>…)`, possessive quantifiers such as `a++`, and
+  conditionals `(?(…)…)`;
+- `\Z` and `\G`;
+- the `x` flag, and inline flags other than `i`, `m` and `s`;
+- a `[` inside a class, as in a POSIX class, `[[:alpha:]]`, or .NET's class
+  subtraction, `[a-z-[aeiou]]`; and a `-` in a class anywhere but first,
+  last or in a range;
+- a capture group inside a repeat that can match nothing, such as `(a?)*`
+  or `(a|)*`, as the two engines capture these differently;
+- with the `i` flag, `\p{…}`, and the three characters the engines fold
+  differently: `İ`, `ſ` and the Kelvin sign `K` (U+212A), in the pattern or
+  in a class range;
+- escapes Go's `regexp` doesn't have, such as `\e`, `\cX`, `\u00e9` and
+  octal `\012`; `\x41` and `\x{e9}` work;
+- `\p{…}` with a name that isn't a Unicode category or script, such as
+  `\p{White_Space}`;
+- a `{` that isn't a repeat count, and repeat counts over 1,000, Go's limit;
+- group names given twice, or named with quotes, `(?'name'…)`.
+
+#### What `Linear` translates
+
+Some things mean different things in the two engines, so `Linear` translates
+them to mean what they mean in `Backtracking`:
+
+- **`\w`, `\d` and `\s`**, and `\W`, `\D` and `\S`, match Unicode in
+  `Backtracking`, but only ASCII in Go's `regexp`. `Linear` matches what
+  `Backtracking` does: `\w` is a letter, a nonspacing mark, a decimal digit,
+  connector punctuation such as `_`, or the zero-width joiner or non-joiner;
+  `\d` is a decimal digit in any script, such as `٣`; and `\s` is what Go's
+  `unicode.IsSpace` says, which includes the no-break space.
+- **Group numbers.** `Backtracking` numbers named groups
+  [after the unnamed ones](#matching), and Go's `regexp` numbers them in
+  order. `Linear` numbers them as `Backtracking` does.
+
+#### When a match goes to `Backtracking`
+
+Some patterns give the same answer in both engines on most text, but not on
+all of it. `Linear` takes these patterns, and looks at the text before each
+match. When the text is one where the engines could differ, that match goes
+to `Backtracking`, without a warning, as the answer is the same:
+
+| When the pattern has | The match goes to `Backtracking` if the text |
+|---|---|
+| `$` without the `m` flag | ends in a newline |
+| `\b` or `\B` | holds any character beyond ASCII |
+| the `i` flag, and a character beyond ASCII in the pattern | holds any character beyond ASCII |
+| the `i` flag | holds `İ`, `ſ` or the Kelvin sign `K` |
+| anything that can match nothing, such as `x*`, with `g` (`M` and `S` with `g`, and `Matches`) | is any text |
+| anything | isn't valid UTF-8 |
+
+So on ASCII text that doesn't end in a newline, every pattern `Linear`
+takes runs on `Linear`, except one that can match nothing, with `g`. A match that goes to `Backtracking` has the
+`RegexTimeout`, as any match there does.
+
+#### Its cost and gain
+
+`BenchmarkRegex`, the median of 6 runs on an Apple M2, on lines shaped like
+the USGS feed:
+
+| Operation | `Backtracking` | `Linear` | Speed-up |
+|---|---|---|---|
+| `M`, 5 captures | 1.71 µs | 695 ns | 2.5× |
+| `M`, no match | 202 ns | 105 ns | 1.9× |
+| `M` with `g`, 200 lines | 141 µs | 111 µs | 1.3× |
+| `Named` | 925 ns | 402 ns | 2.3× |
+| `S`, `${1}`, with `g` | 5.92 µs | 2.74 µs | 2.2× |
+| `S`, a function | 4.85 µs | 2.42 µs | 2.0× |
+| `Split` | 3.38 µs | 2.79 µs | 1.2× |
+| `M`, `$`, text beyond ASCII | 4.01 µs | 1.19 µs | 3.4× |
+
+The default, `Backtracking`, costs the same as it did before `Linear` was
+added: the benchmarks moved by 0.13% overall.
+
+#### Where it came from, and plain Go
+
+Perl's [`re::engine::RE2`](https://metacpan.org/pod/re::engine::RE2) does
+the same for Perl: it swaps Perl's engine for RE2, falling back to Perl's
+for patterns RE2 can't run, unless it's given `-strict`. It falls back
+silently, and lets RE2's answers differ from Perl's: its documentation lists
+Unicode and the final newline among its known bugs. scalar's `Linear` goes
+further, so that the answers never differ.
+
+Where the text is already a Go string and the pattern is fixed, use Go's
+`regexp` directly. It's faster still, with nothing to check:
+
+```go
+var mag = regexp.MustCompile(`M(\d\.\d)`)
+
+if m := mag.FindStringSubmatch(line); m != nil {
+	fmt.Println(m[1]) // the magnitude
+}
+```
+
+Its `\w`, `\d`, `\s` and `\b` are ASCII, though, and its `$` matches only at
+the very end of the text.
 
 ## Byte strings
 

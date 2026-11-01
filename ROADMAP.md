@@ -32,21 +32,7 @@ it names its number.
 
 ## Now
 
-### 1. A regex engine chosen per pattern
-
-**Serves:** speed
-
-**Size:** L (5)
-
-`scalar.Linear`, Go's regexp, beside `scalar.Backtracking`, regexp2 and
-the default, chosen for one pattern with `MustCompileWith` or for the
-whole program with `DefaultEngine`. Nothing changes unless a program
-asks. `Linear` never gives a different answer from `Backtracking`, only
-a faster one: a pattern it can't run is an error when chosen for one
-pattern, and falls back with a warning when chosen for the program, and
-a match on text where the engines could differ goes to `Backtracking`.
-The [change record](docs/changes/2026-11-01-r1-regex-engines.md) has the
-plan and what's happened.
+Nothing yet.
 
 ## Next
 

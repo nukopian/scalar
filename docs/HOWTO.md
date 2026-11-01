@@ -44,7 +44,7 @@ string, in dot, bracket or Perl's brace form (see
 
 ## Recipes
 
-Six short examples, each combining several parts of the package, on data
+Seven short examples, each combining several parts of the package, on data
 like the USGS earthquake feed. The [reference](REFERENCE.md) explains each
 part in detail.
 
@@ -116,6 +116,40 @@ for m := range text.Matches(figure) {           // while ($text =~ /$figure/g)
 }
 fmt.Println(figures.MinNum(), figures.MaxNum())  // 1204 12431
 ```
+
+### Making regex-heavy code faster
+
+`scalar.Linear` runs patterns on Go's own engine, which gave the same
+answers 1.2 to 3.4 times as fast in scalar's benchmarks. Choose it for the
+patterns that matter, compiled once:
+
+```go
+var place = scalar.MustCompileWith(scalar.Linear, `(\d+) km (\w+) of ([^,]+), (.+)$`)
+
+p := scalar.Value("4 km NW of Ōtaki, New Zealand").M(place)
+fmt.Println(p.Get(1), p.Get(2), p.Get(3))            // 4 NW Ōtaki
+```
+
+If `Linear` can't run a pattern, such as one with lookbehind,
+`MustCompileWith` panics as the program starts, saying what it can't run.
+
+Or choose it for every pattern in the program, at the start of `main`:
+
+```go
+scalar.DefaultEngine = scalar.Linear
+```
+
+A pattern `Linear` can't run then runs on `Backtracking`, as before, and
+scalar logs a warning, once for that pattern:
+
+```
+scalar: regex "(?<=M)\\d\\.\\d" uses lookbehind, which Linear can't run, so it runs on Backtracking
+```
+
+Either way, the answers are the ones `Backtracking` gives, even for text
+beyond ASCII such as `Ōtaki`. [Choosing an
+engine](REFERENCE.md#choosing-an-engine-backtracking-and-linear) says what
+`Linear` can't run, and which matches it still hands to `Backtracking`.
 
 ### Counting quakes by region
 
@@ -223,4 +257,6 @@ descriptions and bulletins, means a lot of regex work. Go's standard
 `regexp` package deliberately leaves out lookahead, lookbehind and
 backreferences. `scalar` uses an engine that has them, with a timeout so a
 bad pattern can't hang the program. It also wraps them in short helpers
-modelled on Perl's `s///`, `split` and `tr///`.
+modelled on Perl's `s///`, `split` and `tr///`. When the regex work is a
+cost, `scalar.Linear` runs the same patterns on Go's engine and gives the
+same answers faster (see [Making regex-heavy code faster](#making-regex-heavy-code-faster)).

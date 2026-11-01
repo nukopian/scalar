@@ -164,7 +164,7 @@ the data has settled, `To` hands that data back as ordinary typed Go.
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
 | Filling in text | `Interpolate("M$mag near $place: @stations")`, with `MustTemplate` to compile one and set the list separator | `"$place: @stations"`, `$"` |
 | Text | `Substr`, `Index`, `Lc`, `Fc`, `Trim`, counting characters, not bytes | `substr`, `index`, `lc`, `fc`, `trim` |
-| Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//` |
+| Regular expressions | `M`, `Named`, `S`, `Split`, `Tr`, with lookarounds and backreferences; `MustCompile` to compile a pattern once; `Linear`, Go's engine, for the same answers faster, for one pattern with `MustCompileWith` or every pattern with `DefaultEngine` | `m//`, `%+`, `s///`, `split`, `tr///`, `qr//`, `re::engine::RE2` |
 | Arrays | `Push`, `Pop`, `PopN`, `Splice`, `Sort`, `Map`, `Grep`, `Values` and `Pairs` slices, `Each` | `push`, `splice`, `@a[...]`, `%a[...]`, `each` |
 | List utilities | `AnyMatch`, `FirstMatch`, `MaxNum`, `UniqueStr`, `Sum0`, `Reduce`, … | `List::Util` |
 | Sorting, grouping and counting by a key | `SortByNum`, `RevSortByNum`, `MaxBy`, `UniqueBy`, `PartitionBy`, `CountBy`, `ExtractBy`, … | `List::UtilsBy` |

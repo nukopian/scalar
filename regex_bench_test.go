@@ -7,6 +7,8 @@ import (
 
 const quakeLine = `M 4.6 - 23 km SSW of Ridgecrest, CA | depth 8.2 km | felt 1342 | net ci | code 40249711`
 
+var quakeText = strings.Repeat(quakeLine+"\n", 200)
+
 // BenchmarkSExpand measures S with a replacement string that refers to the
 // match, on USGS-feed-shaped text.
 func BenchmarkSExpand(b *testing.B) {
@@ -26,5 +28,51 @@ func BenchmarkSExpand(b *testing.B) {
 				s.S(bench.pattern, bench.repl, bench.flags)
 			}
 		})
+	}
+}
+
+// BenchmarkRegex runs each regex operation on USGS-feed-shaped text, on
+// each engine.
+func BenchmarkRegex(b *testing.B) {
+	for _, op := range []struct {
+		name, pattern string
+		run           func(rx *Regexp)
+	}{
+		{"M/captures", `^M (\d+\.\d) - (\d+) km (\w+) of ([^,]+), (\w\w)`, func(rx *Regexp) {
+			Value(quakeLine).M(rx)
+		}},
+		{"M/nomatch", `Anchorage`, func(rx *Regexp) {
+			Value(quakeLine).M(rx)
+		}},
+		{"M/g", `depth (\d+(?:\.\d+)?) km`, func(rx *Regexp) {
+			Value(quakeText).M(rx, "g")
+		}},
+		{"Named", `^M (?<mag>\d+\.\d) - (?<dist>\d+) km`, func(rx *Regexp) {
+			Value(quakeLine).Named(rx)
+		}},
+		{"S/expand", `(\d+) km`, func(rx *Regexp) {
+			Value(quakeLine).S(rx, "${1}km", "gr")
+		}},
+		{"S/func", `\d+\.\d`, func(rx *Regexp) {
+			Value(quakeLine).S(rx, func(m *AV) string { return "[" + m.Get(0).Str() + "]" }, "gr")
+		}},
+		{"Split", `\s*\|\s*`, func(rx *Regexp) {
+			Value(quakeLine).Split(rx)
+		}},
+		{"M/unicode", `(\w+), (\w+)$`, func(rx *Regexp) {
+			Value("M 2.1 - 4 km NW of Ōtaki, Aotearoa").M(rx)
+		}},
+	} {
+		for _, engine := range []struct {
+			name   string
+			engine Engine
+		}{{"Backtracking", Backtracking}, {"Linear", Linear}} {
+			rx := MustCompileWith(engine.engine, op.pattern)
+			b.Run(op.name+"/"+engine.name, func(b *testing.B) {
+				for b.Loop() {
+					op.run(rx)
+				}
+			})
+		}
 	}
 }

@@ -11,7 +11,21 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- `scalar.Linear` runs regexes on Go's own engine, beside
+  `scalar.Backtracking`, regexp2, which stays the default: nothing
+  changes unless a program asks. `MustCompileWith(scalar.Linear, re)`
+  chooses it for one pattern, and is an error if `Linear` can't run it;
+  `DefaultEngine = scalar.Linear` chooses it for every pattern, and a
+  pattern it can't run, such as one with lookbehind, runs on
+  `Backtracking` with a warning, once, through `RegexWarn`. `Linear`
+  never gives a different answer from `Backtracking`, only a faster one,
+  1.2 to 3.4 times as fast in the benchmarks: it translates `\w`, `\d`
+  and `\s` to Unicode and numbers groups as regexp2 does, and hands a
+  match to `Backtracking` where the text could make the engines differ,
+  such as a final newline for `$`. The reference's
+  [Choosing an engine](docs/REFERENCE.md#choosing-an-engine-backtracking-and-linear)
+  says what it can't run and when it hands over.
+  ([record](docs/changes/2026-11-01-r1-regex-engines.md); roadmap 1)
 
 ## v0.6.1 (2026-10-27)
 

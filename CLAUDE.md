@@ -76,9 +76,10 @@ else.
   ```
   perlbrew exec --quiet --with perl-5.42.3@scalar go test ./...
   ```
-- Fuzz targets: `FuzzReadJSON`, `FuzzNumericPrefix`, `FuzzFind` and
-  `FuzzFaithful`. Run the relevant one after changing the code it covers,
-  for example `go test -run '^$' -fuzz FuzzFind -fuzztime 60s`.
+- Fuzz targets: `FuzzReadJSON`, `FuzzNumericPrefix`, `FuzzFind`,
+  `FuzzFaithful` and `FuzzLinear`. Run the relevant one after changing
+  the code it covers, for example
+  `go test -run '^$' -fuzz FuzzFind -fuzztime 60s`.
 - Fast paths (`fastpath.go`, `fastjson.go`) sit behind the `fastPaths`
   switch. Each one has a test that runs with it on and off and compares
   the output, and a planted-bug check that the comparison catches a
