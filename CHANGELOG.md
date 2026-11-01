@@ -26,6 +26,12 @@ release's entry when `main` is moved to it and tagged
   [Choosing an engine](docs/REFERENCE.md#choosing-an-engine-backtracking-and-linear)
   says what it can't run and when it hands over.
   ([record](docs/changes/2026-11-01-r1-regex-engines.md); roadmap 1)
+- Fixed: `S` with `g` panics when a match after the first runs past
+  `RegexTimeout`, as it does for the first, and leaves the scalar as it
+  was. It emptied the scalar silently, and returned a count of 1: a
+  record whose later text backtracked badly lost its whole value. regexp2's
+  `ReplaceFunc` returns an empty string and no error then, so `S` now
+  finds its matches as `M` does. `FuzzLinear` found it.
 
 ## v0.6.1 (2026-10-27)
 

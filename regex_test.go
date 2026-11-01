@@ -245,6 +245,32 @@ func TestRegexTimeout(t *testing.T) {
 	evil.M(`^(a+)+$`)
 }
 
+// S panics when a match after the first times out, as it does when the
+// first does, and leaves s as it was: regexp2's ReplaceFunc returns an
+// empty string and no error then, which emptied s.
+func TestSTimeoutAfterFirstMatch(t *testing.T) {
+	old := RegexTimeout
+	RegexTimeout = 50 * time.Millisecond
+	defer func() { RegexTimeout = old }()
+
+	text := "xxy" + strings.Repeat("x", 32) // matches once, then backtracks
+	repls := map[string]any{
+		"plain":    "z",
+		"expanded": "<$&>",
+		"func":     func(m *AV) string { return "z" },
+		"func any": func(m *AV) any { return "z" },
+	}
+	for name, repl := range repls {
+		for _, flags := range []string{"g", "gr"} {
+			s := Value(text)
+			expectPanic(t, name+" "+flags, "timeout", func() { s.S(`(x+x+)+y`, repl, flags) })
+			if s.Str() != text {
+				t.Errorf("%s %s: s = %q, want it unchanged", name, flags, s.Str())
+			}
+		}
+	}
+}
+
 // A compiled Regexp works wherever a pattern string does, with the same
 // results, as qr// does in Perl.
 func TestCompiledRegexp(t *testing.T) {

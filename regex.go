@@ -338,50 +338,43 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 		out, n := lin.s(str, isBytes, repl, limit)
 		return s.substituted(out, n, isBytes, f)
 	}
-	n := 0
-	var out string
+	// regexp2's ReplaceFunc isn't used: when a match after the first times
+	// out, it returns an empty string and no error.
+	runes := []rune(str)
+	var replace func(m *regexp2.Match) string
 	switch r := repl.(type) {
 	case string:
 		if !strings.Contains(r, "$") {
-			// Plain text needs no expanding, so one pass replaces and counts.
-			var err error
-			out, err = rx.ReplaceFunc(str, func(regexp2.Match) string {
-				n++
-				return r
-			}, -1, limit)
-			check(rx, err)
+			replace = func(*regexp2.Match) string { return r }
 			break
 		}
-		// Expanding each match as it's found takes one pass, where
-		// regexp2's Replace needs a second to count, and expands as Perl
-		// does where regexp2 doesn't.
-		var runes []rune // str, if $` or $' needs it
-		var err error
-		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
-			n++
-			return expand(r, &m, str, &runes)
-		}, -1, limit)
-		check(rx, err)
+		// Expanding each match as it's found expands as Perl does, where
+		// regexp2's Replace doesn't.
+		replace = func(m *regexp2.Match) string { return expand(r, m, str, &runes) }
 	case func(*AV) any:
-		var err error
-		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
-			n++
-			text, _ := operand(r(matchAV(&m, isBytes))).text()
+		replace = func(m *regexp2.Match) string {
+			text, _ := operand(r(matchAV(m, isBytes))).text()
 			return text
-		}, -1, limit)
-		check(rx, err)
+		}
 	case func(*AV) string:
-		var err error
-		out, err = rx.ReplaceFunc(str, func(m regexp2.Match) string {
-			n++
-			return r(matchAV(&m, isBytes))
-		}, -1, limit)
-		check(rx, err)
+		replace = func(m *regexp2.Match) string { return r(matchAV(m, isBytes)) }
 	default:
 		panic(fmt.Sprintf("scalar: S replacement must be a string or func(*AV) any, got %T", repl))
 	}
-	if n == 0 {
-		out = str
+	var b strings.Builder
+	n, last := 0, 0
+	for m := range matches(rx, runes) {
+		b.WriteString(string(runes[last:m.Index]))
+		b.WriteString(replace(m))
+		last = m.Index + m.Length
+		if n++; n == limit {
+			break
+		}
+	}
+	out := str
+	if n > 0 {
+		b.WriteString(string(runes[last:]))
+		out = b.String()
 	}
 	return s.substituted(out, n, isBytes, f)
 }
@@ -393,7 +386,7 @@ func (s *SV) S(re any, repl any, flags ...string) *SV {
 // highest-numbered group that took part; and $$ for a $. A group that
 // doesn't exist or didn't take part gives nothing, except in ${name},
 // which is left as it is, as is anything else. runes holds str as runes,
-// made the first time $` or $' needs it.
+// or is made the first time $` or $' needs it.
 func expand(repl string, m *regexp2.Match, str string, runes *[]rune) string {
 	groups := m.Groups()
 	group := func(n int) string {
