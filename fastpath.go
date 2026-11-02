@@ -62,6 +62,9 @@ func plainCopy(x any, block *[]SV) *SV {
 // appendPlain appends copies of vals to items, as flatten would, for vals
 // that plainValues has passed, with the new scalars in one allocation.
 func appendPlain(items []*SV, vals []any) []*SV {
+	if len(vals) == 1 { // a block of one saves nothing, and costs a call
+		return append(items, Value(vals[0]))
+	}
 	copies := 0
 	for _, v := range vals {
 		if _, ok := v.(*SV); ok {

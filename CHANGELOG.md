@@ -11,20 +11,20 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-- Faster: `Hash` with string keys and values that don't flatten, the
-  usual call, makes its value scalars in one allocation, and no longer
-  makes a spare scalar for each value that it then replaced. A
-  three-key hash builds a third faster, with 4 allocations rather than
-  9, and grammar parses about 10% faster, with 32% fewer allocations.
-  A hash built from a list that flattens loses its spare scalars too.
-  The values are freed together: the reference's
+- Faster: building hashes and arrays. `Hash`, `Array` and `Push`, given
+  the usual list of values that don't flatten, make all their new value
+  scalars in one allocation, where they made one or two for each value:
+  `Hash` made a spare scalar for every value and then replaced it, and
+  `Value` boxed a float or a large integer a second time, everywhere.
+  An array of 20 floats builds 2.2 times as fast, with 3 allocations
+  rather than 40; a three-key hash a third faster, with 4 rather than 9;
+  and grammar parses about 10% faster, with 32% fewer allocations.
+  Grammar found it: tuning its own speed, it showed that building
+  scalars was most of a parse, where scalar's own benchmarks had never
+  built a hash or an array. Now they do. Numbers keep their digits, as
+  before. The values are freed together: the reference's
   [What it costs](docs/REFERENCE.md#what-it-costs) says what that means
   for keeping one. ([record](docs/changes/2026-11-02-hash-values-in-one-allocation.md))
-- Faster: `Array` and `Push` with values that don't flatten make their
-  value scalars in one allocation too: an array of 20 floats builds in
-  less than half the time, with 3 allocations rather than 40. `Value` of
-  a float or a large integer makes one allocation fewer, everywhere: it
-  no longer boxes the number a second time.
 - Docs: roadmap 5, lazy values, built by a function on their first read,
   was built and measured for grammar, and dropped: grammar did better by
   naming the captures a code assertion reads, and nothing else needs them.

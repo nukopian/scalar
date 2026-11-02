@@ -155,6 +155,22 @@ gain against the released scalar.
   grammar it doesn't show: against the same commit, `BenchmarkParse`,
   `FindLines` and `Assert` didn't move, and `FindAll` was 4.7% faster.
   One helper for the three was kept over a copy of the loop in `Hash`.
+- **The whole suite, against the commit before both changes,**
+  26c2ac39f47a7d255f917fdfbb8431bba867109f, interleaved, 6 runs each,
+  found one slowdown: `Regex/Split`, 1.2–1.3% slower on both engines
+  (10 runs each), with the same allocations. `Split` pushes one piece at
+  a time, and `appendPlain` made a block of one and called `plainCopy`
+  where `Push` had called `Value`. A list of one now goes straight to
+  `Value`, and `Split` is level again (2.802 µs → 2.809 µs, Linear;
+  3.429 µs → 3.420 µs, Backtracking; neither significant). Nothing else
+  moved but `NumLtInt`, 3.6% faster. No benchmark run on both commits
+  changed its bytes or allocations.
+- **`BenchmarkPush` with that guard:** 680 ns, 1832 bytes and 17
+  allocations, against 725 ns, 2072 bytes and 16 without it, though a
+  push of three never reaches it. One push into an array with room
+  costs one allocation either way; the difference is in how the
+  array's slice grows over ten pushes (capacities 4, 8, 16, 32 with
+  it, 3, 6, 12, 24, 48 without), which the change doesn't touch.
 - **What's left:** `HV.Set` makes one scalar for each new key, and can't
   know how many keys are coming. A scalar release, then grammar's task
   to take it up and check `BenchmarkParse`.
