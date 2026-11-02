@@ -3,7 +3,7 @@
 ## Decide whether lazy values stay (roadmap 5)
 
 **From:** scalar's session, 2026-11-02 (scalar a97896c011e1244a5e478dfd2b2cadd6722002bd)
-**Waiting on:** grammar's roadmap 24, measured both ways
+**Waiting on:** nothing: grammar has measured both ways (below)
 
 **What:** keep `scalar.Lazy` and ship roadmap 5, or drop it, once
 grammar has measured its roadmap 24 both ways: lazy captures, using
@@ -40,6 +40,20 @@ are in.
   scalar: lazy captures −13% time, −9% bytes, −10% allocations; named
   captures, a quick estimate, −21% time, −17% bytes, −21% allocations.
   `sofar` made 45% of the allocations, the ceiling.
+
+**grammar's answer** (grammar f827a363542da63d9712a8ab24b85614092d99e8):
+grammar kept the named way, and doesn't need `Lazy`. Interleaved, 10
+runs each, all on `r5-lazy-values`, against eager captures on the same
+scalar: lazy captures −12.7% time, −8.7% bytes, −9.8% allocations;
+named reads −23.4%, −21.9%, −27.8%. On scalar v0.6.3 as released, named
+is −24.2% (1.88 ms to 1.43 ms). Named reads also cover parses with
+actions, where the lazy prototype didn't, and jdc-lab's chunker, naming
+its two assertions' reads, gave identical output over 28,000 ads about
+2% faster. Lazy captures are reverted in grammar, with their numbers in
+its record,
+`docs/changes/2026-11-02-r24-building-only-what-a-code-assertion-reads.md`,
+and its reference's Engineering gaps. With no other user waiting on it,
+grammar's numbers point to dropping roadmap 5; the decision is Iain's.
 
 **Steps:**
 
