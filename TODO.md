@@ -65,5 +65,15 @@ grammar's numbers point to dropping roadmap 5; the decision is Iain's.
    a CHANGELOG line. To drop it: open the record as dropped, saying why,
    put the numbers in the reference's reverted ideas, remove item 5 from
    the roadmap, and delete the branch.
+4. Either way, delete grammar's local branch `r24-lazy-sofar`, the lazy
+   prototype grammar measured and reverted: it builds only against
+   `r5-lazy-values`, and grammar's record has its numbers. Check it's
+   still at 6e74c9dd16a5627cd89b37373e5cb1e5c1f46b50 and not pushed
+   (`git -C /Users/icampbell/Git/github.com/nukopian/grammar branch -r --contains r24-lazy-sofar`
+   prints nothing), then
+   `git -C /Users/icampbell/Git/github.com/nukopian/grammar branch -D r24-lazy-sofar`.
+   If item 5 is kept, its record should name the branch's last commit
+   first, in case anyone wants grammar's side again.
 
-**Done when** item 5 has shipped or been dropped, with its record.
+**Done when** item 5 has shipped or been dropped, with its record, and
+grammar's `r24-lazy-sofar` is gone.
