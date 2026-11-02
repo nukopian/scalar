@@ -15,6 +15,7 @@ func plainHash(kv []any) (*HV, bool) {
 	if !fastPaths {
 		return nil, false
 	}
+	copies := 0
 	for i, x := range kv {
 		if i%2 == 0 {
 			if _, ok := x.(string); !ok {
@@ -25,12 +26,28 @@ func plainHash(kv []any) (*HV, bool) {
 		if !plainValue(x) {
 			return nil, false
 		}
+		if _, ok := x.(*SV); ok {
+			copies++
+		}
 	}
-	h := newHV((len(kv) + 1) / 2)
+	n := (len(kv) + 1) / 2
+	h := newHV(n)
+	// The new scalars are made in one allocation, not one each, which
+	// keeps them all alive while any one is referenced: a hash built here
+	// is usually kept or dropped whole. A *SV is copied with its digits,
+	// as Value copies it.
+	block := make([]SV, n-copies)
 	for i := 0; i < len(kv); i += 2 {
-		v := &SV{}
+		var x any
 		if i+1 < len(kv) {
-			v = Value(kv[i+1])
+			x = kv[i+1]
+		}
+		var v *SV
+		if s, ok := x.(*SV); ok {
+			v = Value(s)
+		} else {
+			v, block = &block[0], block[1:]
+			v.setValue(normalize(x))
 		}
 		h.m[kv[i].(string)] = v
 	}

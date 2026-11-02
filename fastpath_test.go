@@ -52,6 +52,13 @@ func TestHashFastPathSame(t *testing.T) {
 	if h.Get("k").Str() != "orig" {
 		t.Error("Hash kept the caller's scalar instead of a copy")
 	}
+	// Values made together are still separate scalars.
+	h = Hash("place", "Volcano, Hawaii", "mag", 4.6, "depth", 12, "sv", v, "net")
+	h.Get("mag").Set(5.1)
+	h.Get("net").Set("hv")
+	if got := fmt.Sprint(h.Get("place"), h.Get("mag"), h.Get("depth"), h.Get("sv"), h.Get("net")); got != "Volcano, Hawaii 5.1 12 changed hv" {
+		t.Errorf("setting two values of a hash gave %s", got)
+	}
 }
 
 // S gives the same result and the same count with or without its fast

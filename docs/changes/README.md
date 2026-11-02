@@ -64,6 +64,8 @@ What's known, Steps, Done when.
 
 Newest first.
 
+- [A hash's values in one allocation](2026-11-02-hash-values-in-one-allocation.md),
+  a task from grammar: shipped, unreleased.
 - [Lazy values](2026-11-02-r5-lazy-values.md), roadmap 5: dropped.
 - [A regex engine chosen per pattern](2026-11-01-r1-regex-engines.md),
   roadmap 1: shipped in v0.6.2.

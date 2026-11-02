@@ -2699,6 +2699,16 @@ It's also what makes concurrent code safe. A struct of plain values can be
 shared between goroutines for reading; a scalar can't, as some of its
 reads write. See [Concurrency](#concurrency).
 
+**What does building a hash cost?** For the usual call, string keys
+and values that don't flatten, `Hash` makes the new value scalars
+together, in one allocation, rather than one each: grammar builds a
+small hash for every match, and parses 10% faster for it. They stay
+separate scalars, but they're freed together, so keeping one value of a
+big hash after dropping the rest keeps the memory of them all. Keep a
+copy, `scalar.Value(v)`, to let the rest go. The
+[change record](changes/2026-11-02-hash-values-in-one-allocation.md)
+has the numbers.
+
 **Can a value be built only when it's read?** Not in scalar. A lazy
 value, built by a function on its first read, as CPAN's Scalar::Defer
 builds one, was built and measured for grammar, whose code assertions

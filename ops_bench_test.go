@@ -1,6 +1,9 @@
 package scalar
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 // The arithmetic benchmarks time each kind of operand: integers, floats,
 // numeric strings, and whole numbers beyond int64, which keep their digits.
@@ -76,5 +79,25 @@ func BenchmarkSortNumNoBig(b *testing.B) {
 	}
 	for b.Loop() {
 		_ = a.Sort(NumCmp)
+	}
+}
+
+// BenchmarkHash builds a small hash of plain values, as grammar builds
+// each match: its text and where it starts and ends.
+func BenchmarkHash(b *testing.B) {
+	for b.Loop() {
+		_ = Hash("~", "M 4.6 - 12 km SSW of Volcano, Hawaii", "from", 0, "to", 36)
+	}
+}
+
+// BenchmarkHashWide builds a hash of 20 plain values, a feature's
+// properties.
+func BenchmarkHashWide(b *testing.B) {
+	kv := make([]any, 0, 40)
+	for i := range 20 {
+		kv = append(kv, fmt.Sprint("key", i), i)
+	}
+	for b.Loop() {
+		_ = Hash(kv...)
 	}
 }

@@ -37,9 +37,11 @@ func Hash(kv ...any) *HV {
 	flat := flatten(kv)
 	h := newHV((len(flat) + 1) / 2)
 	for i := 0; i < len(flat); i += 2 {
-		v := &SV{}
+		var v *SV
 		if i+1 < len(flat) {
 			v = flat[i+1]
+		} else {
+			v = &SV{}
 		}
 		h.m[flat[i].Str()] = v
 	}

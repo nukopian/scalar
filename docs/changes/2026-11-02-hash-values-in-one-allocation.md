@@ -1,0 +1,128 @@
+# A hash's values in one allocation
+
+**Status:** shipped, unreleased
+
+**Origin:** a TODO task from grammar's session (grammar f163c99fba29ca7e6e1fdc6176e2e83e27ef28ee)
+
+**Started:** 2026-11-02, in 26c2ac39f47a7d255f917fdfbb8431bba867109f
+
+**Finished:** 2026-11-02
+
+## The plan
+
+The plan as it was when work started, from `TODO.md`, word for word.
+
+**What:** in `plainHash` (`fastpath.go`), make the value scalars of the
+hash in one allocation, a `[]SV` of the hash's size, taking a pointer to
+each element, rather than one `&SV{}` (through `Value`, then `svOf`) for
+each value. A value that's already a `*SV` still goes through `Value`,
+as it's a copy with its digits.
+
+**Why:** grammar's roadmap 25 made its matcher fast enough that building
+a match's scalar data is now about two thirds of a parse, and nine
+tenths of its allocations. Each match is a `scalar.Hash("~", text,
+"from", n, "to", n)`, so three of its scalars come from `plainHash`.
+Tried in this working copy through grammar's `go.work`, then reverted:
+
+| grammar benchmark | before | after |
+|---|---|---|
+| `BenchmarkParse` | 5.44 µs, 126 allocs | 4.92 µs (−9.6%), 86 allocs (−32%) |
+| `BenchmarkFindLines` | 523 µs, 4,082 allocs | 512 µs (−2.3%), 2,982 (−27%) |
+| `BenchmarkFindAll` | 26.7 µs, 260 allocs | 25.9 µs (−2.7%), 195 (−25%) |
+| `BenchmarkAssert` | 1.21 ms | 1.15 ms (−5.4%), 21% fewer allocs |
+
+The experiment was:
+
+```go
+h := newHV((len(kv) + 1) / 2)
+block := make([]SV, (len(kv)+1)/2)
+for i := 0; i < len(kv); i += 2 {
+	v := &block[i/2]
+	if i+1 < len(kv) {
+		if s, ok := kv[i+1].(*SV); ok {
+			v = Value(s)
+		} else {
+			v.setValue(normalize(kv[i+1]))
+		}
+	}
+	h.m[kv[i].(string)] = v
+}
+```
+
+**What's known:** it keeps every value of the hash alive while any one is
+referenced, so a program holding one value of a big hash and dropping
+the rest keeps more memory than now; `Hash`'s fast path is for building,
+so that's probably fine, but say so. `svOf` sets a value through
+`setValue`, as the loop does, so the scalars are the same; check
+nothing else `svOf` or `Value` does is skipped. The same could apply to
+`Array`'s fast path, if it has one, and to `HV.Set` making many keys,
+though that can't know how many in advance.
+
+**Steps:** behind `fastPaths`, as the rest of `plainHash` is;
+`TestHashFastPathSame` already compares `Hash` with the fast paths on
+and off, so check it covers a `*SV` value and an undef trailing key, and
+plant a bug (a value stored in the wrong element) to show it notices.
+Benchmark scalar's own `Hash` benchmarks, if any, and grammar's with
+`go.work`. Then a scalar release, and a task in grammar's `TODO.md` to
+take it up.
+
+**Done when:** `Hash` makes its plain values in one allocation, the
+differential test covers it, and grammar's `BenchmarkParse` shows the
+gain against the released scalar.
+
+## What happened
+
+- **Outcome:** done, but for its last check. `Hash` makes its plain
+  values in one allocation, and `TestHashFastPathSame` covers it, with a
+  `*SV` value and an undef trailing key as before, and now a check that
+  setting two values of a hash made together leaves the rest as they
+  were. A planted bug, every value stored in the block's first element,
+  failed it: each value read as undef. Grammar's `BenchmarkParse`
+  against the released scalar waits for the release, as a task in
+  grammar's `TODO.md`.
+- **Half the gain wasn't the block.** A profile of the old code showed
+  two allocations for each value, not one: `v := &SV{}` made an empty
+  scalar for every key, which `Value`'s scalar then replaced, and as it
+  went into the map, the compiler couldn't drop it. Grammar's experiment
+  rewrote the loop and so lost both. `Hash`'s general code, for a list
+  that flattens, had the same spare scalar, and loses it too: a
+  three-key hash there makes 11 allocations, not 14.
+- **Changes from the plan:** the block is sized for the values that need
+  a new scalar, so a value that's already a `*SV`, copied through
+  `Value`, leaves no unused element in it.
+- **What `svOf` and `Value` did:** `Value` copies a `*SV` with its
+  digits, and for anything else is `svOf(normalize(x))`, which only
+  allocates and calls `setValue`. The loop calls `Value` for a `*SV` and
+  `setValue(normalize(x))` on the block's element for the rest, so
+  nothing is skipped.
+- **Measurements in scalar:** two new benchmarks, `BenchmarkHash`, a
+  hash shaped like grammar's match, and `BenchmarkHashWide`, 20 values;
+  interleaved, 8 runs each, against the code before:
+
+  | benchmark | time | bytes | allocations |
+  |---|---|---|---|
+  | `BenchmarkHash` | 234.3 ns → 158.1 ns, −32.5% | 624 → 464, −25.6% | 9 → 4 |
+  | `BenchmarkHashWide` | 1240.5 ns → 586.1 ns, −52.8% | 2.914 KiB → 1.914 KiB, −34.3% | 45 → 6 |
+
+  `ReadJSON` and `Clone`, which don't build through `Hash`, didn't move.
+- **Measurements in grammar,** at f163c99fba29ca7e6e1fdc6176e2e83e27ef28ee,
+  interleaved, 8 runs each, against scalar v0.6.3 (`GOWORK=off`) and
+  this working copy through grammar's `go.work`:
+
+  | benchmark | time | bytes | allocations |
+  |---|---|---|---|
+  | `BenchmarkParse` | 5.549 µs → 4.960 µs, −10.6% | −17.4% | 126 → 86, −31.7% |
+  | `BenchmarkFindLines` | 393.9 µs → 377.1 µs, −4.3% | −13.3% | 4.083k → 2.983k, −26.9% |
+  | `BenchmarkFindAll` | 28.25 µs → 27.15 µs, −3.9% | −6.8% | 260 → 195, −25.0% |
+  | `BenchmarkAssert` | 1.184 ms → 1.106 ms, −6.6% | −13.9% | 23.87k → 18.76k, −21.4% |
+
+  These match grammar's experiment.
+- **The cost:** a hash's new values are freed together, so a program
+  that keeps one value of a big hash after dropping the hash keeps them
+  all. The reference's [What it costs](../REFERENCE.md#what-it-costs)
+  says so, and how to let the rest go.
+- **What's left:** `Array`, through `flatten`, and `AV.Push`'s fast
+  path still make one scalar for each value, and `HV.Set` one for each
+  new key. None was measured here: `Array` and `Push` could take the
+  same block, and `Set` can't know how many keys are coming. A scalar release, then grammar's
+  task to take it up and check `BenchmarkParse`.

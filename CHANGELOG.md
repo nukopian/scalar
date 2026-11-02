@@ -11,6 +11,15 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+- Faster: `Hash` with string keys and values that don't flatten, the
+  usual call, makes its value scalars in one allocation, and no longer
+  makes a spare scalar for each value that it then replaced. A
+  three-key hash builds a third faster, with 4 allocations rather than
+  9, and grammar parses about 10% faster, with 32% fewer allocations.
+  A hash built from a list that flattens loses its spare scalars too.
+  The values are freed together: the reference's
+  [What it costs](docs/REFERENCE.md#what-it-costs) says what that means
+  for keeping one. ([record](docs/changes/2026-11-02-hash-values-in-one-allocation.md))
 - Docs: roadmap 5, lazy values, built by a function on their first read,
   was built and measured for grammar, and dropped: grammar did better by
   naming the captures a code assertion reads, and nothing else needs them.
