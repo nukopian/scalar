@@ -7,16 +7,14 @@ the line before, and set it in a variable on their first line.
 
 [grammar](https://github.com/nukopian/grammar) is kept the same way, and
 has [its own guide](https://github.com/nukopian/grammar/blob/main/docs/MAINTAINING.md),
-with what's particular to it: the local scalar, the Raku tests, and
-comparing job-meta's output before and after a release.
+with what's particular to it: the local scalar and the Raku tests.
 
-The repositories sit side by side, and job-meta, which uses both, sits
-next to them:
+The repositories sit side by side, with jdc-lab, which uses both:
 
 ```
 ~/Git/github.com/nukopian/scalar
 ~/Git/github.com/nukopian/grammar
-~/Git/github.com/nukopian/job-meta
+~/Git/github.com/nukopian/jdc-lab
 ```
 
 ## Branches
@@ -77,7 +75,7 @@ git pull --ff-only
 ## Every commit
 
 First bring `develop` up to date and re-read `TODO.md`, if there is one:
-sessions in grammar, job-meta and jdc-lab add tasks to it, mid-session
+sessions in grammar and jdc-lab add tasks to it, mid-session
 too, and a commit that completes a task removes it (the practice's
 [Planned work](https://github.com/nukopian/claude-practice/blob/main/PRACTICE.md#planned-work)).
 Each task opens with **From**
@@ -223,14 +221,15 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    GOPRIVATE= GOPROXY=https://proxy.golang.org go list -m "github.com/nukopian/scalar@$v"
    ```
 
-6. **Bump what uses it.** A scalar release goes into grammar if grammar
-   needs it, and both go into job-meta. Bump with `GOWORK=off`, so that
-   the check is against the published module and not the local checkout
-   that `go.work` points at. Set the version on the first line:
+6. **Bump what uses it.** A scalar release goes into grammar and
+   jdc-lab, on their `develop` branches, when they need it, as a task in
+   their `TODO.md` or at once. Bump with `GOWORK=off`, so that the check
+   is against the published module and not the local checkout that
+   `go.work` points at. Set the version on the first line:
 
    ```
    v=v0.5.2
-   cd ~/Git/github.com/nukopian/job-meta
+   cd ~/Git/github.com/nukopian/jdc-lab
    GOWORK=off go get "github.com/nukopian/scalar@$v"
    GOWORK=off go mod tidy
    GOWORK=off go test ./...
@@ -239,12 +238,12 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
 7. **Find the tasks waiting on it.** Look in the other repositories'
    `TODO.md` for tasks whose **Waiting on** this release meets, and tell
    Iain which can now be done. Nothing else tells their sessions it has
-   landed. grammar's and jdc-lab's are on `develop`, and job-meta's on
-   `main`, so the loop reads each from its remote branch, whatever the
-   working copy has checked out:
+   landed. grammar's and jdc-lab's are on `develop`, so the loop reads
+   each from its remote branch, whatever the working copy has checked
+   out:
 
    ```
-   for r in grammar:develop jdc-lab:develop job-meta:main; do
+   for r in grammar:develop jdc-lab:develop; do
      repo=${r%%:*}; branch=${r#*:}
      d=~/Git/github.com/nukopian/$repo
      git -C "$d" fetch -q

@@ -150,7 +150,8 @@ and gaps found by reading them have led to real features.
   changed.
 - **The other repositories** whose `TODO.md` this one hands tasks to,
   and checks at a release, are grammar's and jdc-lab's, both on
-  `develop`, and job-meta's, on `main`.
+  `develop`. job-meta is on ice: scalar's work no longer checks it,
+  bumps it or hands it tasks.
 - **`TestChangelogUnreleased`** checks the CHANGELOG's Unreleased
   section. [MAINTAINING.md](docs/MAINTAINING.md) has the release steps
   and the git and GitHub work done by hand.
