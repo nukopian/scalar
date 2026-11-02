@@ -1,33 +1,5 @@
 # To do
 
-## Tidy the README for a newcomer
-
-**From:** jdc-lab's session, 2026-11-02 (scalar c6974f668e49981355c7ceba260bcc282d8b0625)
-**Waiting on:** nothing
-
-**What:** two fixes found by reading the README on `main` as someone new
-to `scalar` would.
-
-**Why:** the README is the landing page. A garbled sentence and a table
-row that reads as a paragraph are what a newcomer notices first.
-
-**Steps:**
-
-1. Documentation section (README.md, around line 229): the sentence
-   "…with pandoc and Prince, but the Changes, which are read as
-   Markdown." doesn't parse, and the CLAUDE.md sentence runs on from it
-   on the same line. Rewrite it, for instance: "To read them offline,
-   `scripts/readme-pdf.sh` builds a PDF of each but the Changes, which
-   are read as Markdown. It needs pandoc and Prince." Then put the
-   CLAUDE.md sentence in a paragraph of its own.
-2. What's in it (README.md, line 161): the "Reading nested data" row is
-   a paragraph. Cut it to the main calls (`Get`, `At`, `GetOK`/`AtOK`,
-   `Exists`, `Delete`) and leave the rest to REFERENCE.md, which the
-   line under the table already points to.
-
-**Check:** rebuild README.pdf with `scripts/readme-pdf.sh` and read the
-two changed places; every link resolves.
-
 ## Match the GitHub description to the README
 
 **From:** jdc-lab's session, 2026-11-02 (scalar c6974f668e49981355c7ceba260bcc282d8b0625)

@@ -158,7 +158,7 @@ the data has settled, `To` hands that data back as ordinary typed Go.
 
 | For | Use | Perl |
 |---|---|---|
-| Reading nested data | As Perl does: `Get("content", 0, "text")`, a route (a hash slice is `Values`), or a step at a time, with `Get(k).Set(x)`, `Exists` and `Delete` taking keys the same way, or the whole route as one string, `At("content[0].text")`. Without creating anything, for data you aren't sure of: `GetOK` and `AtOK`, which tell missing from null, and `DeleteOK` and `DeleteAt`. `CheckPath` checks a route from outside the program, and `AtSteps` reads one into its steps as `At` does | `$r->{content}[0]{text}` |
+| Reading nested data | `Get("content", 0, "text")`, or the whole route as one string, `At("content[0].text")`; `GetOK` and `AtOK` to read without creating anything, telling missing from null; `Exists` and `Delete` | `$r->{content}[0]{text}` |
 | Searching nested data | `Find("$..stations[*]")`, `Find("$.features[?@.properties.mag >= 4.5]")`, JSONPath (RFC 9535, all of it); `QuoteJSONPath` to put a Go value into a query | |
 | Changing every value | `Apply(f)`, all the way down | `Data::Rmap`'s `rmap` |
 | Comparing structures | `Equal`, and `Diff` to say where they differ | `Test::More`'s `is_deeply` |
@@ -225,9 +225,11 @@ a worked example of every function and method, see the
 - [Maintaining](docs/MAINTAINING.md): branches, releases, and the git and
   GitHub work done by hand.
 
-To read them offline, `scripts/readme-pdf.sh` builds a PDF of each, with
-pandoc and Prince, but the Changes, which are read as Markdown. [CLAUDE.md](CLAUDE.md) sets out how `scalar` is
-developed: the rules, and the reasons for them.
+To read them offline, `scripts/readme-pdf.sh` builds a PDF of each but
+the Changes, which are read as Markdown. It needs pandoc and Prince.
+
+[CLAUDE.md](CLAUDE.md) sets out how `scalar` is developed: the rules, and
+the reasons for them.
 
 ## Status
 
