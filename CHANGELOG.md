@@ -13,6 +13,18 @@ release's entry when `main` is moved to it and tagged
 
 Nothing yet.
 
+## v0.6.5 (2026-11-02)
+
+A clearer Rationale, and the record of v0.6.4's speed-up closed
+
+- Docs: the README's Rationale now opens with the author's experience,
+  Perl above all, and says how `scalar` holds borrowed shortcuts to the
+  standards of any other code. The package is unchanged.
+- Docs: the [record](docs/changes/2026-11-02-hash-values-in-one-allocation.md)
+  of v0.6.4's faster `Hash`, `Array` and `Push` is closed: against the
+  released module, grammar parses 13% faster with 32% fewer
+  allocations.
+
 ## v0.6.4 (2026-11-02)
 
 Building hashes and arrays, faster: found by grammar
