@@ -113,8 +113,9 @@ The documents: `README.md` (what scalar is, a synopsis, the rationale),
 `docs/EXAMPLES.md` (one generated example per function), `docs/PERL.md`
 (a Perl → scalar → plain Go phrasebook, whose every row
 `TestMappingMatchesPerl` runs in all three and compares) and
-`docs/PROCESS.md` (Iain's essay on how scalar and grammar were made, the
-why behind these rules; his words, so change it only when he asks), with
+`docs/PROCESS.md` (a pointer to Iain's essay on how scalar and grammar
+were made, the why behind these rules, which lives in claude-practice's
+`thoughts/`), with
 `CHANGELOG.md` (what each release changed), `ROADMAP.md` (what scalar
 means to do next, and why), `docs/changes/` (a record of each planned
 change: the plan, and what happened) and `docs/MAINTAINING.md`

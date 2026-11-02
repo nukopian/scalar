@@ -154,6 +154,9 @@ house that gets you to a working solution to a problem quickly, leaving
 room for improvement. When performance requirements bite and the shape of
 the data has settled, `To` hands that data back as ordinary typed Go.
 
+How I went about building it, with Claude, is in my essay
+[The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md).
+
 ## What's in it
 
 | For | Use | Perl |
@@ -216,9 +219,9 @@ a worked example of every function and method, see the
   working example and its output, generated from the tests.
 - [From Perl to Go](docs/PERL.md): a phrasebook of everyday tasks in Perl,
   with `scalar` and in plain Go, all three checked against each other.
-- [The process](docs/PROCESS.md): how `scalar` and
-  [`grammar`](https://github.com/nukopian/grammar) were made, as a
-  partnership with Claude in which judgement stayed with me.
+- [The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md):
+  how `scalar` and [`grammar`](https://github.com/nukopian/grammar) were
+  made, as a partnership with Claude in which judgement stayed with me.
 - [Changes](CHANGELOG.md): what each release changed, and what's waiting
   for the next.
 - [Roadmap](ROADMAP.md): what's planned, and why.
@@ -287,7 +290,8 @@ documentation, and every commit says so in a `Co-Authored-By` trailer. My
 part was deciding what `scalar` should do and what it shouldn't, setting
 the rules it's built by (they're in [CLAUDE.md](CLAUDE.md)), and reviewing
 the work. It has been a partnership, and I've learned a good deal of Go
-along the way. How it worked is in [The process](docs/PROCESS.md).
+along the way. How it worked is in
+[The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md).
 
 The `scalar` package started inside a larger proof-of-concept and was
 extracted with its history, so some commit messages mention packages

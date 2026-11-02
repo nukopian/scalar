@@ -15,6 +15,10 @@ release's entry when `main` is moved to it and tagged
   than the same terms as Perl itself. pkg.go.dev hides the documentation
   of a module whose licence includes Artistic-1.0-Perl or GPL-1.0, and
   shows it under Artistic-2.0. Versions up to v0.6.2 keep their terms.
+- Docs: [The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md),
+  Iain's essay on how scalar and grammar were made, has moved to
+  claude-practice, beside the practice it explains, and the README's
+  Rationale links to it. `docs/PROCESS.md` points there.
 
 ## v0.6.2 (2026-11-01)
 
