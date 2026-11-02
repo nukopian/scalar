@@ -3,9 +3,9 @@
 What scalar means to do, and why. The [CHANGELOG](CHANGELOG.md) says
 what it has done, and the [README](README.md) what it is now.
 
-Every item so far has shipped or been dropped, so each group below is
-empty for now. The API is settling towards 1.0; new items will come
-from using scalar, and from what its users ask for.
+Every item planned so far has shipped or been dropped, so Now, Next
+and Later are empty for now. The API is settling towards 1.0; new
+items will come from using scalar, and from what its users ask for.
 
 Items come in four groups, the most useful first in each:
 
@@ -20,7 +20,7 @@ Items come in four groups, the most useful first in each:
 Each item has a number, given when it's added, in whichever group. It
 keeps it as it moves between groups, and a number is never used again,
 so that 1 means the same item in a commit message months later. Next
-number: 5.
+number: 6.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -52,4 +52,13 @@ An idea is a numbered heading, the date it was added, its size, and a
 line or two on what and why. Each wash-up prunes them: each is kept,
 promoted to Later or Next with its number, or dropped.
 
-Nothing yet.
+### 5. Lazy values
+
+Added 2026-11-02, from grammar, by way of jdc-lab. **Size:** M (3). A
+value built by a function the first time it's read, so a structure
+built for a caller who reads little of it costs only what's read.
+grammar builds the whole match so far for each code assertion, a hash
+for every capture, though the function may read one or two (grammar's
+idea 24). Every way of reading a value would resolve it first,
+`Lock`, `Clone`, `Equal`, `Dump`, JSON and YAML included. Worth an
+experiment, measured on grammar's `BenchmarkAssert`.
