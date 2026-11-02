@@ -778,7 +778,7 @@ func normalizeAt(x any, depth int) any {
 		return v.packed()
 	case SV:
 		return v.packed()
-	case bool, string:
+	case bool, string, int64, float64: // as they came, without boxing them again
 		return v
 	case *AV:
 		if v == nil {
@@ -803,8 +803,6 @@ func normalizeAt(x any, depth int) any {
 		return int64(v)
 	case int32:
 		return int64(v)
-	case int64:
-		return v
 	case uint:
 		return uintToNum(uint64(v))
 	case uint8:
@@ -817,8 +815,6 @@ func normalizeAt(x any, depth int) any {
 		return uintToNum(v)
 	case float32:
 		return float64(v)
-	case float64:
-		return v
 	case json.Number:
 		return normalizeJSONNumber(v)
 	case []any:

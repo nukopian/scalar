@@ -61,6 +61,9 @@ func nonCreatable(i int) string {
 // their keys and values; Array(Value(m1), Value(m2)) is an array of two
 // hashes.
 func Array(vals ...any) *AV {
+	if plainValues(vals) {
+		return &AV{items: appendPlain(make([]*SV, 0, len(vals)), vals)}
+	}
 	return &AV{items: flatten(vals)}
 }
 
@@ -284,9 +287,7 @@ func (a *AV) Push(vals ...any) *AV {
 	a.mustExist()
 	n := len(a.items)
 	if plainValues(vals) {
-		for _, v := range vals {
-			a.items = append(a.items, Value(v))
-		}
+		a.items = appendPlain(a.items, vals)
 	} else {
 		a.items = append(a.items, flatten(vals)...)
 	}

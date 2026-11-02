@@ -1,4 +1,4 @@
-# A hash's values in one allocation
+# A hash's or an array's values in one allocation
 
 **Status:** shipped, unreleased
 
@@ -121,8 +121,40 @@ gain against the released scalar.
   that keeps one value of a big hash after dropping the hash keeps them
   all. The reference's [What it costs](../REFERENCE.md#what-it-costs)
   says so, and how to let the rest go.
-- **What's left:** `Array`, through `flatten`, and `AV.Push`'s fast
-  path still make one scalar for each value, and `HV.Set` one for each
-  new key. None was measured here: `Array` and `Push` could take the
-  same block, and `Set` can't know how many keys are coming. A scalar release, then grammar's
-  task to take it up and check `BenchmarkParse`.
+- **Taken further, the same day, to `Array` and `Push`,** which made
+  one scalar for each value, `Array` through `flatten`. `plainCopy`
+  now makes a plain value's copy from a block for all three, and
+  `appendPlain` appends a block's worth for `Array` and `Push`, behind
+  `fastPaths` and after `plainValues`, as `Push`'s fast path was.
+  `TestPushFastPathSame` now compares `Array` too, its dump and its
+  JSON, with an empty list and `*SV` copies among new scalars, and
+  checks that setting two values leaves the rest. Two planted bugs were
+  caught: the block not advancing failed it, and counting every value
+  as a copy, leaving the block too small, panicked.
+- **A float or an `int64` was boxed twice.** `normalize`'s cases for
+  `int64` and `float64` returned the typed value, which Go boxed again
+  into a new interface, where its cases for `bool` and `string` gave
+  back the one passed in. They now do the same, so `Value` of a float
+  or a large integer makes one allocation fewer, everywhere. In
+  `BenchmarkArray`, of 20 floats, that alone took 40 allocations to 21.
+- **Measurements, `Array` and `Push`:** two new benchmarks,
+  `BenchmarkArray`, 20 floats, and `BenchmarkPush`, ten pushes of three
+  values; interleaved, 8 runs each, against
+  4d630bb090a48da47206190f0940f8b3f5015a9d:
+
+  | benchmark | time | allocations |
+  |---|---|---|
+  | `BenchmarkArray` | 650.2 ns → 290.3 ns, −55.4% | 40 → 3 |
+  | `BenchmarkPush` | 1066.0 ns → 796.2 ns, −25.3% | 47 → 16 |
+  | `BenchmarkHash` | 165.3 ns → 167.3 ns, +1.2% | 4 → 4 |
+  | `BenchmarkHashWide` | 631.9 ns → 642.3 ns, +1.7% | 6 → 6 |
+
+  `ReadJSON`, `Clone`, `SumMag`, `SortNum` and the arithmetic didn't
+  move. `Hash` pays for sharing `plainCopy`, which doesn't inline (cost
+  201, as `Value` and `setValue` inline into it), about 2 ns a call; in
+  grammar it doesn't show: against the same commit, `BenchmarkParse`,
+  `FindLines` and `Assert` didn't move, and `FindAll` was 4.7% faster.
+  One helper for the three was kept over a copy of the loop in `Hash`.
+- **What's left:** `HV.Set` makes one scalar for each new key, and can't
+  know how many keys are coming. A scalar release, then grammar's task
+  to take it up and check `BenchmarkParse`.

@@ -168,12 +168,21 @@ func FuzzReadJSON(f *testing.F) {
 func TestPushFastPathSame(t *testing.T) {
 	ref := Value(Array(1))
 	for _, vals := range [][]any{
-		{1}, {"a", 2, 3.5, true, nil}, {ref}, {Value("x"), &SV{}}, {[]byte("b")}, {int64(9)},
+		{}, {1}, {"a", 2, 3.5, true, nil}, {ref}, {Value("x"), &SV{}}, {[]byte("b")}, {int64(9)},
+		{"HV", Value(4.6), 12, Value("12345678901234567891")}, // copies among new scalars
 		{Array(1, 2)}, {Hash("k", 1)}, {[]string{"p"}}, {1, Array(2)}, // these flatten: no fast path
 	} {
 		fast, slow := withFastPaths(func() string { return Array("start").Push(vals...).Dump() })
 		if fast != slow {
 			t.Errorf("Push(%v):\nfast %s\nslow %s", vals, fast, slow)
+		}
+		fast, slow = withFastPaths(func() string {
+			a := Array(vals...)
+			j, err := a.MarshalJSON()
+			return fmt.Sprint(a.Dump(), string(j), err)
+		})
+		if fast != slow {
+			t.Errorf("Array(%v):\nfast %s\nslow %s", vals, fast, slow)
 		}
 	}
 	v := Value("orig")
@@ -181,5 +190,12 @@ func TestPushFastPathSame(t *testing.T) {
 	v.Set("changed")
 	if a.Get(0).Str() != "orig" {
 		t.Error("Push kept the caller's scalar instead of a copy")
+	}
+	// Values made together are still separate scalars.
+	a = Array("ci", v, 4.6).Push("hv", 12, nil)
+	a.Get(2).Set(5.1)
+	a.Get(4).Set(13)
+	if got := a.Join(" "); got != "ci changed 5.1 hv 13 " {
+		t.Errorf("setting two values of an array gave %q", got)
 	}
 }

@@ -101,3 +101,26 @@ func BenchmarkHashWide(b *testing.B) {
 		_ = Hash(kv...)
 	}
 }
+
+// BenchmarkArray builds an array of 20 plain values, a feed's
+// magnitudes.
+func BenchmarkArray(b *testing.B) {
+	vals := make([]any, 20)
+	for i := range vals {
+		vals[i] = float64(i) / 4
+	}
+	for b.Loop() {
+		_ = Array(vals...)
+	}
+}
+
+// BenchmarkPush appends three plain values at a time, as a row of a
+// table is added.
+func BenchmarkPush(b *testing.B) {
+	for b.Loop() {
+		a := Array()
+		for range 10 {
+			a.Push("HV", 4.6, 12)
+		}
+	}
+}
