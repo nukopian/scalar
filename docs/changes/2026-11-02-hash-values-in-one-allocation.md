@@ -72,14 +72,13 @@ gain against the released scalar.
 
 ## What happened
 
-- **Outcome:** done, but for its last check. `Hash` makes its plain
-  values in one allocation, and `TestHashFastPathSame` covers it, with a
-  `*SV` value and an undef trailing key as before, and now a check that
-  setting two values of a hash made together leaves the rest as they
-  were. A planted bug, every value stored in the block's first element,
-  failed it: each value read as undef. Grammar's `BenchmarkParse`
-  against the released scalar waits for the release, as a task in
-  grammar's `TODO.md`.
+- **Outcome:** done. `Hash` makes its plain values in one allocation,
+  and `TestHashFastPathSame` covers it, with a `*SV` value and an undef
+  trailing key as before, and now a check that setting two values of a
+  hash made together leaves the rest as they were. A planted bug, every
+  value stored in the block's first element, failed it: each value read
+  as undef. Grammar's `BenchmarkParse` against the released scalar
+  shows the gain, as below.
 - **Half the gain wasn't the block.** A profile of the old code showed
   two allocations for each value, not one: `v := &SV{}` made an empty
   scalar for every key, which `Value`'s scalar then replaced, and as it
@@ -188,6 +187,14 @@ gain against the released scalar.
   values for each match, so the lab's remaining cost may include
   scalar's." Once grammar's roadmap 25 made its matcher fast, that
   cost was most of a parse.
+- **Grammar against the released scalar,** at
+  f29165bc1895eb5f2ba5bb19d7733c80e6a9cc91, with `GOWORK=off`, v0.6.3
+  against v0.6.4, 8 runs each, interleaved, on an Apple M2 (grammar's
+  numbers): `BenchmarkParse` 5.78 µs → 5.02 µs, −13%, 126 → 86
+  allocations, −32%; `BenchmarkFindLines` −4.7%, `BenchmarkFindAll`
+  −10% and `BenchmarkAssert` −8%, with 21–27% fewer allocations in
+  each. Every grammar test passed, Raku's included. Filling a struct
+  from a pay text through grammar's actions and `To`, in job-meta's
+  comparison with Participle, went from 14.3 µs to 13.9 µs.
 - **What's left:** `HV.Set` makes one scalar for each new key, and can't
-  know how many keys are coming. A scalar release, then grammar's task
-  to take it up and check `BenchmarkParse`.
+  know how many keys are coming. Grammar has taken up v0.6.4.
