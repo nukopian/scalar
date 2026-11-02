@@ -365,23 +365,23 @@ protection for the push, and put it back straight after.
 
 ## Moving a package into its own repository
 
-grammar left job-meta this way, and uksoc is next. In outline:
+grammar left job-meta this way. In outline:
 
-1. Rename the package inside job-meta first, so the move itself is only an
-   extraction, and cut its dependencies on the rest of job-meta (uksoc
-   copied in punct's one function).
+1. Rename the package inside the repository it leaves first, so the move
+   itself is only an extraction, and cut its dependencies on the rest of
+   that repository.
 2. In a fresh clone, `git filter-repo` keeps only the package's files,
    with their history, and moves them to the new repository's root. Sign
    the commits again, as above.
 3. Give the new repository what scalar has: `CLAUDE.md`, `internal/docref`
-   (identical in every repository), CI with the gitleaks job,
+   (kept identical to scalar's), CI with the gitleaks job,
    `scripts/readme-pdf.sh`, `.gitignore` with `*.pdf`, a LICENSE, and a
    `develop` branch.
-4. Tag v0.1.0, then switch job-meta to import it, and delete the old
-   copy.
+4. Tag v0.1.0, then switch the repository it left to import it, and
+   delete the old copy.
 
 A private repository's CI can't fetch another private one without a
-deploy key. Everything uksoc needs is public now, so it needs none.
+deploy key. It needs none to fetch a public one.
 
 ## Visibility
 
