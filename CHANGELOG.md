@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.6.4 (2026-11-02)
+
+Building hashes and arrays, faster: found by grammar
+
 - Faster: building hashes and arrays. `Hash`, `Array` and `Push`, given
   the usual list of values that don't flatten, make all their new value
   scalars in one allocation, where they made one or two for each value:

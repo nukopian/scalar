@@ -1,6 +1,6 @@
 # A hash's or an array's values in one allocation
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.4
 
 **Origin:** a TODO task from grammar's session (grammar f163c99fba29ca7e6e1fdc6176e2e83e27ef28ee)
 
