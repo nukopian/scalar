@@ -11,7 +11,13 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- Docs: roadmap 5, lazy values, built by a function on their first read,
+  was built and measured for grammar, and dropped: grammar did better by
+  naming the captures a code assertion reads, and nothing else needs them.
+  Its [change record](docs/changes/2026-11-02-r5-lazy-values.md) keeps
+  the numbers, and the reference's
+  [What it costs](docs/REFERENCE.md#what-it-costs) points to
+  `sync.OnceValue` instead.
 
 ## v0.6.3 (2026-11-02)
 

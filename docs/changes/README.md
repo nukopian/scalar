@@ -64,6 +64,7 @@ What's known, Steps, Done when.
 
 Newest first.
 
+- [Lazy values](2026-11-02-r5-lazy-values.md), roadmap 5: dropped.
 - [A regex engine chosen per pattern](2026-11-01-r1-regex-engines.md),
   roadmap 1: shipped in v0.6.2.
 - [Export the path parser](2026-10-27-export-the-path-parser.md),

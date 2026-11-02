@@ -39,25 +39,7 @@ Nothing yet.
 
 ## Next
 
-### 5. Lazy values
-
-**Size:** M (3)
-
-**What:** a value built by a function the first time it's read, so a
-structure built for a caller who reads little of it costs only what's
-read. Every way of reading a value resolves it first: `Lock`, `Clone`,
-`Equal`, `Dump`, JSON and YAML included.
-
-**Why:** grammar builds the whole match so far for each code
-assertion, a hash for every capture, though the function may read one
-or two (grammar's roadmap 24). In grammar's `BenchmarkAssert`, that's
-39% of a search's allocations.
-
-**Done when** a lazy value reads, locks, clones, compares and encodes
-as the value it builds, with a test of each; it's built once, however
-it's read, and safely from several goroutines; and grammar's
-`BenchmarkAssert`, with grammar building its match so far lazily,
-shows what it saves.
+Nothing yet.
 
 ## Later
 
