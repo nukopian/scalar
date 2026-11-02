@@ -270,10 +270,9 @@ reports are made privately, through the Security tab.
 ## Licence
 
 Copyright 2026 Iain Campbell. `scalar` is free software; you can
-redistribute it and/or modify it under the same terms as Perl itself:
-either the GNU General Public License, version 1 or (at your option) any
-later version, or the Artistic License, as they come with Perl
-(`Artistic-1.0-Perl OR GPL-1.0-or-later`). Both are in [LICENSE](LICENSE).
+redistribute it and/or modify it under the terms of the Artistic License
+2.0, as Rakudo is (`Artistic-2.0`); see [LICENSE](LICENSE). Versions up
+to v0.6.2 were under the same terms as Perl itself, and keep them.
 
 ## Acknowledgements
 

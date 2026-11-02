@@ -11,7 +11,10 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- scalar is now under the Artistic License 2.0, as grammar is, rather
+  than the same terms as Perl itself. pkg.go.dev hides the documentation
+  of a module whose licence includes Artistic-1.0-Perl or GPL-1.0, and
+  shows it under Artistic-2.0. Versions up to v0.6.2 keep their terms.
 
 ## v0.6.2 (2026-11-01)
 
