@@ -38,7 +38,7 @@ If any step along the path is missing, you get undef back instead of a
 panic, though, as in Perl, a read creates the levels it goes through (see
 [What you might assume](REFERENCE.md#what-you-might-assume)). `Str()` on
 undef is `""` and `Num()` is `0`. `Get` takes keys and indices as
-separate arguments, as a route, one inside the other; for several fields
+separate arguments, one key or index for each level; for several fields
 at once, Perl's hash slice, use `HV().Values`. `At` takes the route as one
 string, in dot, bracket or Perl's brace form (see
 [A path as one string](REFERENCE.md#a-path-as-one-string-at)).
@@ -50,8 +50,7 @@ like the USGS earthquake feed. The [reference](REFERENCE.md) explains each
 part in detail.
 
 These recipes are also runnable examples in the repository's
-`example_test.go`, so `go test` checks they still work. Keep the two in
-step when changing them.
+`example_test.go`, so `go test` checks they still work.
 
 ### Reading one event
 

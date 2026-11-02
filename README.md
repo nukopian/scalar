@@ -238,7 +238,6 @@ the reasons for them.
 
 Version 0: it works, and it's tested against Perl itself, the JSONPath
 compliance suite and fuzzing, but the API may still change before 1.0.
-What's planned is in the [roadmap](ROADMAP.md).
 
 ## Security
 
@@ -291,8 +290,7 @@ documentation, and every commit says so in a `Co-Authored-By` trailer. My
 part was deciding what `scalar` should do and what it shouldn't, setting
 the rules it's built by (they're in [CLAUDE.md](CLAUDE.md)), and reviewing
 the work. It has been a partnership, and I've learned a good deal of Go
-along the way. How it worked is in
-[The process](https://github.com/nukopian/claude-practice/blob/main/thoughts/PROCESS.md).
+along the way.
 
 The `scalar` package started inside a larger proof-of-concept and was
 extracted with its history, so some commit messages mention packages

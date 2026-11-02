@@ -3,6 +3,10 @@
 What scalar means to do, and why. The [CHANGELOG](CHANGELOG.md) says
 what it has done, and the [README](README.md) what it is now.
 
+Every item so far has shipped or been dropped, so each group below is
+empty for now. The API is settling towards 1.0; new items will come
+from using scalar, and from what its users ask for.
+
 Items come in four groups, the most useful first in each:
 
 - **Now:** being worked on, each with a plan detailed enough to pick up
