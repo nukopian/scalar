@@ -171,6 +171,23 @@ gain against the released scalar.
   costs one allocation either way; the difference is in how the
   array's slice grows over ten pushes (capacities 4, 8, 16, 32 with
   it, 3, 6, 12, 24, 48 without), which the change doesn't touch.
+- **The wash-up before the release found nothing to fix.** With Perl
+  5.42.3 and the race detector, the whole suite gives the same 779
+  results at v0.6.3 and at d39d510e89e3aa55d2e5fbd1db2c72706eee5d7f,
+  none failing or skipped. grammar's 526 tests and jdc-lab's 278 give
+  the same results against v0.6.3 and against this scalar, swapped in
+  alone through a workspace. Nothing in scalar relies on a scalar
+  being its own allocation (no finalizers, weak pointers or `unsafe`).
+  Every relative link and anchor in the documents changed since v0.6.3
+  resolves, by a script that caught a planted bad anchor and a missing
+  file. gitleaks finds nothing in 239 commits.
+- **Roadmap idea 4 had predicted it.** Profiling scalar under a
+  consumer's workload was dropped on 2026-11-01, as jdc-lab's profile
+  found scalar at about 5% of its allocations, but it ended: "grammar
+  makes new state for every text `FindAll` searches, and builds scalar
+  values for each match, so the lab's remaining cost may include
+  scalar's." Once grammar's roadmap 25 made its matcher fast, that
+  cost was most of a parse.
 - **What's left:** `HV.Set` makes one scalar for each new key, and can't
   know how many keys are coming. A scalar release, then grammar's task
   to take it up and check `BenchmarkParse`.
