@@ -108,11 +108,12 @@ Perl-compatible regular expressions, `yaml/v3`, and `x/text`.
 
 ## Rationale
 
-I am relatively new to Go, but I've written code for well over thirty
-years, encountering C/C++, REXX, XSLT, JavaScript (and friends), Scala,
-Python, and, to a much greater extent, Perl at various points throughout
-that journey. While I may be learning on the job, this is definitely not
-my first rodeo, and I'm looking forward to mastering this new skill.
+I've written software for over thirty years, in C and C++, REXX, XSLT,
+JavaScript (and friends), Scala and Python, and above all in Perl,
+which has shaped how I think about messy data. Go is the newest of
+them for me. `scalar` is partly how I'm learning it: by bringing over
+a few of the shortcuts I've come to rely on, and holding them to the
+standards I'd expect of any code. This is definitely not my first rodeo.
 
 Learning on the job often requires flexibility, adaptability and a healthy
 dose of pragmatism when dealing with obstacles. When learning a new
