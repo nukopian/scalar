@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.6.3 (2026-11-02)
+
+Under the Artistic License 2.0, so pkg.go.dev shows the documentation
+
 - scalar is now under the Artistic License 2.0, as grammar is, rather
   than the same terms as Perl itself. pkg.go.dev hides the documentation
   of a module whose licence includes Artistic-1.0-Perl or GPL-1.0, and
