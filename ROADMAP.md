@@ -3,9 +3,8 @@
 What scalar means to do, and why. The [CHANGELOG](CHANGELOG.md) says
 what it has done, and the [README](README.md) what it is now.
 
-Every item planned so far has shipped or been dropped, so Now, Next
-and Later are empty for now. The API is settling towards 1.0; new
-items will come from using scalar, and from what its users ask for.
+The API is settling towards 1.0; new items come from using scalar, and
+from what its users ask for.
 
 Items come in four groups, the most useful first in each:
 
@@ -40,7 +39,25 @@ Nothing yet.
 
 ## Next
 
-Nothing yet.
+### 5. Lazy values
+
+**Size:** M (3)
+
+**What:** a value built by a function the first time it's read, so a
+structure built for a caller who reads little of it costs only what's
+read. Every way of reading a value resolves it first: `Lock`, `Clone`,
+`Equal`, `Dump`, JSON and YAML included.
+
+**Why:** grammar builds the whole match so far for each code
+assertion, a hash for every capture, though the function may read one
+or two (grammar's roadmap 24). In grammar's `BenchmarkAssert`, that's
+39% of a search's allocations.
+
+**Done when** a lazy value reads, locks, clones, compares and encodes
+as the value it builds, with a test of each; it's built once, however
+it's read, and safely from several goroutines; and grammar's
+`BenchmarkAssert`, with grammar building its match so far lazily,
+shows what it saves.
 
 ## Later
 
@@ -52,13 +69,4 @@ An idea is a numbered heading, the date it was added, its size, and a
 line or two on what and why. Each wash-up prunes them: each is kept,
 promoted to Later or Next with its number, or dropped.
 
-### 5. Lazy values
-
-Added 2026-11-02, from grammar, by way of jdc-lab. **Size:** M (3). A
-value built by a function the first time it's read, so a structure
-built for a caller who reads little of it costs only what's read.
-grammar builds the whole match so far for each code assertion, a hash
-for every capture, though the function may read one or two (grammar's
-idea 24). Every way of reading a value would resolve it first,
-`Lock`, `Clone`, `Equal`, `Dump`, JSON and YAML included. Worth an
-experiment, measured on grammar's `BenchmarkAssert`.
+Nothing yet.
