@@ -1,22 +1,5 @@
 # To do
 
-## Match the GitHub description to the README
-
-**From:** jdc-lab's session, 2026-11-02 (scalar c6974f668e49981355c7ceba260bcc282d8b0625)
-**Waiting on:** Iain's go-ahead, as it's a GitHub setting
-
-**What:** the repository's description reads "Dynamic values for messy
-data in Go." The README's opening line says more: "Read, clean and
-reshape messy data in Go, then get back to typed Go." The description is
-what link previews and GitHub search show.
-
-**Steps:** once Iain agrees,
-
-    gh repo edit nukopian/scalar --description "Read, clean and reshape messy data in Go, then get back to typed Go."
-
-**Check:** `gh repo view nukopian/scalar --json description`. Remove
-this task in a `docs:` commit, since nothing else changes.
-
 ## Relicense so pkg.go.dev shows the documentation
 
 **From:** jdc-lab's session, 2026-11-02 (scalar c6974f668e49981355c7ceba260bcc282d8b0625)
