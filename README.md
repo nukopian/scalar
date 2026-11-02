@@ -254,7 +254,8 @@ What's checked, and how often, so you can judge for yourself:
   known vulnerabilities.
 - **Code:** `go vet` and staticcheck; the tests with the race detector
   on Linux, and on macOS and Windows; and a run of each fuzz target,
-  `FuzzReadJSON`, `FuzzNumericPrefix` and `FuzzFind`, on every push.
+  `FuzzReadJSON`, `FuzzNumericPrefix`, `FuzzFind`, `FuzzFaithful` and
+  `FuzzLinear`, on every push.
 - **Secrets:** gitleaks scans the whole history on every push, and
   GitHub's secret scanning and push protection are on.
 - **Provenance:** every commit and release tag is signed, and `main`,

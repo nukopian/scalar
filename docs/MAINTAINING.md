@@ -53,8 +53,9 @@ next to them:
   other repositories' sessions. Its tasks come before the roadmap's
   items. It's committed on `develop` and gone before a release, so it
   never reaches `main`: each task is done, or, if it's a feature rather
-  than a step, moved word for word into the roadmap
-  ([CLAUDE.md](../CLAUDE.md#planned-work) has the rules).
+  than a step, moved word for word into the roadmap (the practice's
+  [Planned work](https://github.com/nukopian/claude-practice/blob/main/PRACTICE.md#planned-work)
+  has the rules).
 
 `main` is protected on GitHub. Pushes to it need signed commits, a linear
 history (no merge commits) and CI passing on every job, and it can't be
@@ -77,8 +78,9 @@ git pull --ff-only
 
 First bring `develop` up to date and re-read `TODO.md`, if there is one:
 sessions in grammar, job-meta and jdc-lab add tasks to it, mid-session
-too, and a commit that completes a task removes it
-([CLAUDE.md](../CLAUDE.md#planned-work)). Each task opens with **From**
+too, and a commit that completes a task removes it (the practice's
+[Planned work](https://github.com/nukopian/claude-practice/blob/main/PRACTICE.md#planned-work)).
+Each task opens with **From**
 (the session that added it, the date, and the commit that prompted it,
 or the last commit and "work uncommitted") and **Waiting on** (what it
 needs first, or nothing). A task this session adds to another

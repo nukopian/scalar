@@ -12,6 +12,7 @@ see the [examples](EXAMPLES.md). Coming from Perl? The
   - [Reading one event](#reading-one-event)
   - [Cleaning a list of station codes](#cleaning-a-list-of-station-codes)
   - [Pulling figures out of text](#pulling-figures-out-of-text)
+  - [Making regex-heavy code faster](#making-regex-heavy-code-faster)
   - [Counting quakes by region](#counting-quakes-by-region)
   - [Building records and writing JSON](#building-records-and-writing-json)
   - [Storing waveform samples as bytes](#storing-waveform-samples-as-bytes)
