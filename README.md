@@ -240,6 +240,11 @@ the reasons for them.
 Version 0: it works, and it's tested against Perl itself, the JSONPath
 compliance suite and fuzzing, but the API may still change before 1.0.
 
+It's made for my own work, and shared as is. Bug reports and feature
+requests are welcome as issues, but pull requests aren't accepted; the
+[contributing guide](https://github.com/nukopian/.github/blob/main/CONTRIBUTING.md)
+says why.
+
 ## Security
 
 What's checked, and how often, so you can judge for yourself:
