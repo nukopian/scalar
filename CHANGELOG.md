@@ -13,6 +13,16 @@ release's entry when `main` is moved to it and tagged
 
 Nothing yet.
 
+## v0.6.6 (2026-11-08)
+
+Shared as is: the README says what to expect
+
+- Docs: the README's Status section says `scalar` is made for its
+  author's work and shared as is. Bug reports and feature requests are
+  welcome as issues, but pull requests aren't accepted; the
+  [contributing guide](https://github.com/nukopian/.github/blob/main/CONTRIBUTING.md)
+  says why. The package is unchanged.
+
 ## v0.6.5 (2026-11-02)
 
 A clearer Rationale, and the record of v0.6.4's speed-up closed
