@@ -26,7 +26,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 
 	"github.com/nukopian/scalar"
@@ -1273,55 +1272,4 @@ func Example_writeYAMLPlainGo() {
 	// strongest:
 	//   mag: 5.1
 	//   place: 12 km NNE of Ridgecrest, CA
-}
-
-func Example_sharedForReading() {
-	scale, err := scalar.FromJSON([]byte(`{"minor": 3, "light": 4, "moderate": 5, "strong": 6}`))
-	if err != nil {
-		panic(err)
-	}
-	scale.Lock() // read-only from here: safe to read from many goroutines at once
-
-	mags := []float64{5.1, 2.3, 4.7, 6.4}
-	classes := make([]string, len(mags))
-	var wg sync.WaitGroup
-	for i, mag := range mags {
-		wg.Go(func() {
-			classes[i] = "below minor"
-			for _, k := range []string{"minor", "light", "moderate", "strong"} {
-				if mag >= scale.Get(k).Num() { // a misspelled key would panic, not read undef
-					classes[i] = k
-				}
-			}
-		})
-	}
-	wg.Wait()
-	fmt.Println(strings.Join(classes, ", "))
-
-	// Output:
-	// moderate, below minor, light, strong
-}
-
-func Example_sharedForReadingPlainGo() {
-	// Nothing writes it, so goroutines may read it at once.
-	scale := map[string]float64{"minor": 3, "light": 4, "moderate": 5, "strong": 6}
-
-	mags := []float64{5.1, 2.3, 4.7, 6.4}
-	classes := make([]string, len(mags))
-	var wg sync.WaitGroup
-	for i, mag := range mags {
-		wg.Go(func() {
-			classes[i] = "below minor"
-			for _, k := range []string{"minor", "light", "moderate", "strong"} {
-				if mag >= scale[k] { // a misspelled key would read 0
-					classes[i] = k
-				}
-			}
-		})
-	}
-	wg.Wait()
-	fmt.Println(strings.Join(classes, ", "))
-
-	// Output:
-	// moderate, below minor, light, strong
 }

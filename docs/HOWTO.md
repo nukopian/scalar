@@ -46,7 +46,7 @@ both still work and print what this guide says they print.
   - [Storing waveform samples as bytes](#storing-waveform-samples-as-bytes)
 - [Making it faster](#making-it-faster)
   - [Making regex-heavy code faster](#making-regex-heavy-code-faster)
-  - [Sharing data between goroutines](#sharing-data-between-goroutines)
+  - [A caution about goroutines](#a-caution-about-goroutines)
 - [Growing out of scalar](#growing-out-of-scalar)
 - [Compared with plain Go](#compared-with-plain-go)
 
@@ -1775,75 +1775,19 @@ engine](REFERENCE.md#choosing-an-engine-backtracking-and-linear) says what
 Go's own `regexp`, in the plain Go, has no lookbehind, so the pattern
 has to be written another way.
 
-### Sharing data between goroutines
+### A caution about goroutines
 
-A table read by many goroutines at once, locked first: reading a locked
-structure writes nothing, so it's safe, and a misspelled key panics
-rather than reading as undef.
-
-<!-- recipe:sharedForReading -->
-
-```go
-scale, err := scalar.FromJSON([]byte(`{"minor": 3, "light": 4, "moderate": 5, "strong": 6}`))
-if err != nil {
-	panic(err)
-}
-scale.Lock() // read-only from here: safe to read from many goroutines at once
-
-mags := []float64{5.1, 2.3, 4.7, 6.4}
-classes := make([]string, len(mags))
-var wg sync.WaitGroup
-for i, mag := range mags {
-	wg.Go(func() {
-		classes[i] = "below minor"
-		for _, k := range []string{"minor", "light", "moderate", "strong"} {
-			if mag >= scale.Get(k).Num() { // a misspelled key would panic, not read undef
-				classes[i] = k
-			}
-		}
-	})
-}
-wg.Wait()
-fmt.Println(strings.Join(classes, ", "))
-```
-
-It prints:
-
-```
-moderate, below minor, light, strong
-```
-
-In plain Go, printing the same:
-
-```go
-// Nothing writes it, so goroutines may read it at once.
-scale := map[string]float64{"minor": 3, "light": 4, "moderate": 5, "strong": 6}
-
-mags := []float64{5.1, 2.3, 4.7, 6.4}
-classes := make([]string, len(mags))
-var wg sync.WaitGroup
-for i, mag := range mags {
-	wg.Go(func() {
-		classes[i] = "below minor"
-		for _, k := range []string{"minor", "light", "moderate", "strong"} {
-			if mag >= scale[k] { // a misspelled key would read 0
-				classes[i] = k
-			}
-		}
-	})
-}
-wg.Wait()
-fmt.Println(strings.Join(classes, ", "))
-```
-
-**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.Lock`](EXAMPLES.md#svlock), [`SV.Get`](EXAMPLES.md#svget), [`SV.Num`](EXAMPLES.md#svnum).
-
-<!-- /recipe -->
-
-A Go map that nothing writes is safe to read from many goroutines too,
-but a misspelled key reads as zero. The reference's
-[Locking](REFERENCE.md#locking) and
-[Concurrency](REFERENCE.md#concurrency) have the rest.
+Scalars, arrays and hashes aren't safe to use from several goroutines at
+once, and that includes reading them: a read through a missing level
+creates it, as in Perl, and listing a hash's keys caches their order. So
+keep each structure in one goroutine, from reading it to writing it out,
+and hand other goroutines plain Go values: convert with `scalar.To` once
+the shape is known, and send the struct. Data many goroutines read, such
+as a lookup table, is best built as a Go map or struct before they
+start. If it must stay in scalar, `Lock` it first, which makes reading
+it write nothing. `go test -race` finds what slips through. The
+reference's [Concurrency](REFERENCE.md#concurrency) and
+[Locking](REFERENCE.md#locking) have the details.
 
 ## Growing out of scalar
 

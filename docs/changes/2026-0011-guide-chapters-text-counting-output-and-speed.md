@@ -60,15 +60,15 @@ tool.
 ## What happened
 
 - **Outcome:** done as planned. Eight new recipes, each with a plain Go
-  twin printing the same, take the guide to twenty-five, in ten
-  chapters:
+  twin printing the same, took the guide to twenty-five, in ten
+  chapters, before one was dropped (below):
   - Working with text: rewriting with captures; repeated words, by
     backreference; filling in a template.
   - Counting and grouping: grouping by a field; the strongest few;
     expected, and silent.
   - Writing it out: writing YAML.
   - Making it faster: sharing data between goroutines, which passes
-    under `-race`.
+    under `-race`, later dropped (below).
 
   "Growing out of scalar" is the new chapter: four steps from scalar to
   plain Go, each keeping the program working, pointing at the twins as
@@ -89,9 +89,18 @@ tool.
     groups, and the chapter says so.
   - A probe confirmed scalar reads `$1x` in a replacement as `$1` then
     `x`, as Perl does, where Go's `regexp` reads a group named `1x`.
-- **Changes from the plan:** the template recipe reads JSON rather than
-  building hashes, for the reason above; and reading the PDF moved three
-  comments that wrapped or repeated the prose.
+- **Changes from the plan:**
+  - The template recipe reads JSON rather than building hashes, for the
+    reason above; and reading the PDF moved three comments that wrapped
+    or repeated the prose.
+  - The goroutines recipe was dropped after Iain's review, 2026-11-09.
+    Its plain Go, a map nothing writes, was as short and needed no lock,
+    and it showed as the way to share data what the reference's
+    Concurrency section gives as the fallback: build shared tables as
+    Go maps, keep each scalar in one goroutine, and lock only what must
+    stay in scalar. "Making it faster" ends with a caution saying that
+    instead, with no recipe, as there's nothing for scalar to win; the
+    guide has twenty-four recipes.
 - **What's left:** nothing for the guide's chapters. The general part of
   the generator moves to docref when grammar's guide follows
   (2026-0008's D2 and D4).
