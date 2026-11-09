@@ -1,6 +1,6 @@
 # 2026-0010. Guide chapters: loose data in, typed Go out
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Decisions:** None: the guide's shape was settled in 2026-0008, and Iain
 approved it on 2026-11-09.
@@ -11,6 +11,8 @@ approved it on 2026-11-09.
 
 **Started:** 2026-11-09, on `develop`, from
 f97d615b222c19943b9ae9b8fe767c81b3be077a
+
+**Finished:** 2026-11-09
 
 ## The plan
 
@@ -64,4 +66,41 @@ from first read to struct.
 
 ## What happened
 
-Nothing yet.
+- **Outcome:** done as planned. The guide is nine chapters, from the
+  quick start to making it faster, with the contents listing each
+  chapter and its recipes. Nine new recipes, each with a plain Go twin
+  printing the same, take it from eight to seventeen:
+  - Reading loose data: YAML, one document or several.
+  - Finding things: every value at any depth; filtering with JSONPath;
+    a route built from data.
+  - When something's missing: defaults, and steps that may come up
+    empty; reading without changing the data; with "Reading one event"
+    moved here.
+  - Into typed Go: numbers that arrive as strings; finding what doesn't
+    fit; a part that stays loose.
+
+  The seven older recipes moved into the chapters 2026-0011 fills:
+  working with text, counting and grouping, writing it out, and making
+  it faster. Each chapter opens with when scalar is the better choice
+  and when the plain Go is, and links the reference, and the
+  phrasebook where it has the task. All the examples passed the first
+  time they ran.
+- **The twins found the costs the chapters describe:** a recursive
+  search of `map[string]any`, which sorts the keys as the JSON's order is
+  lost; a function to follow a route; a type with its own
+  `UnmarshalJSON` for numbers that come quoted; and a second
+  `json.Unmarshal` to see the value an `UnmarshalTypeError` names but
+  doesn't hold. Where the shape is known, as in filtering with
+  JSONPath, a struct does the job in a few more lines.
+- **Changes from the plan:**
+  - The generator shows a type's methods with the type, as
+    `UnmarshalJSON` is called by `encoding/json` without the code
+    naming it.
+  - A method called only through `encoding/json`, such as
+    `SV.UnmarshalJSON` in "A part that stays loose", can't appear in a
+    Uses line, which lists only what the code calls; the recipe's prose
+    links it instead.
+  - Reading the PDF found a comment in a twin claiming document order,
+    which it doesn't keep, and three lines long enough to wrap; each was
+    fixed in its example.
+- **What's left:** 2026-0011 adds recipes to the four later chapters.

@@ -80,7 +80,7 @@ What's known, Steps, Done when.
 Newest first.
 
 - [Guide chapters: loose data in, typed Go out](2026-0010-guide-chapters-loose-data-in-typed-go-out.md),
-  roadmap 2026-0010: in progress.
+  roadmap 2026-0010: shipped, unreleased.
 - [The reference covers every function, and agrees with the guide](2026-0009-reference-covers-every-function.md),
   roadmap 2026-0009: shipped, unreleased.
 - [A how-to guide made from tested examples](2026-0008-a-how-to-guide-made-from-tested-examples.md),

@@ -154,7 +154,8 @@ func howto(guide []byte, filename string, src []byte) ([]byte, []string) {
 		return guide, []string{fmt.Sprintf("%s doesn't type-check: %v", filename, err)}
 	}
 	r := &recipes{fset: fset, src: src, info: info, pkg: pkg, funcs: map[string]*ast.FuncDecl{},
-		outputs: map[string]string{}, decls: map[types.Object]ast.Decl{}, shown: map[ast.Decl]bool{}}
+		outputs: map[string]string{}, decls: map[types.Object]ast.Decl{}, methods: map[ast.Decl][]ast.Decl{},
+		shown: map[ast.Decl]bool{}}
 	for _, ex := range doc.Examples(f) {
 		r.outputs[strings.TrimPrefix(ex.Name, "_")] = ex.Output // Example_name is named "_name"
 	}
@@ -170,6 +171,21 @@ func howto(guide []byte, filename string, src []byte) ([]byte, []string) {
 			}
 			return true
 		})
+	}
+	// A type's methods go with it, as a method such as UnmarshalJSON is
+	// called without being named.
+	for _, d := range f.Decls {
+		if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv != nil {
+			typ := fn.Recv.List[0].Type
+			if star, ok := typ.(*ast.StarExpr); ok {
+				typ = star.X
+			}
+			if id, ok := typ.(*ast.Ident); ok {
+				if t := r.decls[info.Uses[id]]; t != nil {
+					r.methods[t] = append(r.methods[t], d)
+				}
+			}
+		}
 	}
 
 	var problems []string
@@ -203,7 +219,8 @@ type recipes struct {
 	funcs   map[string]*ast.FuncDecl // examples, by suffix
 	outputs map[string]string        // what each prints, by suffix
 	decls   map[types.Object]ast.Decl
-	shown   map[ast.Decl]bool // declarations already in the guide
+	methods map[ast.Decl][]ast.Decl // a type's methods, by the type's declaration
+	shown   map[ast.Decl]bool       // declarations already in the guide
 }
 
 // region is the recipe region for the example with suffix name, or a
@@ -281,6 +298,10 @@ func (r *recipes) used(fn *ast.FuncDecl) []ast.Decl {
 			if d := r.decls[r.info.Uses[id]]; d != nil && !found[d] {
 				found[d] = true
 				visit(d)
+				for _, m := range r.methods[d] {
+					found[m] = true
+					visit(m)
+				}
 			}
 			return true
 		})

@@ -36,6 +36,14 @@ release's entry when `main` is moved to it and tagged
   a test checks every link in the documents resolves
   (roadmap 2026-0008;
   [record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md)).
+- Docs: the how-to guide is in chapters, following a feed from a first
+  read to typed Go, with nine new recipes: YAML documents; searching at
+  any depth, filtering and routes from data; defaults and chains with
+  `Then` and `When`, and reading without changing the data; and numbers
+  that arrive as strings, finding what doesn't fit, and a part that stays
+  loose in a struct. Each chapter says when scalar is the better choice
+  and when plain Go is (roadmap 2026-0010;
+  [record](docs/changes/2026-0010-guide-chapters-loose-data-in-typed-go-out.md)).
 
 ## v0.6.6 (2026-11-08)
 

@@ -212,9 +212,9 @@ a worked example of every function and method, see the
 
 ## Documentation
 
-- [How-to guide](docs/HOWTO.md): a quick start and recipes for common
-  tasks, each with the same job in plain Go beside it, generated from
-  the tests.
+- [How-to guide](docs/HOWTO.md): a quick start, then recipes in chapters
+  from reading loose data to typed Go, each with the same job in plain
+  Go beside it, generated from the tests.
 - [Reference](docs/REFERENCE.md): each feature in depth, how it behaves,
   and where it follows Perl or another source.
 - [Examples](docs/EXAMPLES.md): every function and method, each with a

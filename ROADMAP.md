@@ -44,15 +44,7 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-### 2026-0010. Guide chapters: loose data in, typed Go out
-
-**Serves:** learning
-
-The guide in chapters, following the journey from a first read of loose
-JSON or YAML, through finding things and handling what's missing, to
-typed structs, with new recipes for each, every one with its plain Go.
-The plan is in its
-[change record](docs/changes/2026-0010-guide-chapters-loose-data-in-typed-go-out.md).
+Nothing yet.
 
 ## Next
 
