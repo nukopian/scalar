@@ -25,7 +25,7 @@ record, its line in the CHANGELOG ("(roadmap 2026-0003)") and any branch
 for it. A `TODO.md` task with a record takes an id from the same
 sequence, though it never appears here. Items numbered 1 to 5 before
 2026-11-09 kept their numbers as serials, so "roadmap 3" in older
-commits is 2026-0003. Last id: 2026-0007.
+commits is 2026-0003. Last id: 2026-0011.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
@@ -48,7 +48,97 @@ Nothing yet.
 
 ## Next
 
-Nothing yet.
+### 2026-0008. A how-to guide made from tested examples
+
+**Serves:** learning
+
+**Size:** M (3)
+
+**What:** generate each recipe in the [how-to guide](docs/HOWTO.md),
+its code and the output it prints, from its `Example_` function, as
+`docs/EXAMPLES.md` is generated, with a test of scalar's own that fails
+when the guide and the examples differ. The same test checks the guide:
+every recipe's code comes from an example, has the plain Go beside it,
+and links to the [examples](docs/EXAMPLES.md) of the functions it uses
+and the [phrasebook](docs/PERL.md) rows of the idioms it uses. The
+quick start and the seven recipes there now move over first. The
+[record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md)
+has the decisions.
+
+**Why:** the recipes are runnable examples already, but the guide is
+copied from them by hand, so nothing notices when the two drift apart.
+A guide that `go test` checks can grow to cover far more without going
+stale, and is the ground for 2026-0010 and 2026-0011.
+
+**Done when** the guide's code and output are generated, `go test`
+fails on a recipe edited in the guide alone, on one without its plain
+Go, and on a link that doesn't resolve, and the guide reads as it did.
+
+### 2026-0009. The reference covers every function, and agrees with the guide
+
+**Serves:** learning
+
+**Size:** M (3)
+
+**What:** check that the [reference](docs/REFERENCE.md) covers each
+exported function and method, and that it and the
+[how-to guide](docs/HOWTO.md) agree: the same terms, the same advice on
+the same task, and links between them that land on the right section.
+A first count, by name alone, found six not mentioned: `AV.Items`,
+`SV.Format`, and the YAML marshalling methods of `SV`, `AV` and `HV`.
+Its [record](docs/changes/2026-0009-reference-covers-every-function.md)
+has a question to settle.
+
+**Why:** the guide will lean on the reference for how each feature
+behaves, so a gap or a disagreement there would be copied into every
+chapter that cites it.
+
+**Done when** every exported function and method is covered in the
+reference, each disagreement found is fixed in one place and the other,
+and what was found is in the record.
+
+### 2026-0010. Guide chapters: loose data in, typed Go out
+
+**Serves:** learning
+
+**Size:** L (5)
+
+**Depends on:** 2026-0008 and 2026-0009
+
+**What:** the first chapters of a structured guide, following the
+journey scalar is for: reading untrusted JSON and YAML; finding things
+in it, with `At`, `Get` and `Find`; handling what's missing, with
+`Or`, `Then` and `When`; and moving into typed structs with `To`. Each
+recipe on earthquake data, generated from an example, with the plain
+Go beside it.
+
+**Why:** the guide has seven recipes, where scalar's main use, a feed
+of unknown shape on its way to typed Go, deserves a path through it
+from first read to struct.
+
+**Done when** each chapter's recipes are generated and checked as
+2026-0008 sets out, and the guide's contents follow the chapters.
+
+### 2026-0011. Guide chapters: text, counting, output and speed
+
+**Serves:** learning
+
+**Size:** L (5)
+
+**Depends on:** 2026-0008 and 2026-0009
+
+**What:** the rest of the guide: cleaning text and regex work;
+counting and grouping, with sets, bags and the list utilities; shaping
+output as JSON, YAML and dumps; making it faster, with `Linear` and
+locking; and growing out of scalar, replacing it with plain Go once the
+shape is known.
+
+**Why:** these are the tasks scalar's users bring after reading their
+data, and the last says plainly where scalar stops being the right
+tool.
+
+**Done when** each chapter's recipes are generated and checked as
+2026-0008 sets out.
 
 ## Later
 
