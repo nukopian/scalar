@@ -44,30 +44,18 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 2026-0011. Guide chapters: text, counting, output and speed
 
 **Serves:** learning
 
-**Size:** L (5)
+Recipes for the guide's later chapters, text, counting and grouping,
+writing out and speed, each with its plain Go, and a chapter on growing
+out of scalar. The plan is in its
+[change record](docs/changes/2026-0011-guide-chapters-text-counting-output-and-speed.md).
 
-**Depends on:** 2026-0008 and 2026-0009
+## Next
 
-**What:** the rest of the guide: cleaning text and regex work;
-counting and grouping, with sets, bags and the list utilities; shaping
-output as JSON, YAML and dumps; making it faster, with `Linear` and
-locking; and growing out of scalar, replacing it with plain Go once the
-shape is known.
-
-**Why:** these are the tasks scalar's users bring after reading their
-data, and the last says plainly where scalar stops being the right
-tool.
-
-**Done when** each chapter's recipes are generated and checked as
-2026-0008 sets out.
+Nothing yet.
 
 ## Later
 

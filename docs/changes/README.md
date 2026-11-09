@@ -79,6 +79,8 @@ What's known, Steps, Done when.
 
 Newest first.
 
+- [Guide chapters: text, counting, output and speed](2026-0011-guide-chapters-text-counting-output-and-speed.md),
+  roadmap 2026-0011: in progress.
 - [Guide chapters: loose data in, typed Go out](2026-0010-guide-chapters-loose-data-in-typed-go-out.md),
   roadmap 2026-0010: shipped, unreleased.
 - [The reference covers every function, and agrees with the guide](2026-0009-reference-covers-every-function.md),
