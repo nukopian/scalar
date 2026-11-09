@@ -13,6 +13,12 @@ Ekorn-Pipeline and DBIx-Squirrel. Serves lines stay.
 
 **What's known:** scalar has 5 items (Next number: 6) and 6 records, two of them for TODO tasks (2026-10-27-export-the-path-parser.md and 2026-11-02-hash-values-in-one-allocation.md), which take the next ids in the order they were opened.
 
+**Shorthand:** Iain may name an item by its serial alone, as "26" or
+"task 26", meaning this year's 2026-0026 in the project at hand; ask
+before acting where it could mean another item, year or repository
+(claude-practice 5e1151de10a0e75b777da2333f442791e1a60395). Nothing in
+the repository needs changing for it, but memory notes can say so.
+
 **Steps:**
 
 1. `git -C ../claude-practice pull --ff-only`, and read PRACTICE.md's
