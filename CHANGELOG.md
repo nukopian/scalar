@@ -29,6 +29,13 @@ release's entry when `main` is moved to it and tagged
   `UnmarshalYAML`. The how-to guide and the reference were read side by
   side, and agree (roadmap 2026-0009;
   [record](docs/changes/2026-0009-reference-covers-every-function.md)).
+- Docs: every recipe in the how-to guide is generated from a tested
+  example, with the same job done in plain Go beside it, which must print
+  the same, and links to the examples of the functions it calls, so the
+  guide can't drift from the code. The quick start is a recipe too, and
+  a test checks every link in the documents resolves
+  (roadmap 2026-0008;
+  [record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md)).
 
 ## v0.6.6 (2026-11-08)
 

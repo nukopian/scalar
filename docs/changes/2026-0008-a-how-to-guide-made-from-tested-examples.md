@@ -1,6 +1,6 @@
 # 2026-0008. A how-to guide made from tested examples
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Decisions:** D1 settled: keep EXAMPLES.md. D2 settled: a scalar test
 first, its general part to docref when grammar follows. D3 settled: the
@@ -12,6 +12,8 @@ more comprehensive, structured and tested how-to guide
 
 **Started:** 2026-11-09, on `develop`, from
 4960c7b9123ba72c254003d3230da317d17ab6c7
+
+**Finished:** 2026-11-09
 
 ## Decisions
 
@@ -118,4 +120,55 @@ Go, and on a link that doesn't resolve, and the guide reads as it did.
 
 ## What happened
 
-Nothing yet.
+- **Outcome:** done as planned. `TestHowTo`, in `howto_test.go`,
+  generates the quick start and the seven recipes, each between
+  `<!-- recipe:name -->` markers, from `example_howto_test.go`: the
+  scalar code, what it prints, the plain Go twin and a **Uses:** line
+  linking each scalar function and method called to its example.
+  `TestHowToCatches` plants each failure it promises: a recipe with no
+  example, an example with no recipe, a missing twin, twins that print
+  differently, and a recipe edited in the guide alone; the last was
+  also tried on the real guide. `TestDocLinksResolve` checks every
+  relative link and `#anchor` in the documents, the records included,
+  and `TestDocLinksResolveCatches` plants a broken one of each kind.
+  Nothing was broken when it first ran.
+- **The twins:** eight, each the plain Go a Go programmer would write.
+  Where the shape is known, a struct (the quick start, building
+  records); where a missing field must be told from a null one,
+  `map[string]any` with its type assertions (reading one event). Case
+  folding uses `golang.org/x/text/cases`, as `strings.ToLower` isn't
+  Perl's `fc`; a pattern with lookbehind is rewritten for Go's
+  `regexp`. That every twin prints what its recipe prints is what keeps
+  the comparison honest. The guide now recommends the plain Go where the
+  shape is known, as the project's rules ask.
+- **Changes from the plan:**
+  - The Uses links come from type-checking the examples with
+    `go/types` and the source importer, about a second per run; that
+    tells `HV.Get` from `AV.Get`. They're ordered by where each name is
+    written, as the walk finds a chain's outer call first.
+  - A line ending `// test only` is left out of the guide, for the one
+    recipe that changes `scalar.DefaultEngine` and must put it back so
+    other tests don't see it; declarations it alone refers to aren't
+    shown either.
+  - The station recipe now reads `config.Get("stations").AV()`, the
+    simpler path 2026-0009's read noted, rather than leaving it for
+    2026-0010, as the recipe was being rewritten anyway.
+  - "Compared with plain Go" lost its hand-written code, which nothing
+    ran, and points at the twins instead.
+  - `doc.Examples` names a package-level example `_name`, keeping its
+    suffix out of `Suffix`; the planted case caught the first draft
+    keying outputs by `Suffix`, which made every twin agree.
+  - The rules in `CLAUDE.md` and the README's list of documents say how
+    the guide is made now.
+  - The guide's PDF left "In plain Go, printing the same:" alone at the
+    foot of five pages, its code on the next. `docs/print.css` now keeps
+    a paragraph with a code block after it, and a paragraph's lines
+    together in twos. Prince 17 ignored `p:has(+ pre)`, and pandoc
+    wraps highlighted code in `div.sourceCode`, so the rule names both
+    that and `pre`. The examples' PDF grew from 76 pages to 79, as
+    each description now stays with its code; the others kept their
+    page counts. grammar's `print.css` is the same file, and would gain
+    from the same rules.
+- **What's left:** the general part, splicing an example into Markdown,
+  moves to docref when grammar's guide follows (D2, D4). The chapters
+  are 2026-0010 and 2026-0011.

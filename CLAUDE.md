@@ -129,6 +129,13 @@ them.
   to fields the real feed has, unless an example needs something neutral.
 - `docs/EXAMPLES.md` is generated from those examples. Edit the
   examples, then run `go test -run TestReference -update`.
+- The how-to guide's recipes are generated from `example_howto_test.go`:
+  each `Example_name`, between `<!-- recipe:name -->` markers in the
+  guide, with a plain Go twin, `Example_namePlainGo`, that must print the
+  same. Edit the examples, then run `go test -run TestHowTo -update`.
+- `TestReferenceNamesEveryFunction` fails on an exported function or
+  method the reference doesn't name in code, and `TestDocLinksResolve`
+  on a relative link or `#anchor` in the documents that doesn't resolve.
 - New features go into the README's feature table and into the
   reference, and into the how-to guide when they change how a task is
   best done.

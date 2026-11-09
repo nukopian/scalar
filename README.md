@@ -212,8 +212,9 @@ a worked example of every function and method, see the
 
 ## Documentation
 
-- [How-to guide](docs/HOWTO.md): a quick start, recipes for common tasks,
-  and two jobs done both in plain Go and with `scalar`.
+- [How-to guide](docs/HOWTO.md): a quick start and recipes for common
+  tasks, each with the same job in plain Go beside it, generated from
+  the tests.
 - [Reference](docs/REFERENCE.md): each feature in depth, how it behaves,
   and where it follows Perl or another source.
 - [Examples](docs/EXAMPLES.md): every function and method, each with a

@@ -44,15 +44,7 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-### 2026-0008. A how-to guide made from tested examples
-
-**Serves:** learning
-
-Each recipe in the how-to guide generated from a tested example, with a
-plain Go twin that must print the same, and links to the examples of
-what it uses, so `go test` fails when the guide and the code part. The
-plan is in its
-[change record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md).
+Nothing yet.
 
 ## Next
 

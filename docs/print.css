@@ -44,6 +44,19 @@ h1, h2, h3, h4 {
   break-after: avoid;
 }
 
+/* Keep a line that leads into a code block, such as the how-to guide's "In
+   plain Go, printing the same:", with the block. */
+p + pre, p + div.sourceCode {
+  break-before: avoid;
+}
+
+/* And don't leave a line of a paragraph alone at the foot or head of a
+   page, which a short lead-in pulled after its block would. */
+p {
+  orphans: 2;
+  widows: 2;
+}
+
 /* Don't split code blocks or table rows; a block taller than a page still
    breaks. */
 pre, tr {
