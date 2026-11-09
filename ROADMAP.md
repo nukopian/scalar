@@ -44,31 +44,17 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 2026-0010. Guide chapters: loose data in, typed Go out
 
 **Serves:** learning
 
-**Size:** L (5)
+The guide in chapters, following the journey from a first read of loose
+JSON or YAML, through finding things and handling what's missing, to
+typed structs, with new recipes for each, every one with its plain Go.
+The plan is in its
+[change record](docs/changes/2026-0010-guide-chapters-loose-data-in-typed-go-out.md).
 
-**Depends on:** 2026-0008 and 2026-0009
-
-**What:** the first chapters of a structured guide, following the
-journey scalar is for: reading untrusted JSON and YAML; finding things
-in it, with `At`, `Get` and `Find`; handling what's missing, with
-`Or`, `Then` and `When`; and moving into typed structs with `To`. Each
-recipe on earthquake data, generated from an example, with the plain
-Go beside it.
-
-**Why:** the guide has seven recipes, where scalar's main use, a feed
-of unknown shape on its way to typed Go, deserves a path through it
-from first read to struct.
-
-**Done when** each chapter's recipes are generated and checked as
-2026-0008 sets out, and the guide's contents follow the chapters.
+## Next
 
 ### 2026-0011. Guide chapters: text, counting, output and speed
 
