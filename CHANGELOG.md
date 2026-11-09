@@ -11,7 +11,9 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
-Nothing yet.
+- `scripts/readme-pdf.sh` refuses an output that isn't a `.pdf`: a
+  document named there by mistake, as in `readme-pdf.sh README.md
+  docs/EXAMPLES.md`, would be written over with a PDF.
 
 ## v0.6.6 (2026-11-08)
 

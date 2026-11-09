@@ -14,6 +14,18 @@ if [ $# -gt 2 ]; then
 	exit 2
 fi
 
+# The second argument is written over, so a document named there by
+# mistake, as in "readme-pdf.sh ROADMAP.md docs/REFERENCE.md", would be
+# lost: only a .pdf is written.
+case ${2:-x.pdf} in
+*.pdf) ;;
+*)
+	echo "$0: $2: the output must be a .pdf" >&2
+	echo "usage: $0 [FILE.md [out.pdf]]" >&2
+	exit 2
+	;;
+esac
+
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp:?}"' EXIT
