@@ -1,6 +1,6 @@
 # 2026-0008. A how-to guide made from tested examples
 
-**Status:** open
+**Status:** in progress
 
 **Decisions:** D1 settled: keep EXAMPLES.md. D2 settled: a scalar test
 first, its general part to docref when grammar follows. D3 settled: the
@@ -10,7 +10,8 @@ follows in its own session.
 **Origin:** roadmap 2026-0008, from Iain's wish on 2026-11-09 for a much
 more comprehensive, structured and tested how-to guide
 
-**Started:** not yet
+**Started:** 2026-11-09, on `develop`, from
+4960c7b9123ba72c254003d3230da317d17ab6c7
 
 ## Decisions
 
@@ -54,7 +55,66 @@ more comprehensive, structured and tested how-to guide
 
 ## The plan
 
-Written here when work starts.
+**Serves:** learning
+
+**Size:** M (3)
+
+**What:** generate each recipe in the [how-to guide](../HOWTO.md), its
+code and the output it prints, from its `Example_` function, as
+`docs/EXAMPLES.md` is generated, with a test of scalar's own that fails
+when the guide and the examples differ. The same test checks the guide:
+every recipe's code comes from an example, has the plain Go beside it,
+and links to the [examples](../EXAMPLES.md) of the functions it uses
+and the [phrasebook](../PERL.md) rows of the idioms it uses. The quick
+start and the seven recipes there now move over first.
+
+**Why:** the recipes are runnable examples already, but the guide is
+copied from them by hand, so nothing notices when the two drift apart.
+A guide that `go test` checks can grow to cover far more without going
+stale, and is the ground for 2026-0010 and 2026-0011.
+
+**Steps:**
+
+1. A test of scalar's own, `TestHowTo` in `howto_test.go`, run with
+   `-update` to rewrite the guide. In `docs/HOWTO.md`, each recipe's
+   generated part sits between `<!-- recipe:name -->` and
+   `<!-- /recipe -->`, made from `Example_name` and its plain Go twin,
+   `Example_namePlainGo`, in `example_howto_test.go`:
+   - the scalar code: the example's body, after any package-level
+     declarations of that file it refers to, such as a pattern
+     compiled once, so a reader sees all the code that runs;
+   - what it prints, from its `// Output:`;
+   - the plain Go twin's code, the same way;
+   - a **Uses:** line linking each scalar function and method the
+     recipe calls to its entry in the examples, found by type-checking
+     the file, so `HV.Get` and `AV.Get` link apart.
+
+   It fails when a region isn't what the examples generate, when a
+   region has no example or an example in the file has no region, when
+   a recipe has no plain Go twin, and when the twins print different
+   output: the plain Go must do the same job, which keeps the
+   comparison honest.
+2. `TestDocLinksResolve`: every relative link in the documents
+   resolves, `#anchor`s included, with anchors made from headings as
+   GitHub makes them. It covers the guide's hand-written phrasebook
+   links, and every other document too, which the practice asks for
+   and nothing yet checks.
+3. Move the seven recipes from `example_test.go` into
+   `example_howto_test.go`, with the quick start as an eighth, each
+   with the data it reads, and write each one's plain Go twin.
+4. Put the markers into the guide, generate it, and fit the prose
+   around the generated parts so the guide reads as it did. "Compared
+   with plain Go" keeps its argument, pointing at the twins rather than
+   code of its own that nothing runs. Link each recipe to the
+   phrasebook rows for the Perl idioms it uses.
+5. Show each failure the test promises with a planted case run on
+   files in a temporary directory: a recipe edited in the guide alone,
+   a missing twin, twins that print differently, and a broken link.
+6. A CHANGELOG line, the record finished, and the guide's PDF read.
+
+**Done when** the guide's code and output are generated, `go test`
+fails on a recipe edited in the guide alone, on one without its plain
+Go, and on a link that doesn't resolve, and the guide reads as it did.
 
 ## What happened
 

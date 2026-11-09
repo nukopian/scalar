@@ -82,7 +82,7 @@ Newest first.
 - [The reference covers every function, and agrees with the guide](2026-0009-reference-covers-every-function.md),
   roadmap 2026-0009: shipped, unreleased.
 - [A how-to guide made from tested examples](2026-0008-a-how-to-guide-made-from-tested-examples.md),
-  roadmap 2026-0008: open.
+  roadmap 2026-0008: in progress.
 - [A hash's or an array's values in one allocation](2026-0007-hash-values-in-one-allocation.md),
   a task from grammar: shipped in v0.6.4.
 - [Lazy values](2026-0005-lazy-values.md), roadmap 2026-0005: dropped.

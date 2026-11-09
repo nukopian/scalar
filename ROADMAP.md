@@ -44,35 +44,17 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-Nothing yet.
-
-## Next
-
 ### 2026-0008. A how-to guide made from tested examples
 
 **Serves:** learning
 
-**Size:** M (3)
+Each recipe in the how-to guide generated from a tested example, with a
+plain Go twin that must print the same, and links to the examples of
+what it uses, so `go test` fails when the guide and the code part. The
+plan is in its
+[change record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md).
 
-**What:** generate each recipe in the [how-to guide](docs/HOWTO.md),
-its code and the output it prints, from its `Example_` function, as
-`docs/EXAMPLES.md` is generated, with a test of scalar's own that fails
-when the guide and the examples differ. The same test checks the guide:
-every recipe's code comes from an example, has the plain Go beside it,
-and links to the [examples](docs/EXAMPLES.md) of the functions it uses
-and the [phrasebook](docs/PERL.md) rows of the idioms it uses. The
-quick start and the seven recipes there now move over first. The
-[record](docs/changes/2026-0008-a-how-to-guide-made-from-tested-examples.md)
-has the decisions.
-
-**Why:** the recipes are runnable examples already, but the guide is
-copied from them by hand, so nothing notices when the two drift apart.
-A guide that `go test` checks can grow to cover far more without going
-stale, and is the ground for 2026-0010 and 2026-0011.
-
-**Done when** the guide's code and output are generated, `go test`
-fails on a recipe edited in the guide alone, on one without its plain
-Go, and on a link that doesn't resolve, and the guide reads as it did.
+## Next
 
 ### 2026-0010. Guide chapters: loose data in, typed Go out
 
