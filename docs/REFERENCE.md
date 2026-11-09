@@ -405,10 +405,13 @@ each verb implies:
 fmt.Printf("%d quakes, the largest M%.1f\n", count, mag)   // printf "%d quakes, the largest M%.1f\n", $count, $mag
 ```
 
-Widths, precisions and flags work as usual. As in Perl, `%x` is numeric:
-`"ff"` formats as `0`, not as the hex of its bytes. A number that
-[keeps its digits](#numbers-that-keep-their-digits) formats all of them
-under `%v` and `%s`, and, if it's whole, under `%d`.
+A scalar's `Format` method does this: a `*scalar.SV` is a
+`fmt.Formatter`, so it holds wherever `fmt` prints one, in a slice or
+an exported field of a struct too; `fmt` can't call it on an unexported
+field. Widths, precisions and flags work as usual. As in Perl, `%x` is
+numeric: `"ff"` formats as `0`, not as the hex of its bytes. A number
+that [keeps its digits](#numbers-that-keep-their-digits) formats all of
+them under `%v` and `%s`, and, if it's whole, under `%d`.
 
 ### Filling in templates: `Interpolate`
 
@@ -548,6 +551,17 @@ scalar.To[[]int](scalar.Array("3", "five"))              // an error: [1]: want 
 ```
 
 The results are copies, so changing them doesn't change the array.
+
+`a.Items()` gives the elements themselves, as a `[]*scalar.SV`, for Go
+code that wants a slice to index or pass on, rather than `All`'s
+iterator. The slice is a copy, but the scalars aren't, so setting one
+sets it in the array, as setting one from `All` does. A hole comes back
+as undef, and stays a hole.
+
+```go
+items := a.Items()   // a []*scalar.SV
+items[0].Set("PAS")  // $a[0] = "PAS": the scalar is the array's own
+```
 
 ### Lists flatten, as in Perl
 
@@ -2209,10 +2223,13 @@ just YAML 1.2 ones:
   indent is two spaces, as Kubernetes and Helm use.
 
 Scalars, arrays and hashes also work with the YAML package itself
-(`go.yaml.in/yaml/v3`), as they do with `encoding/json`: a `*scalar.SV`
-field in a struct you read with `yaml.Unmarshal` takes whatever part of the
-document is there, for the parts whose shape varies. As with JSON,
-reading into a locked scalar is an error rather than a panic.
+(`go.yaml.in/yaml/v3`), as they do with `encoding/json`. Their
+`MarshalYAML` methods write them as `ToYAML` does, wherever they sit in
+what `yaml.Marshal` is given, and a scalar's `UnmarshalYAML` reads as
+`FromYAML` does, so a `*scalar.SV` field in a struct you read with
+`yaml.Unmarshal` takes whatever part of the document is there, for the
+parts whose shape varies. As with JSON, reading into a locked scalar is
+an error rather than a panic.
 
 `TestYAMLRoundTrip` checks that what `ToYAML` writes reads back the same,
 type by type, for hundreds of random structures, shared parts and loops

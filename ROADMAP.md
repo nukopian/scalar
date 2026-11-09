@@ -74,32 +74,6 @@ stale, and is the ground for 2026-0010 and 2026-0011.
 fails on a recipe edited in the guide alone, on one without its plain
 Go, and on a link that doesn't resolve, and the guide reads as it did.
 
-### 2026-0009. The reference covers every function, and agrees with the guide
-
-**Serves:** learning
-
-**Size:** M (3)
-
-**What:** check that the [reference](docs/REFERENCE.md) covers each
-exported function and method, and that it and the
-[how-to guide](docs/HOWTO.md) agree: the same terms, the same advice on
-the same task, and links between them that land on the right section.
-A first count, by name alone, found six not mentioned: `AV.Items`,
-`SV.Format`, and the YAML marshalling methods of `SV`, `AV` and `HV`.
-A test then fails on any exported function or method the reference
-doesn't name, but for a listed few covered under another's name, as
-its [record](docs/changes/2026-0009-reference-covers-every-function.md)
-says.
-
-**Why:** the guide will lean on the reference for how each feature
-behaves, so a gap or a disagreement there would be copied into every
-chapter that cites it.
-
-**Done when** every exported function and method is covered in the
-reference, the test fails on a function added without a mention there,
-each disagreement found is fixed in one place and the other, and what
-was found is in the record.
-
 ### 2026-0010. Guide chapters: loose data in, typed Go out
 
 **Serves:** learning

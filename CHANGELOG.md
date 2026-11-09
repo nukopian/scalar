@@ -21,6 +21,14 @@ release's entry when `main` is moved to it and tagged
   records were renamed to their ids. Items that must wait for others
   say so with **Depends on:**, and a record's open questions are
   numbered D1, D2 and on.
+- Docs: the reference names every exported function and method, and a
+  test fails on one it doesn't. Six weren't there: `AV.Items`, the
+  elements themselves as a Go slice; `SV.Format`, which makes `fmt`'s
+  verbs take Perl's context, in a slice or an exported struct field too,
+  but not an unexported one; and the YAML package's `MarshalYAML` and
+  `UnmarshalYAML`. The how-to guide and the reference were read side by
+  side, and agree (roadmap 2026-0009;
+  [record](docs/changes/2026-0009-reference-covers-every-function.md)).
 
 ## v0.6.6 (2026-11-08)
 
