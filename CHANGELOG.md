@@ -49,9 +49,8 @@ release's entry when `main` is moved to it and tagged
   template; grouping by a field, the strongest few, and which stations
   were silent; and writing YAML. "Making it faster" ends with a caution:
   scalars aren't safe to read from several goroutines at once. A new
-  chapter, "Growing out of scalar", sets out how to move
-  to plain Go a step at a time once the data's shape is known
-  (roadmap 2026-0011;
+  chapter, "Growing out of scalar", sets out how to move to plain Go a
+  step at a time once the data's shape is known (roadmap 2026-0011;
   [record](docs/changes/2026-0011-guide-chapters-text-counting-output-and-speed.md)).
 
 ## v0.6.6 (2026-11-08)

@@ -91,24 +91,41 @@ func Example_unused() {
 	fmt.Println(two)
 	// Output: 2
 }
+
+func Example_unrun() {
+	fmt.Println(1)
+}
+
+func Example_unrunPlainGo() {
+	fmt.Println(2)
+}
+
+func Example_strayPlainGo() {
+	fmt.Println(two)
+	// Output: 2
+}
 `)
 	guide := []byte("# Guide\n\n<!-- recipe:good -->\n<!-- /recipe -->\n\n" +
 		"<!-- recipe:alone -->\n<!-- /recipe -->\n\n" +
 		"<!-- recipe:differs -->\n<!-- /recipe -->\n\n" +
-		"<!-- recipe:missing -->\n<!-- /recipe -->\n")
+		"<!-- recipe:missing -->\n<!-- /recipe -->\n\n" +
+		"<!-- recipe:unrun -->\n<!-- /recipe -->\n")
 	got, problems := howto(guide, "planted_example_test.go", src)
 	for _, want := range []string{
 		"recipe alone has no plain Go twin",
 		"recipe differs prints differently from its plain Go twin",
 		"recipe missing has no Example_missing",
 		"Example_unused has no recipe",
+		"Example_unrun has no // Output:",
+		"Example_unrunPlainGo has no // Output:",
+		"Example_strayPlainGo is a plain Go twin with no Example_stray",
 	} {
 		if !slices.ContainsFunc(problems, func(p string) bool { return strings.Contains(p, want) }) {
 			t.Errorf("no problem saying %q; got %q", want, problems)
 		}
 	}
-	if len(problems) != 4 {
-		t.Errorf("got %d problems, want 4: %q", len(problems), problems)
+	if len(problems) != 6 {
+		t.Errorf("got %d problems, want 6: %q", len(problems), problems)
 	}
 	if !bytes.Contains(got, []byte("var two = scalar.Value(2)")) ||
 		bytes.Count(got, []byte("var two = scalar.Value(2)")) != 1 {
@@ -154,10 +171,12 @@ func howto(guide []byte, filename string, src []byte) ([]byte, []string) {
 		return guide, []string{fmt.Sprintf("%s doesn't type-check: %v", filename, err)}
 	}
 	r := &recipes{fset: fset, src: src, info: info, pkg: pkg, funcs: map[string]*ast.FuncDecl{},
-		outputs: map[string]string{}, decls: map[types.Object]ast.Decl{}, methods: map[ast.Decl][]ast.Decl{},
+		outputs: map[string]string{}, run: map[string]bool{}, decls: map[types.Object]ast.Decl{}, methods: map[ast.Decl][]ast.Decl{},
 		shown: map[ast.Decl]bool{}}
 	for _, ex := range doc.Examples(f) {
-		r.outputs[strings.TrimPrefix(ex.Name, "_")] = ex.Output // Example_name is named "_name"
+		name := strings.TrimPrefix(ex.Name, "_") // Example_name is named "_name"
+		r.outputs[name] = ex.Output
+		r.run[name] = ex.Output != "" || ex.EmptyOutput // without "// Output:", go test only compiles it
 	}
 	for _, d := range f.Decls {
 		if fn, ok := d.(*ast.FuncDecl); ok && fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "Example_") {
@@ -201,7 +220,11 @@ func howto(guide []byte, filename string, src []byte) ([]byte, []string) {
 		return []byte(text)
 	})
 	for name := range r.funcs {
-		if !strings.HasSuffix(name, "PlainGo") && !seen[name] {
+		base, twin := strings.CutSuffix(name, "PlainGo")
+		switch {
+		case twin && r.funcs[base] == nil:
+			problems = append(problems, fmt.Sprintf("Example_%s is a plain Go twin with no Example_%s", name, base))
+		case !twin && !seen[name]:
 			problems = append(problems, fmt.Sprintf("Example_%s has no recipe: add <!-- recipe:%s --> and <!-- /recipe --> to the guide", name, name))
 		}
 	}
@@ -218,6 +241,7 @@ type recipes struct {
 	pkg     *types.Package
 	funcs   map[string]*ast.FuncDecl // examples, by suffix
 	outputs map[string]string        // what each prints, by suffix
+	run     map[string]bool          // whether go test runs it, by suffix
 	decls   map[types.Object]ast.Decl
 	methods map[ast.Decl][]ast.Decl // a type's methods, by the type's declaration
 	shown   map[ast.Decl]bool       // declarations already in the guide
@@ -232,6 +256,14 @@ func (r *recipes) region(name string) (string, string) {
 		return "", fmt.Sprintf("recipe %s has no Example_%s", name, name)
 	case twin == nil:
 		return "", fmt.Sprintf("recipe %s has no plain Go twin: add Example_%sPlainGo, printing the same", name, name)
+	case !r.run[name] || !r.run[name+"PlainGo"]:
+		var unrun []string
+		for _, n := range []string{name, name + "PlainGo"} {
+			if !r.run[n] {
+				unrun = append(unrun, fmt.Sprintf("Example_%s has no // Output:, so go test doesn't run it", n))
+			}
+		}
+		return "", fmt.Sprintf("recipe %s:\n%s", name, strings.Join(unrun, "\n"))
 	case r.outputs[name] != r.outputs[name+"PlainGo"]:
 		return "", fmt.Sprintf("recipe %s prints differently from its plain Go twin:\n%s\nagainst\n%s",
 			name, r.outputs[name], r.outputs[name+"PlainGo"])

@@ -3,7 +3,8 @@
 How to get things done with [scalar](../README.md), in chapters that
 follow a feed of unknown shape on its way to typed Go: reading it,
 finding things in it, handling what's missing, and moving into structs,
-then working with text, counting, writing out and making it fast. Each
+then working with text, counting, writing out and making it fast, and
+last, growing out of scalar into plain Go. Each
 recipe has the same job done in plain Go beside it, and each chapter
 says when each is the better choice. For how each feature behaves, see
 the [reference](REFERENCE.md); for one example of every function and

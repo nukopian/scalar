@@ -169,6 +169,14 @@ Go, and on a link that doesn't resolve, and the guide reads as it did.
     each description now stays with its code; the others kept their
     page counts. grammar's `print.css` is the same file, and would gain
     from the same rules.
+- **The wash-up before the release found two gaps** in `TestHowTo`,
+  each reproduced with a planted case before it was fixed. An example
+  with no `// Output:` is compiled by `go test` but never run, and the
+  generator still put it in the guide as tested, with an empty "It
+  prints" and a twin that needn't have printed the same; it's now a
+  problem, for either twin. And a plain Go twin with no recipe of its
+  own went unreported; it's now named. `TestHowToCatches` plants both.
+  No recipe in the guide had either fault.
 - **What's left:** the general part, splicing an example into Markdown,
   moves to docref when grammar's guide follows (D2, D4). The chapters
   are 2026-0010 and 2026-0011.
