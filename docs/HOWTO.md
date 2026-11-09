@@ -32,13 +32,22 @@ both still work and print what this guide says they print.
 - [Working with text](#working-with-text)
   - [Cleaning a list of station codes](#cleaning-a-list-of-station-codes)
   - [Pulling figures out of text](#pulling-figures-out-of-text)
+  - [Rewriting with captures](#rewriting-with-captures)
+  - [Repeated words](#repeated-words)
+  - [Filling in a template](#filling-in-a-template)
 - [Counting and grouping](#counting-and-grouping)
   - [Counting quakes by region](#counting-quakes-by-region)
+  - [Grouping by a field](#grouping-by-a-field)
+  - [The strongest few](#the-strongest-few)
+  - [Expected, and silent](#expected-and-silent)
 - [Writing it out](#writing-it-out)
   - [Building records and writing JSON](#building-records-and-writing-json)
+  - [Writing YAML](#writing-yaml)
   - [Storing waveform samples as bytes](#storing-waveform-samples-as-bytes)
 - [Making it faster](#making-it-faster)
   - [Making regex-heavy code faster](#making-regex-heavy-code-faster)
+  - [Sharing data between goroutines](#sharing-data-between-goroutines)
+- [Growing out of scalar](#growing-out-of-scalar)
 - [Compared with plain Go](#compared-with-plain-go)
 
 ## Quick start
@@ -1056,6 +1065,157 @@ fmt.Println(slices.Min(figures), slices.Max(figures))
 
 In Perl: [every figure in a text](PERL.md#every-figure-in-a-text).
 
+### Rewriting with captures
+
+`S` is Perl's `s///`, with `$1` and `$2` in the replacement for what the
+pattern captured, changing the text in place.
+
+<!-- recipe:rewritePlaces -->
+
+```go
+places := scalar.Array("12 km NNE of Ridgecrest, CA", "5 km W of Cobb, CA", "Mid-Atlantic Ridge")
+
+for _, p := range places.All() {
+	p.S(`^(.+?) of (.+)$`, "$2 ($1)") // s/^(.+?) of (.+)$/$2 ($1)/: in place
+}
+fmt.Println(places.Join("\n"))
+```
+
+It prints:
+
+```
+Ridgecrest, CA (12 km NNE)
+Cobb, CA (5 km W)
+Mid-Atlantic Ridge
+```
+
+In plain Go, printing the same:
+
+```go
+// ofRE splits a place into how far from where, and where.
+var ofRE = regexp.MustCompile(`^(.+?) of (.+)$`)
+
+places := []string{"12 km NNE of Ridgecrest, CA", "5 km W of Cobb, CA", "Mid-Atlantic Ridge"}
+
+for i, p := range places {
+	places[i] = ofRE.ReplaceAllString(p, "$2 ($1)")
+}
+fmt.Println(strings.Join(places, "\n"))
+```
+
+**Uses:** [`Array`](EXAMPLES.md#array), [`AV.All`](EXAMPLES.md#avall), [`SV.S`](EXAMPLES.md#svs), [`AV.Join`](EXAMPLES.md#avjoin).
+
+<!-- /recipe -->
+
+Go's `regexp` writes `${1}` where a letter or digit follows, as `$1x`
+would read as a group named `1x`; Perl, and scalar, read `$1x` as `$1`
+then `x`. The reference's [Substitution](REFERENCE.md#substitution) has
+the flags. In Perl: [substitute](PERL.md#substitute).
+
+### Repeated words
+
+A backreference, `\1`, matches what a group matched before: here, a word
+typed twice, as a bulletin written in a hurry has.
+
+<!-- recipe:repeatedWords -->
+
+```go
+bulletin := scalar.Value("The the quake was felt felt widely across the region.")
+
+for m := range bulletin.Matches(`\b(\w+)\s+\1\b`, "i") { // \1: the word again
+	fmt.Println(m.Get(1))
+}
+```
+
+It prints:
+
+```
+The
+felt
+```
+
+In plain Go, printing the same:
+
+```go
+bulletin := "The the quake was felt felt widely across the region."
+
+// Go's regexp has no backreferences, so compare each word with the one before.
+words := strings.FieldsFunc(bulletin, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+for i := 1; i < len(words); i++ {
+	if strings.EqualFold(words[i], words[i-1]) {
+		fmt.Println(words[i-1])
+	}
+}
+```
+
+**Uses:** [`Value`](EXAMPLES.md#value), [`SV.Matches`](EXAMPLES.md#svmatches), [`AV.Get`](EXAMPLES.md#avget).
+
+<!-- /recipe -->
+
+Go's `regexp` has no backreferences, so the plain Go splits the text into
+words and compares each with the one before, which works for this and
+not much else.
+
+### Filling in a template
+
+`Interpolate` fills in a template from a hash, as a double-quoted string
+does in Perl: `$name` for a key's value, and `@name` for a list's,
+joined with spaces.
+
+<!-- recipe:fillTemplate -->
+
+```go
+quakes, err := scalar.FromJSON([]byte(`[
+	{"mag": 5.1, "place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]},
+	{"mag": 2.3, "place": "Cobb, CA", "stations": ["CMB"]}
+]`))
+if err != nil {
+	panic(err)
+}
+
+for _, q := range quakes.AV().All() {
+	fmt.Println(q.Interpolate("M$mag near $place, recorded at @stations"))
+}
+```
+
+It prints:
+
+```
+M5.1 near Ridgecrest, CA, recorded at PAS GSC
+M2.3 near Cobb, CA, recorded at CMB
+```
+
+In plain Go, printing the same:
+
+```go
+var quakes []struct {
+	Mag      float64  `json:"mag"`
+	Place    string   `json:"place"`
+	Stations []string `json:"stations"`
+}
+err := json.Unmarshal([]byte(`[
+	{"mag": 5.1, "place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]},
+	{"mag": 2.3, "place": "Cobb, CA", "stations": ["CMB"]}
+]`), &quakes)
+if err != nil {
+	panic(err)
+}
+
+for _, q := range quakes {
+	fmt.Printf("M%v near %s, recorded at %s\n", q.Mag, q.Place, strings.Join(q.Stations, " "))
+}
+```
+
+**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.AV`](EXAMPLES.md#svav), [`AV.All`](EXAMPLES.md#avall), [`SV.Interpolate`](EXAMPLES.md#svinterpolate).
+
+<!-- /recipe -->
+
+A key that isn't there fills in as nothing, as in Perl. The plain Go is
+a struct and `fmt.Printf`; with the fields known, it's the better
+choice. The reference's [Filling in
+templates](REFERENCE.md#filling-in-templates-interpolate) has the rest.
+In Perl: [variables in a string](PERL.md#variables-in-a-string).
+
 ## Counting and grouping
 
 Arrays come with Perl's list utilities, `List::Util` and
@@ -1135,6 +1295,189 @@ for _, region := range order[:min(3, len(order))] {
 The same with a hash, `Inc` and a sort is in [Sorting](REFERENCE.md#sorting).
 In Perl: [count by a key](PERL.md#count-by-a-key).
 
+### Grouping by a field
+
+`PartitionBy` is `List::UtilsBy`'s `partition_by`: a hash from each key to
+an array of the elements that gave it.
+
+<!-- recipe:groupByNetwork -->
+
+```go
+feed, err := scalar.FromJSON(weekFeed)
+if err != nil {
+	panic(err)
+}
+
+byNet := feed.Find("$.features[*]").PartitionBy(func(f *scalar.SV) any { return f.At("properties.net") })
+for _, net := range byNet.Keys().Sort(nil).All() { // sort keys %by_net
+	ids := byNet.Get(net.Str()).AV().Map(func(f *scalar.SV) any { return f.Get("id") })
+	fmt.Println(net, ids.Join(","))
+}
+```
+
+It prints:
+
+```
+ci ci40123456
+nc nc75012345
+us us7000n7v2,us7000n8x4
+```
+
+In plain Go, printing the same:
+
+```go
+var feed struct {
+	Features []struct {
+		ID         string `json:"id"`
+		Properties struct {
+			Net string `json:"net"`
+		} `json:"properties"`
+	} `json:"features"`
+}
+if err := json.Unmarshal(weekFeed, &feed); err != nil {
+	panic(err)
+}
+
+byNet := map[string][]string{}
+for _, f := range feed.Features {
+	byNet[f.Properties.Net] = append(byNet[f.Properties.Net], f.ID)
+}
+for _, net := range slices.Sorted(maps.Keys(byNet)) {
+	fmt.Println(net, strings.Join(byNet[net], ","))
+}
+```
+
+**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.Find`](EXAMPLES.md#svfind), [`AV.PartitionBy`](EXAMPLES.md#avpartitionby), [`SV.At`](EXAMPLES.md#svat), [`HV.Keys`](EXAMPLES.md#hvkeys), [`AV.Sort`](EXAMPLES.md#avsort), [`AV.All`](EXAMPLES.md#avall), [`HV.Get`](EXAMPLES.md#hvget), [`SV.Str`](EXAMPLES.md#svstr), [`SV.AV`](EXAMPLES.md#svav), [`AV.Map`](EXAMPLES.md#avmap), [`SV.Get`](EXAMPLES.md#svget), [`AV.Join`](EXAMPLES.md#avjoin).
+
+<!-- /recipe -->
+
+As in Perl, a hash's keys come in no fixed order, so they're sorted for
+printing, as a Go map's must be. The reference's [By a
+key](REFERENCE.md#by-a-key-listutilsby) has the rest of `List::UtilsBy`.
+
+### The strongest few
+
+Sort by a field, strongest first, and take the first few; then a total,
+where a missing or null count adds nothing.
+
+<!-- recipe:strongestFew -->
+
+```go
+feed, err := scalar.FromJSON(weekFeed)
+if err != nil {
+	panic(err)
+}
+
+mag := func(q *scalar.SV) any { return q.At("properties.mag") }
+felt := func(q *scalar.SV) any { return q.At("properties.felt") }
+
+quakes := feed.Find("$.features[*]")
+strongest := quakes.RevSortByNum(mag)               // rev_nsort_by { $_->{properties}{mag} } @quakes
+for _, q := range strongest.Values(0, 1, 2).All() { // @strongest[0..2]
+	fmt.Println(q.At("properties.mag"), q.Get("id"))
+}
+fmt.Println("total felt:", quakes.Map(felt).Sum())
+```
+
+It prints:
+
+```
+5.1 ci40123456
+4.9 us7000n8x4
+4.7 us7000n7v2
+total felt: 1207
+```
+
+In plain Go, printing the same:
+
+```go
+type Quake struct {
+	ID         string `json:"id"`
+	Properties struct {
+		Mag  float64 `json:"mag"`
+		Felt *int    `json:"felt"`
+	} `json:"properties"`
+}
+var feed struct {
+	Features []Quake `json:"features"`
+}
+if err := json.Unmarshal(weekFeed, &feed); err != nil {
+	panic(err)
+}
+
+byMag := func(a, b Quake) int { return cmp.Compare(b.Properties.Mag, a.Properties.Mag) } // strongest first
+
+strongest := slices.Clone(feed.Features)
+slices.SortStableFunc(strongest, byMag)
+for _, q := range strongest[:min(3, len(strongest))] {
+	fmt.Println(q.Properties.Mag, q.ID)
+}
+total := 0
+for _, q := range feed.Features {
+	if q.Properties.Felt != nil {
+		total += *q.Properties.Felt
+	}
+}
+fmt.Println("total felt:", total)
+```
+
+**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.At`](EXAMPLES.md#svat), [`SV.Find`](EXAMPLES.md#svfind), [`AV.RevSortByNum`](EXAMPLES.md#avrevsortbynum), [`AV.Values`](EXAMPLES.md#avvalues), [`AV.All`](EXAMPLES.md#avall), [`SV.Get`](EXAMPLES.md#svget), [`AV.Map`](EXAMPLES.md#avmap), [`AV.Sum`](EXAMPLES.md#avsum).
+
+<!-- /recipe -->
+
+`Sum` reads each value as a number, so undef counts as nothing, where the
+plain Go checks each pointer. In Perl: [sort by a
+field](PERL.md#sort-by-a-field) and [max and sum](PERL.md#max-and-sum).
+
+### Expected, and silent
+
+A set of the stations expected to record a quake, and a set of those that
+did: which recorded it, and which were silent?
+
+<!-- recipe:silentStations -->
+
+```go
+expected := scalar.NewSet("PAS", "GSC", "ISA", "SVD")
+recorded := scalar.NewSet("PAS", "ISA", "CMB") // CMB is another network's
+
+fmt.Println(expected.Intersection(recorded)) // expected, and recorded
+fmt.Println(expected.Difference(recorded))   // expected, but silent
+```
+
+It prints:
+
+```
+(ISA PAS)
+(GSC SVD)
+```
+
+In plain Go, printing the same:
+
+```go
+expected := map[string]bool{"PAS": true, "GSC": true, "ISA": true, "SVD": true}
+recorded := map[string]bool{"PAS": true, "ISA": true, "CMB": true}
+
+var both, silent []string
+for s := range expected {
+	if recorded[s] {
+		both = append(both, s)
+	} else {
+		silent = append(silent, s)
+	}
+}
+slices.Sort(both) // a map has no order
+slices.Sort(silent)
+fmt.Println("(" + strings.Join(both, " ") + ")")
+fmt.Println("(" + strings.Join(silent, " ") + ")")
+```
+
+**Uses:** [`NewSet`](EXAMPLES.md#newset), [`Set.Intersection`](EXAMPLES.md#setintersection), [`Set.Difference`](EXAMPLES.md#setdifference).
+
+<!-- /recipe -->
+
+A set prints its members sorted, as `Set::Scalar` does; plain Go's
+`map[string]bool` is a set with no order, so the plain Go sorts too.
+
 ## Writing it out
 
 Scalars, arrays and hashes work with `encoding/json` and the YAML
@@ -1206,6 +1549,109 @@ Each row is a separate copy of `defaults`, so changing one row changes
 neither the others nor `defaults`. In the plain Go, a struct does the same
 by being copied when it's assigned; with the fields known, it's the better
 choice.
+
+### Writing YAML
+
+`ToYAML` writes keys sorted, with a two-space indent, quoting any string
+a reader could take for something else, so the same data always gives
+the same YAML.
+
+<!-- recipe:writeYAML -->
+
+```go
+feed, err := scalar.FromJSON(weekFeed)
+if err != nil {
+	panic(err)
+}
+
+quakes := feed.Find("$.features[*].properties")
+strongest := quakes.MaxBy(func(q *scalar.SV) any { return q.Get("mag") })
+summary := scalar.Hash(
+	"count", quakes.Length(),
+	"networks", scalar.Value(quakes.Map(func(q *scalar.SV) any { return q.Get("net") }).UniqueStr()),
+	"strongest", scalar.Value(scalar.Hash("mag", strongest.Get("mag"), "place", strongest.Get("place"))),
+)
+
+out, err := scalar.Value(summary).ToYAML() // keys sorted, two-space indent
+if err != nil {
+	panic(err)
+}
+fmt.Print(string(out))
+```
+
+It prints:
+
+```
+count: 4
+networks:
+  - ci
+  - nc
+  - us
+strongest:
+  mag: 5.1
+  place: 12 km NNE of Ridgecrest, CA
+```
+
+In plain Go, printing the same:
+
+```go
+var feed struct {
+	Features []struct {
+		Properties struct {
+			Mag   float64 `json:"mag"`
+			Place *string `json:"place"`
+			Net   string  `json:"net"`
+		} `json:"properties"`
+	} `json:"features"`
+}
+if err := json.Unmarshal(weekFeed, &feed); err != nil {
+	panic(err)
+}
+
+type Strongest struct {
+	Mag   float64 `yaml:"mag"`
+	Place string  `yaml:"place"`
+}
+var summary struct {
+	Count     int       `yaml:"count"` // in the order to write them
+	Networks  []string  `yaml:"networks"`
+	Strongest Strongest `yaml:"strongest"`
+}
+summary.Count = len(feed.Features)
+for i, f := range feed.Features {
+	p := f.Properties
+	if !slices.Contains(summary.Networks, p.Net) {
+		summary.Networks = append(summary.Networks, p.Net)
+	}
+	if i == 0 || p.Mag > summary.Strongest.Mag {
+		summary.Strongest = Strongest{Mag: p.Mag}
+		if p.Place != nil {
+			summary.Strongest.Place = *p.Place
+		}
+	}
+}
+
+var out bytes.Buffer
+enc := yaml.NewEncoder(&out)
+enc.SetIndent(2) // yaml's default is four
+if err := enc.Encode(summary); err != nil {
+	panic(err)
+}
+fmt.Print(out.String())
+```
+
+**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.Find`](EXAMPLES.md#svfind), [`AV.MaxBy`](EXAMPLES.md#avmaxby), [`SV.Get`](EXAMPLES.md#svget), [`Hash`](EXAMPLES.md#hash), [`AV.Length`](EXAMPLES.md#avlength), [`Value`](EXAMPLES.md#value), [`AV.Map`](EXAMPLES.md#avmap), [`AV.UniqueStr`](EXAMPLES.md#avuniquestr), [`SV.ToYAML`](EXAMPLES.md#svtoyaml).
+
+<!-- /recipe -->
+
+As in Perl, an array or a hash given to `Hash` or `Array` flattens into
+the list, so one that's meant to be nested is wrapped in `scalar.Value`,
+as Perl takes `\%h` or `\@a`; the reference's [Lists flatten, as in
+Perl](REFERENCE.md#lists-flatten-as-in-perl) has the rule, Go slices
+included. In the plain Go, a struct's fields are written in the order
+they're declared, and the YAML package's indent is four spaces unless it's told
+otherwise. The reference's [YAML](REFERENCE.md#yaml) has what's quoted
+and why.
 
 ### Storing waveform samples as bytes
 
@@ -1328,6 +1774,112 @@ engine](REFERENCE.md#choosing-an-engine-backtracking-and-linear) says what
 `Linear` can't run, and which matches it still hands to `Backtracking`.
 Go's own `regexp`, in the plain Go, has no lookbehind, so the pattern
 has to be written another way.
+
+### Sharing data between goroutines
+
+A table read by many goroutines at once, locked first: reading a locked
+structure writes nothing, so it's safe, and a misspelled key panics
+rather than reading as undef.
+
+<!-- recipe:sharedForReading -->
+
+```go
+scale, err := scalar.FromJSON([]byte(`{"minor": 3, "light": 4, "moderate": 5, "strong": 6}`))
+if err != nil {
+	panic(err)
+}
+scale.Lock() // read-only from here: safe to read from many goroutines at once
+
+mags := []float64{5.1, 2.3, 4.7, 6.4}
+classes := make([]string, len(mags))
+var wg sync.WaitGroup
+for i, mag := range mags {
+	wg.Go(func() {
+		classes[i] = "below minor"
+		for _, k := range []string{"minor", "light", "moderate", "strong"} {
+			if mag >= scale.Get(k).Num() { // a misspelled key would panic, not read undef
+				classes[i] = k
+			}
+		}
+	})
+}
+wg.Wait()
+fmt.Println(strings.Join(classes, ", "))
+```
+
+It prints:
+
+```
+moderate, below minor, light, strong
+```
+
+In plain Go, printing the same:
+
+```go
+// Nothing writes it, so goroutines may read it at once.
+scale := map[string]float64{"minor": 3, "light": 4, "moderate": 5, "strong": 6}
+
+mags := []float64{5.1, 2.3, 4.7, 6.4}
+classes := make([]string, len(mags))
+var wg sync.WaitGroup
+for i, mag := range mags {
+	wg.Go(func() {
+		classes[i] = "below minor"
+		for _, k := range []string{"minor", "light", "moderate", "strong"} {
+			if mag >= scale[k] { // a misspelled key would read 0
+				classes[i] = k
+			}
+		}
+	})
+}
+wg.Wait()
+fmt.Println(strings.Join(classes, ", "))
+```
+
+**Uses:** [`FromJSON`](EXAMPLES.md#fromjson), [`SV.Lock`](EXAMPLES.md#svlock), [`SV.Get`](EXAMPLES.md#svget), [`SV.Num`](EXAMPLES.md#svnum).
+
+<!-- /recipe -->
+
+A Go map that nothing writes is safe to read from many goroutines too,
+but a misspelled key reads as zero. The reference's
+[Locking](REFERENCE.md#locking) and
+[Concurrency](REFERENCE.md#concurrency) have the rest.
+
+## Growing out of scalar
+
+scalar is for the edges, while the shape of the data isn't known yet.
+Once it is, the plain Go beside each recipe is where the code is
+heading: checked by the compiler, faster, and without a dependency. The
+move can be made a step at a time, each step keeping the program working:
+
+1. **Convert at the boundary.** Where the code reads a settled part of
+   the document field by field, convert that part once with
+   `scalar.To[T]`, and use the struct from there, as the [quick
+   start](#quick-start) does. Keep a part whose shape still varies as a
+   `*scalar.SV` field ([a part that stays loose](#a-part-that-stays-loose)).
+2. **Decode directly.** When nothing in the document varies any more,
+   decode it with `encoding/json` into the same struct, and drop
+   `FromJSON` and `To`. What you give up is `To`'s forgiveness: a number
+   in a string, which `encoding/json` refuses, needs a type of its own
+   ([numbers that arrive as strings](#numbers-that-arrive-as-strings)),
+   and a field that may be missing or null needs a pointer.
+3. **Move the text work.** A pattern `scalar.Linear` can run, Go's
+   `regexp` can too, but not always with the same answers: there, `\w`,
+   `\d` and `\s` match only ASCII, and named groups are numbered in
+   order. The reference's [What Linear
+   translates](REFERENCE.md#what-linear-translates) lists the
+   differences, and [What Linear can't
+   run](REFERENCE.md#what-linear-cant-run) what needs another way. `S`,
+   `Split` and `Tr` become `regexp` and `strings` calls.
+4. **Replace the containers.** Arrays become slices, hashes become maps
+   or structs, sets become `map[T]bool`, and bags `map[T]int`, with a
+   sort wherever the order mattered.
+
+Each recipe's plain Go shows what a step looks like for that task, and
+prints the same, so the move can be checked against it. The phrasebook's
+[When to switch](PERL.md#when-to-switch) says where scalar saves the most
+and where it doesn't, and the README's [When not to use
+it](../README.md#when-not-to-use-it) when to skip it altogether.
 
 ## Compared with plain Go
 

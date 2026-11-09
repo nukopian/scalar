@@ -1,6 +1,6 @@
 # 2026-0011. Guide chapters: text, counting, output and speed
 
-**Status:** in progress
+**Status:** shipped, unreleased
 
 **Decisions:** None: the chapters were made in 2026-0010, and Iain asked
 for this item on 2026-11-09.
@@ -11,6 +11,8 @@ for this item on 2026-11-09.
 
 **Started:** 2026-11-09, on `develop`, from
 a4d1d6b92dcb8667e0580231235c0e5814a9c294
+
+**Finished:** 2026-11-09
 
 ## The plan
 
@@ -57,4 +59,39 @@ tool.
 
 ## What happened
 
-Nothing yet.
+- **Outcome:** done as planned. Eight new recipes, each with a plain Go
+  twin printing the same, take the guide to twenty-five, in ten
+  chapters:
+  - Working with text: rewriting with captures; repeated words, by
+    backreference; filling in a template.
+  - Counting and grouping: grouping by a field; the strongest few;
+    expected, and silent.
+  - Writing it out: writing YAML.
+  - Making it faster: sharing data between goroutines, which passes
+    under `-race`.
+
+  "Growing out of scalar" is the new chapter: four steps from scalar to
+  plain Go, each keeping the program working, pointing at the twins as
+  the code each step moves to.
+- **Found on the way:**
+  - Two recipes first failed on Perl's rule that lists flatten:
+    `Array(Hash(…))` spread each hash into its pairs, and a Go slice
+    given to `Hash` spread too. Both are documented, and the reference
+    has them; the YAML recipe now says so, wrapping what's nested in
+    `scalar.Value`, and the template recipe reads its data from JSON,
+    as it would arrive.
+  - The first draft of the guide said a hash's keys come in the order
+    they were added; the reference says, as in Perl, that the order isn't
+    fixed, and the guide says that now.
+  - The first draft of "Growing out of scalar" said a pattern `Linear`
+    can run gives Go's `regexp` the same answers; the reference's What
+    `Linear` translates shows it doesn't, for `\w`, `\d`, `\s` and named
+    groups, and the chapter says so.
+  - A probe confirmed scalar reads `$1x` in a replacement as `$1` then
+    `x`, as Perl does, where Go's `regexp` reads a group named `1x`.
+- **Changes from the plan:** the template recipe reads JSON rather than
+  building hashes, for the reason above; and reading the PDF moved three
+  comments that wrapped or repeated the prose.
+- **What's left:** nothing for the guide's chapters. The general part of
+  the generator moves to docref when grammar's guide follows
+  (2026-0008's D2 and D4).

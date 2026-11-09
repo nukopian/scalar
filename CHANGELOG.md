@@ -44,6 +44,14 @@ release's entry when `main` is moved to it and tagged
   loose in a struct. Each chapter says when scalar is the better choice
   and when plain Go is (roadmap 2026-0010;
   [record](docs/changes/2026-0010-guide-chapters-loose-data-in-typed-go-out.md)).
+- Docs: the how-to guide's later chapters gain eight recipes: rewriting
+  with captures, repeated words by backreference, and filling in a
+  template; grouping by a field, the strongest few, and which stations
+  were silent; writing YAML; and sharing a locked structure between
+  goroutines. A new chapter, "Growing out of scalar", sets out how to move
+  to plain Go a step at a time once the data's shape is known
+  (roadmap 2026-0011;
+  [record](docs/changes/2026-0011-guide-chapters-text-counting-output-and-speed.md)).
 
 ## v0.6.6 (2026-11-08)
 

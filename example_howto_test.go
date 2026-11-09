@@ -14,16 +14,20 @@ package scalar_test
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/nukopian/scalar"
 	"go.yaml.in/yaml/v3"
@@ -943,4 +947,381 @@ func Example_loosePartPlainGo() {
 
 	// Output:
 	// ci40123456 reviewed none
+}
+
+func Example_rewritePlaces() {
+	places := scalar.Array("12 km NNE of Ridgecrest, CA", "5 km W of Cobb, CA", "Mid-Atlantic Ridge")
+
+	for _, p := range places.All() {
+		p.S(`^(.+?) of (.+)$`, "$2 ($1)") // s/^(.+?) of (.+)$/$2 ($1)/: in place
+	}
+	fmt.Println(places.Join("\n"))
+
+	// Output:
+	// Ridgecrest, CA (12 km NNE)
+	// Cobb, CA (5 km W)
+	// Mid-Atlantic Ridge
+}
+
+// ofRE splits a place into how far from where, and where.
+var ofRE = regexp.MustCompile(`^(.+?) of (.+)$`)
+
+func Example_rewritePlacesPlainGo() {
+	places := []string{"12 km NNE of Ridgecrest, CA", "5 km W of Cobb, CA", "Mid-Atlantic Ridge"}
+
+	for i, p := range places {
+		places[i] = ofRE.ReplaceAllString(p, "$2 ($1)")
+	}
+	fmt.Println(strings.Join(places, "\n"))
+
+	// Output:
+	// Ridgecrest, CA (12 km NNE)
+	// Cobb, CA (5 km W)
+	// Mid-Atlantic Ridge
+}
+
+func Example_repeatedWords() {
+	bulletin := scalar.Value("The the quake was felt felt widely across the region.")
+
+	for m := range bulletin.Matches(`\b(\w+)\s+\1\b`, "i") { // \1: the word again
+		fmt.Println(m.Get(1))
+	}
+
+	// Output:
+	// The
+	// felt
+}
+
+func Example_repeatedWordsPlainGo() {
+	bulletin := "The the quake was felt felt widely across the region."
+
+	// Go's regexp has no backreferences, so compare each word with the one before.
+	words := strings.FieldsFunc(bulletin, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+	for i := 1; i < len(words); i++ {
+		if strings.EqualFold(words[i], words[i-1]) {
+			fmt.Println(words[i-1])
+		}
+	}
+
+	// Output:
+	// The
+	// felt
+}
+
+func Example_fillTemplate() {
+	quakes, err := scalar.FromJSON([]byte(`[
+		{"mag": 5.1, "place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]},
+		{"mag": 2.3, "place": "Cobb, CA", "stations": ["CMB"]}
+	]`))
+	if err != nil {
+		panic(err)
+	}
+
+	for _, q := range quakes.AV().All() {
+		fmt.Println(q.Interpolate("M$mag near $place, recorded at @stations"))
+	}
+
+	// Output:
+	// M5.1 near Ridgecrest, CA, recorded at PAS GSC
+	// M2.3 near Cobb, CA, recorded at CMB
+}
+
+func Example_fillTemplatePlainGo() {
+	var quakes []struct {
+		Mag      float64  `json:"mag"`
+		Place    string   `json:"place"`
+		Stations []string `json:"stations"`
+	}
+	err := json.Unmarshal([]byte(`[
+		{"mag": 5.1, "place": "Ridgecrest, CA", "stations": ["PAS", "GSC"]},
+		{"mag": 2.3, "place": "Cobb, CA", "stations": ["CMB"]}
+	]`), &quakes)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, q := range quakes {
+		fmt.Printf("M%v near %s, recorded at %s\n", q.Mag, q.Place, strings.Join(q.Stations, " "))
+	}
+
+	// Output:
+	// M5.1 near Ridgecrest, CA, recorded at PAS GSC
+	// M2.3 near Cobb, CA, recorded at CMB
+}
+
+func Example_groupByNetwork() {
+	feed, err := scalar.FromJSON(weekFeed)
+	if err != nil {
+		panic(err)
+	}
+
+	byNet := feed.Find("$.features[*]").PartitionBy(func(f *scalar.SV) any { return f.At("properties.net") })
+	for _, net := range byNet.Keys().Sort(nil).All() { // sort keys %by_net
+		ids := byNet.Get(net.Str()).AV().Map(func(f *scalar.SV) any { return f.Get("id") })
+		fmt.Println(net, ids.Join(","))
+	}
+
+	// Output:
+	// ci ci40123456
+	// nc nc75012345
+	// us us7000n7v2,us7000n8x4
+}
+
+func Example_groupByNetworkPlainGo() {
+	var feed struct {
+		Features []struct {
+			ID         string `json:"id"`
+			Properties struct {
+				Net string `json:"net"`
+			} `json:"properties"`
+		} `json:"features"`
+	}
+	if err := json.Unmarshal(weekFeed, &feed); err != nil {
+		panic(err)
+	}
+
+	byNet := map[string][]string{}
+	for _, f := range feed.Features {
+		byNet[f.Properties.Net] = append(byNet[f.Properties.Net], f.ID)
+	}
+	for _, net := range slices.Sorted(maps.Keys(byNet)) {
+		fmt.Println(net, strings.Join(byNet[net], ","))
+	}
+
+	// Output:
+	// ci ci40123456
+	// nc nc75012345
+	// us us7000n7v2,us7000n8x4
+}
+
+func Example_strongestFew() {
+	feed, err := scalar.FromJSON(weekFeed)
+	if err != nil {
+		panic(err)
+	}
+
+	mag := func(q *scalar.SV) any { return q.At("properties.mag") }
+	felt := func(q *scalar.SV) any { return q.At("properties.felt") }
+
+	quakes := feed.Find("$.features[*]")
+	strongest := quakes.RevSortByNum(mag)               // rev_nsort_by { $_->{properties}{mag} } @quakes
+	for _, q := range strongest.Values(0, 1, 2).All() { // @strongest[0..2]
+		fmt.Println(q.At("properties.mag"), q.Get("id"))
+	}
+	fmt.Println("total felt:", quakes.Map(felt).Sum())
+
+	// Output:
+	// 5.1 ci40123456
+	// 4.9 us7000n8x4
+	// 4.7 us7000n7v2
+	// total felt: 1207
+}
+
+func Example_strongestFewPlainGo() {
+	type Quake struct {
+		ID         string `json:"id"`
+		Properties struct {
+			Mag  float64 `json:"mag"`
+			Felt *int    `json:"felt"`
+		} `json:"properties"`
+	}
+	var feed struct {
+		Features []Quake `json:"features"`
+	}
+	if err := json.Unmarshal(weekFeed, &feed); err != nil {
+		panic(err)
+	}
+
+	byMag := func(a, b Quake) int { return cmp.Compare(b.Properties.Mag, a.Properties.Mag) } // strongest first
+
+	strongest := slices.Clone(feed.Features)
+	slices.SortStableFunc(strongest, byMag)
+	for _, q := range strongest[:min(3, len(strongest))] {
+		fmt.Println(q.Properties.Mag, q.ID)
+	}
+	total := 0
+	for _, q := range feed.Features {
+		if q.Properties.Felt != nil {
+			total += *q.Properties.Felt
+		}
+	}
+	fmt.Println("total felt:", total)
+
+	// Output:
+	// 5.1 ci40123456
+	// 4.9 us7000n8x4
+	// 4.7 us7000n7v2
+	// total felt: 1207
+}
+
+func Example_silentStations() {
+	expected := scalar.NewSet("PAS", "GSC", "ISA", "SVD")
+	recorded := scalar.NewSet("PAS", "ISA", "CMB") // CMB is another network's
+
+	fmt.Println(expected.Intersection(recorded)) // expected, and recorded
+	fmt.Println(expected.Difference(recorded))   // expected, but silent
+
+	// Output:
+	// (ISA PAS)
+	// (GSC SVD)
+}
+
+func Example_silentStationsPlainGo() {
+	expected := map[string]bool{"PAS": true, "GSC": true, "ISA": true, "SVD": true}
+	recorded := map[string]bool{"PAS": true, "ISA": true, "CMB": true}
+
+	var both, silent []string
+	for s := range expected {
+		if recorded[s] {
+			both = append(both, s)
+		} else {
+			silent = append(silent, s)
+		}
+	}
+	slices.Sort(both) // a map has no order
+	slices.Sort(silent)
+	fmt.Println("(" + strings.Join(both, " ") + ")")
+	fmt.Println("(" + strings.Join(silent, " ") + ")")
+
+	// Output:
+	// (ISA PAS)
+	// (GSC SVD)
+}
+
+func Example_writeYAML() {
+	feed, err := scalar.FromJSON(weekFeed)
+	if err != nil {
+		panic(err)
+	}
+
+	quakes := feed.Find("$.features[*].properties")
+	strongest := quakes.MaxBy(func(q *scalar.SV) any { return q.Get("mag") })
+	summary := scalar.Hash(
+		"count", quakes.Length(),
+		"networks", scalar.Value(quakes.Map(func(q *scalar.SV) any { return q.Get("net") }).UniqueStr()),
+		"strongest", scalar.Value(scalar.Hash("mag", strongest.Get("mag"), "place", strongest.Get("place"))),
+	)
+
+	out, err := scalar.Value(summary).ToYAML() // keys sorted, two-space indent
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(string(out))
+
+	// Output:
+	// count: 4
+	// networks:
+	//   - ci
+	//   - nc
+	//   - us
+	// strongest:
+	//   mag: 5.1
+	//   place: 12 km NNE of Ridgecrest, CA
+}
+
+func Example_writeYAMLPlainGo() {
+	var feed struct {
+		Features []struct {
+			Properties struct {
+				Mag   float64 `json:"mag"`
+				Place *string `json:"place"`
+				Net   string  `json:"net"`
+			} `json:"properties"`
+		} `json:"features"`
+	}
+	if err := json.Unmarshal(weekFeed, &feed); err != nil {
+		panic(err)
+	}
+
+	type Strongest struct {
+		Mag   float64 `yaml:"mag"`
+		Place string  `yaml:"place"`
+	}
+	var summary struct {
+		Count     int       `yaml:"count"` // in the order to write them
+		Networks  []string  `yaml:"networks"`
+		Strongest Strongest `yaml:"strongest"`
+	}
+	summary.Count = len(feed.Features)
+	for i, f := range feed.Features {
+		p := f.Properties
+		if !slices.Contains(summary.Networks, p.Net) {
+			summary.Networks = append(summary.Networks, p.Net)
+		}
+		if i == 0 || p.Mag > summary.Strongest.Mag {
+			summary.Strongest = Strongest{Mag: p.Mag}
+			if p.Place != nil {
+				summary.Strongest.Place = *p.Place
+			}
+		}
+	}
+
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2) // yaml's default is four
+	if err := enc.Encode(summary); err != nil {
+		panic(err)
+	}
+	fmt.Print(out.String())
+
+	// Output:
+	// count: 4
+	// networks:
+	//   - ci
+	//   - nc
+	//   - us
+	// strongest:
+	//   mag: 5.1
+	//   place: 12 km NNE of Ridgecrest, CA
+}
+
+func Example_sharedForReading() {
+	scale, err := scalar.FromJSON([]byte(`{"minor": 3, "light": 4, "moderate": 5, "strong": 6}`))
+	if err != nil {
+		panic(err)
+	}
+	scale.Lock() // read-only from here: safe to read from many goroutines at once
+
+	mags := []float64{5.1, 2.3, 4.7, 6.4}
+	classes := make([]string, len(mags))
+	var wg sync.WaitGroup
+	for i, mag := range mags {
+		wg.Go(func() {
+			classes[i] = "below minor"
+			for _, k := range []string{"minor", "light", "moderate", "strong"} {
+				if mag >= scale.Get(k).Num() { // a misspelled key would panic, not read undef
+					classes[i] = k
+				}
+			}
+		})
+	}
+	wg.Wait()
+	fmt.Println(strings.Join(classes, ", "))
+
+	// Output:
+	// moderate, below minor, light, strong
+}
+
+func Example_sharedForReadingPlainGo() {
+	// Nothing writes it, so goroutines may read it at once.
+	scale := map[string]float64{"minor": 3, "light": 4, "moderate": 5, "strong": 6}
+
+	mags := []float64{5.1, 2.3, 4.7, 6.4}
+	classes := make([]string, len(mags))
+	var wg sync.WaitGroup
+	for i, mag := range mags {
+		wg.Go(func() {
+			classes[i] = "below minor"
+			for _, k := range []string{"minor", "light", "moderate", "strong"} {
+				if mag >= scale[k] { // a misspelled key would read 0
+					classes[i] = k
+				}
+			}
+		})
+	}
+	wg.Wait()
+	fmt.Println(strings.Join(classes, ", "))
+
+	// Output:
+	// moderate, below minor, light, strong
 }

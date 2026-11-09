@@ -44,14 +44,7 @@ deleted, and the commit that drops it names its id.
 
 ## Now
 
-### 2026-0011. Guide chapters: text, counting, output and speed
-
-**Serves:** learning
-
-Recipes for the guide's later chapters, text, counting and grouping,
-writing out and speed, each with its plain Go, and a chapter on growing
-out of scalar. The plan is in its
-[change record](docs/changes/2026-0011-guide-chapters-text-counting-output-and-speed.md).
+Nothing yet.
 
 ## Next
 
