@@ -2,8 +2,8 @@
 
 **Status:** open
 
-**Decisions:** D1 open: whether a test checks the reference names every
-exported function.
+**Decisions:** D1 settled: a test checks the reference names every
+exported function, with a list of those covered under another's name.
 
 **Origin:** roadmap 2026-0009, from Iain on 2026-11-09, while planning
 2026-0008
@@ -12,17 +12,18 @@ exported function.
 
 ## Decisions
 
-- [ ] **D1.** Should a test check that the reference names every
+- [x] **D1.** Should a test check that the reference names every
   exported function and method, as `TestEveryFeatureHasExample` does
-  for the examples? A name alone isn't coverage: a mention in passing
-  would pass it. The options: no test, and an audit at each wash-up;
-  a test that each name appears, accepting that; or a test that each
-  has a heading or a row in a feature's table, which is stricter but
-  ties the reference's layout to the test. Recommended: the test that
-  each name appears, with an explicit list of the ones covered under
-  another's name (the YAML marshalling methods under YAML, for
-  instance), as it catches the gap that matters, a function the
-  reference never mentions, at little cost.
+  for the examples? Yes, Iain decided on 2026-11-09, so that nothing is
+  missed: a test that each name appears, with an explicit list of the
+  ones covered under another's name (the YAML marshalling methods under
+  YAML, for instance). It catches the gap that matters, a function the
+  reference never mentions, at little cost. A name alone isn't
+  coverage, as a mention in passing passes it, so the audit this item
+  does by reading still judges depth. The options set aside: no test,
+  and an audit at each wash-up, which a busy wash-up can skip; and a
+  test that each has a heading or a row in a feature's table, stricter
+  but tying the reference's layout to the test.
 
 ## What's known
 
