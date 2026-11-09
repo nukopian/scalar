@@ -2707,7 +2707,7 @@ match, and parses 10% faster for it. They stay separate scalars, but
 they're freed together, so keeping one value of a big hash or array
 after dropping the rest keeps the memory of them all. Keep a copy,
 `scalar.Value(v)`, to let the rest go. The
-[change record](changes/2026-11-02-hash-values-in-one-allocation.md)
+[change record](changes/2026-0007-hash-values-in-one-allocation.md)
 has the numbers.
 
 **Can a value be built only when it's read?** Not in scalar. A lazy
@@ -2717,7 +2717,7 @@ build a whole match where the function may read one capture of it.
 Every read in scalar had to check for one, costing up to 4% in tight
 loops, and in grammar it saved half what naming the captures an
 assertion reads does: −13% time against −23%. With no other use, it was
-dropped; its [change record](changes/2026-11-02-r5-lazy-values.md) has
+dropped; its [change record](changes/2026-0005-lazy-values.md) has
 the numbers. In Go, `sync.OnceValue` builds a value once, on first use:
 build the scalar there, or build the typed value and keep scalar out of
 it.

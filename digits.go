@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// Numbers that keep their digits (roadmap 3): a number read as text, from
-// JSON, YAML, a dump or a JSONPath literal, keeps its text beside its
-// float when the float can't give the number back, so that it's written
-// out with every digit: a decimal such as 1.23456789012345678901, or a
-// whole number beyond int64. A number of up to 15 significant digits
+// Numbers that keep their digits (roadmap 2026-0003): a number read as
+// text, from JSON, YAML, a dump or a JSONPath literal, keeps its text
+// beside its float when the float can't give the number back, so that
+// it's written out with every digit: a decimal such as
+// 1.23456789012345678901, or a whole number beyond int64. A number of up to 15 significant digits
 // always comes back from its float, so ordinary numbers keep nothing and
 // cost only a count of their digits. Arithmetic is on the float, and any
 // write to the scalar drops the text. The reference's "Numbers that keep

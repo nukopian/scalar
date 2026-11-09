@@ -1,8 +1,8 @@
-# JSON decimals that keep their digits
+# 2026-0003. JSON decimals that keep their digits
 
 **Status:** shipped in v0.6.0
 
-**Origin:** roadmap 3
+**Origin:** roadmap 2026-0003
 
 **Started:** 2026-10-26, on the `experiment/exact-decimals` branch, from
 cb9a7dcf956ca5c3facf2447904e453a89dedb5c
@@ -126,4 +126,4 @@ decision.
 - **What's left:** whether JSON writes a float as Perl does, to 15
   significant digits, is Iain's decision, separately; and the two bugs
   roadmap 2 found, in its
-  [change record](2026-10-26-r2-exact-whole-numbers.md).
+  [change record](2026-0002-exact-whole-numbers.md).

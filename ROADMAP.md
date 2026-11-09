@@ -16,22 +16,31 @@ Items come in four groups, the most useful first in each:
 - **Ideas:** might be done, or never; kept so they aren't lost, in a
   line or two, newest last.
 
-Each item has a number, given when it's added, in whichever group. It
-keeps it as it moves between groups, and a number is never used again,
-so that 1 means the same item in a commit message months later. Next
-number: 6.
+Each item has an id, its year and a serial, such as 2026-0003. The year
+is when the item was added, and the serial counts from 0001, starting
+again each year. An id is given when the item is added, whichever group
+it goes in, and is kept as the item moves, so that 2026-0003 means the
+same item in a commit message years later. It names the item's change
+record, its line in the CHANGELOG ("(roadmap 2026-0003)") and any branch
+for it. A `TODO.md` task with a record takes an id from the same
+sequence, though it never appears here. Items numbered 1 to 5 before
+2026-11-09 kept their numbers as serials, so "roadmap 3" in older
+commits is 2026-0003. Last id: 2026-0007.
 
 Each item has a size too, a guess at how much work it is, as a T-shirt
 size and its story points: XS 1, S 2, M 3 and L 5. Sizes compare items
 with each other; they aren't a measure of time. An item bigger than L
-is broken into items that aren't, each saying what it was split from.
-Items that can't be done one without another say so ("Moves with:"),
-and move between groups together.
+is split into items that aren't, each saying what it was split from
+("Split from:"). An item that can't be done before another says so
+("Depends on:"), and is never in a group ahead of it.
 
-When an item ships, it moves from here to the CHANGELOG, whose line
-for it ends with its number, such as "(roadmap 1)", and links to its
-record. An idea that's dropped is deleted, and the commit that drops
-it names its number.
+An item whose questions aren't all settled says so, and its record
+lists them. Work on it starts only once each is settled, or moved to
+another item or task.
+
+When an item ships, it leaves here for the CHANGELOG, whose line for it
+ends with its id and links to its record. An item that's dropped is
+deleted, and the commit that drops it names its id.
 
 ## Now
 
@@ -47,8 +56,8 @@ Nothing yet.
 
 ## Ideas
 
-An idea is a numbered heading, the date it was added, its size, and a
-line or two on what and why. Each wash-up prunes them: each is kept,
-promoted to Later or Next with its number, or dropped.
+An idea is a heading with its id, an **Added:** date, a **Size:**
+line, and a line or two on what and why. Each wash-up prunes them: each
+is kept, promoted to Later or Next with its id, or dropped.
 
 Nothing yet.

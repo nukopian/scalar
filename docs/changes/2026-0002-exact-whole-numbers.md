@@ -1,8 +1,8 @@
-# JSON whole numbers that keep their digits
+# 2026-0002. JSON whole numbers that keep their digits
 
 **Status:** dropped
 
-**Origin:** roadmap 2
+**Origin:** roadmap 2026-0002
 
 **Started:** 2026-10-26, in d86c548e0cef495a174f025ef93383151667062c
 

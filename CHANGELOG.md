@@ -14,6 +14,13 @@ release's entry when `main` is moved to it and tagged
 - `scripts/readme-pdf.sh` refuses an output that isn't a `.pdf`: a
   document named there by mistake, as in `readme-pdf.sh README.md
   docs/EXAMPLES.md`, would be written over with a PDF.
+- Docs: roadmap items and change records are named by an id, the year
+  and a serial, such as 2026-0003, rather than a bare number, as in the
+  maintainer's other projects. Items 1 to 5 kept their numbers as
+  serials, so "roadmap 3" in older commits is 2026-0003, and the
+  records were renamed to their ids. Items that must wait for others
+  say so with **Depends on:**, and a record's open questions are
+  numbered D1, D2 and on.
 
 ## v0.6.6 (2026-11-08)
 
@@ -32,7 +39,7 @@ A clearer Rationale, and the record of v0.6.4's speed-up closed
 - Docs: the README's Rationale now opens with the author's experience,
   Perl above all, and says how `scalar` holds borrowed shortcuts to the
   standards of any other code. The package is unchanged.
-- Docs: the [record](docs/changes/2026-11-02-hash-values-in-one-allocation.md)
+- Docs: the [record](docs/changes/2026-0007-hash-values-in-one-allocation.md)
   of v0.6.4's faster `Hash`, `Array` and `Push` is closed: against the
   released module, grammar parses 13% faster with 32% fewer
   allocations.
@@ -54,11 +61,11 @@ Building hashes and arrays, faster: found by grammar
   built a hash or an array. Now they do. Numbers keep their digits, as
   before. The values are freed together: the reference's
   [What it costs](docs/REFERENCE.md#what-it-costs) says what that means
-  for keeping one. ([record](docs/changes/2026-11-02-hash-values-in-one-allocation.md))
-- Docs: roadmap 5, lazy values, built by a function on their first read,
-  was built and measured for grammar, and dropped: grammar did better by
+  for keeping one. ([record](docs/changes/2026-0007-hash-values-in-one-allocation.md))
+- Docs: roadmap 2026-0005, lazy values, built by a function on their
+  first read, was built and measured for grammar, and dropped: grammar did better by
   naming the captures a code assertion reads, and nothing else needs them.
-  Its [change record](docs/changes/2026-11-02-r5-lazy-values.md) keeps
+  Its [change record](docs/changes/2026-0005-lazy-values.md) keeps
   the numbers, and the reference's
   [What it costs](docs/REFERENCE.md#what-it-costs) points to
   `sync.OnceValue` instead.
@@ -94,7 +101,7 @@ scalar.Linear, Go's regex engine with Backtracking's answers, and S keeps its ti
   such as a final newline for `$`. The reference's
   [Choosing an engine](docs/REFERENCE.md#choosing-an-engine-backtracking-and-linear)
   says what it can't run and when it hands over.
-  ([record](docs/changes/2026-11-01-r1-regex-engines.md); roadmap 1)
+  ([record](docs/changes/2026-0001-regex-engines.md); roadmap 2026-0001)
 - Fixed: `S` with `g` panics when a match after the first runs past
   `RegexTimeout`, as it does for the first, and leaves the scalar as it
   was. It emptied the scalar silently, and returned a count of 1: a
@@ -109,7 +116,7 @@ AtSteps, At's path parser for other packages
 - `AtSteps` reads a path into its steps exactly as `At` does, with
   `At`'s own parser, for code that checks paths against a known shape,
   such as grammar's `CheckPath`
-  ([record](docs/changes/2026-10-27-export-the-path-parser.md)).
+  ([record](docs/changes/2026-0006-export-the-path-parser.md)).
 - The CHANGELOG and change records no longer get PDFs: they're read
   as Markdown, on GitHub or in an editor. `scripts/readme-pdf.sh` builds
   the other documents' PDFs, and refuses these.
@@ -135,7 +142,7 @@ A minor version, as some output changes: see Changed and Fixed below.
   The reference's
   [Numbers that keep their digits](docs/REFERENCE.md#numbers-that-keep-their-digits)
   says where this differs from Perl, which reads them as floats.
-  ([record](docs/changes/2026-10-26-r3-exact-decimals.md); roadmap 3)
+  ([record](docs/changes/2026-0003-exact-decimals.md); roadmap 2026-0003)
 - Changed: `Str` and `MarshalJSON` of such a number, and of a Go `uint64`
   beyond `int64`: `Value(uint64(math.MaxUint64)).Str()` is
   `18446744073709551615`, where it was `1.84467440737096e+19`.
@@ -160,10 +167,10 @@ A minor version, as some output changes: see Changed and Fixed below.
   `0.1 + 0.2` is `0.30000000000000004`, where JSON::PP writes `0.3`; a
   negative zero prints as `-0`, where Perl prints `0`; and `2**62` is the
   exact integer, where Perl gives a float.
-- Docs: roadmap 2, keeping whole numbers' digits as a `uint64`, as Perl
-  holds a UV, was investigated and dropped for roadmap 3, which covers
-  its uses with one mechanism; its
-  [change record](docs/changes/2026-10-26-r2-exact-whole-numbers.md) keeps
+- Docs: roadmap 2026-0002, keeping whole numbers' digits as a `uint64`,
+  as Perl holds a UV, was investigated and dropped for roadmap
+  2026-0003, which covers its uses with one mechanism; its
+  [change record](docs/changes/2026-0002-exact-whole-numbers.md) keeps
   what it found.
 - Docs: each planned change keeps a record in
   [docs/changes/](docs/changes/README.md), opened when work starts: the

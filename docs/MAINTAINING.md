@@ -32,18 +32,20 @@ The repositories sit side by side, with jdc-lab, which uses both:
   three items at most, so the roadmap stays a queue to pull from, not a
   list pushing work; an item in Now has a plan written to be picked up
   cold, in its change record; one leaves when it ships, in the commit
-  that adds it to the CHANGELOG, whose line ends "(roadmap 7)" and
-  links to the record. Every item has a number, the
-  next one when it's added (the roadmap's opening says which), kept as it
-  moves between groups and never used again; a heading such as
-  `### 7. Title` holds it, as a Markdown numbered list would renumber
-  itself. An idea is that heading, the date it was added, and a line or
-  two, and is added in a `docs:` commit whenever one comes up.
+  that adds it to the CHANGELOG, whose line ends "(roadmap 2026-0007)"
+  and links to the record. Every item has an id, its year and a serial,
+  such as 2026-0007, given when it's added (the roadmap's opening gives
+  the last one), kept as it moves between groups and never used again;
+  a heading such as `### 2026-0007. Title` holds it, as a Markdown
+  numbered list would renumber itself. An item that can't be done
+  before another says so in a **Depends on:** line. An idea is that
+  heading, the date it was added, its size, and a line or two, and is
+  added in a `docs:` commit whenever one comes up.
 - [docs/changes/](changes/README.md) holds a record of each planned
   change: the plan as it was written, and what happened, with changes
   from the plan, measurements, and what was tried and reverted. A
   record is opened when work starts on a roadmap item or a `TODO.md`
-  task with steps, named for that day and the change, and finished in
+  task with steps, named for its id and the change, and finished in
   the commit that ships or drops it; its README has the rules and the
   template.
 - `TODO.md`, when there is one, lists work planned for a later session:
@@ -134,9 +136,9 @@ patch (v0.5.1 to v0.5.2). Claude asks before tagging.
    feature word for word into ROADMAP.md, or a decision awaiting Iain
    to a Claude Doc, and delete the file before going on. Check
    ROADMAP.md too: what shipped is out of it, and Now is what's really
-   being worked on. Prune the Ideas: list them by number, and Iain
-   keeps, promotes or drops each. A promoted idea keeps its number; a
-   dropped one is deleted, and the commit message names its number.
+   being worked on. Prune the Ideas: list them by id, and Iain
+   keeps, promotes or drops each. A promoted idea keeps its id; a
+   dropped one is deleted, and the commit message names its id.
 
 2. **Turn Unreleased into the release** in [CHANGELOG.md](../CHANGELOG.md):
    rename the heading to the version and date, as in

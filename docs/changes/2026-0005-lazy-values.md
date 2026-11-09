@@ -1,8 +1,8 @@
-# Lazy values
+# 2026-0005. Lazy values
 
 **Status:** dropped
 
-**Origin:** roadmap 5
+**Origin:** roadmap 2026-0005
 
 **Started:** 2026-11-02, in a97896c011e1244a5e478dfd2b2cadd6722002bd
 
@@ -64,7 +64,7 @@ shows what it saves.
 - **Measurements in grammar:** `BenchmarkAssert`, interleaved, 10 runs
   each, all on the second design, against eager captures on the same
   scalar (grammar's numbers, from its
-  [record](https://github.com/nukopian/grammar/blob/develop/docs/changes/2026-11-02-r24-building-only-what-a-code-assertion-reads.md)):
+  [record](https://github.com/nukopian/grammar/blob/develop/docs/changes/2026-0024-building-only-what-a-code-assertion-reads.md)):
 
   | `BenchmarkAssert` | time | bytes | allocations |
   |---|---|---|---|

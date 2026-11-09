@@ -12,7 +12,8 @@ having. Small fixes don't need one.
 
 ## How a record is kept
 
-- **It's opened when work starts.** The plan moves here from the
+- **It's opened when its item first has a question to settle, or when
+  work starts.** When work starts, the plan moves here from the
   roadmap or `TODO.md`, and the roadmap's Now item shrinks to a
   paragraph and a link. `TODO.md` keeps only the next steps for a
   session.
@@ -21,30 +22,44 @@ having. Small fixes don't need one.
 - **What happened is added as the work goes,** and finished when the
   change ships or is dropped, in the same commit. When it ships, the
   status says "shipped, unreleased", and the release names its version.
-- **It's named for the day work started, then, for a roadmap item,
-  "r" and its number, then the change,** such as
-  `2026-10-26-r3-exact-decimals.md` for roadmap 3: dates never collide
-  between sessions or repositories, and sort in order, and a search for
-  `r3` finds the record, where a bare 3 would match every date and
-  figure. A record for a `TODO.md` task has no number, such as
-  `2026-10-27-export-the-path-parser.md`. A roadmap item keeps its
-  number as its name in commits and the CHANGELOG, and the record gives
-  it in its header too.
+- **It's named for its id, then the change,** such as
+  `2026-0003-exact-decimals.md` for roadmap 2026-0003. A roadmap item's
+  id is its own, kept as its name in commits and the CHANGELOG; a
+  `TODO.md` task with steps takes the next id from the roadmap's
+  opening, in the same sequence, though it never appears there. Ids
+  sort in the order items were added; the **Started:** line gives the
+  date. Records opened before 2026-11-09 were named for the day work
+  started and "r" and the item's number, and were renamed to their ids,
+  a task's taking the next id in the order they were opened.
+- **Its questions are settled before work starts,** numbered D1, D2
+  and on under Decisions: unchecked while open, checked once settled,
+  with the answer, the date and why, and summed up in a **Decisions:**
+  line under the status.
 - **It's public,** on `main` and in every release, like the rest of
   `docs/`, so nothing personal goes in it.
 
 ## The template
 
 ```markdown
-# Title
+# 2026-0007. Title
 
-**Status:** in progress | shipped, unreleased | shipped in v0.5.11 | dropped
+**Status:** open | in progress | shipped, unreleased | shipped in v0.5.11 | dropped
 
-**Origin:** roadmap 7 | a TODO task from grammar's session (grammar <commit>)
+**Decisions:** D1 settled: the answer, in a few words. D2 open: the question, in a few words. | None.
+
+**Origin:** roadmap 2026-0007 | a TODO task from grammar's session (grammar <commit>)
+
+**Depends on:** 2026-0003, if anything
 
 **Started:** 2026-10-26, in <commit>
 
 **Finished:** 2026-10-27
+
+## Decisions
+
+- [x] **D1.** The question? The answer, on 2026-10-26, and why.
+- [ ] **D2.** A question still open? The options, and the
+  recommendation.
 
 ## The plan
 
@@ -64,14 +79,14 @@ What's known, Steps, Done when.
 
 Newest first.
 
-- [A hash's or an array's values in one allocation](2026-11-02-hash-values-in-one-allocation.md),
+- [A hash's or an array's values in one allocation](2026-0007-hash-values-in-one-allocation.md),
   a task from grammar: shipped in v0.6.4.
-- [Lazy values](2026-11-02-r5-lazy-values.md), roadmap 5: dropped.
-- [A regex engine chosen per pattern](2026-11-01-r1-regex-engines.md),
-  roadmap 1: shipped in v0.6.2.
-- [Export the path parser](2026-10-27-export-the-path-parser.md),
+- [Lazy values](2026-0005-lazy-values.md), roadmap 2026-0005: dropped.
+- [A regex engine chosen per pattern](2026-0001-regex-engines.md),
+  roadmap 2026-0001: shipped in v0.6.2.
+- [Export the path parser](2026-0006-export-the-path-parser.md),
   a TODO task from grammar: shipped in v0.6.1.
-- [JSON decimals that keep their digits](2026-10-26-r3-exact-decimals.md),
-  roadmap 3: shipped in v0.6.0
-- [JSON whole numbers that keep their digits](2026-10-26-r2-exact-whole-numbers.md),
-  roadmap 2: dropped.
+- [JSON decimals that keep their digits](2026-0003-exact-decimals.md),
+  roadmap 2026-0003: shipped in v0.6.0
+- [JSON whole numbers that keep their digits](2026-0002-exact-whole-numbers.md),
+  roadmap 2026-0002: dropped.
