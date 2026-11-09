@@ -1,6 +1,6 @@
 # 2026-0011. Guide chapters: text, counting, output and speed
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.7
 
 **Decisions:** None: the chapters were made in 2026-0010, and Iain asked
 for this item on 2026-11-09.

@@ -80,13 +80,13 @@ What's known, Steps, Done when.
 Newest first.
 
 - [Guide chapters: text, counting, output and speed](2026-0011-guide-chapters-text-counting-output-and-speed.md),
-  roadmap 2026-0011: shipped, unreleased.
+  roadmap 2026-0011: shipped in v0.6.7.
 - [Guide chapters: loose data in, typed Go out](2026-0010-guide-chapters-loose-data-in-typed-go-out.md),
-  roadmap 2026-0010: shipped, unreleased.
+  roadmap 2026-0010: shipped in v0.6.7.
 - [The reference covers every function, and agrees with the guide](2026-0009-reference-covers-every-function.md),
-  roadmap 2026-0009: shipped, unreleased.
+  roadmap 2026-0009: shipped in v0.6.7.
 - [A how-to guide made from tested examples](2026-0008-a-how-to-guide-made-from-tested-examples.md),
-  roadmap 2026-0008: shipped, unreleased.
+  roadmap 2026-0008: shipped in v0.6.7.
 - [A hash's or an array's values in one allocation](2026-0007-hash-values-in-one-allocation.md),
   a task from grammar: shipped in v0.6.4.
 - [Lazy values](2026-0005-lazy-values.md), roadmap 2026-0005: dropped.

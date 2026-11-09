@@ -1,6 +1,6 @@
 # 2026-0010. Guide chapters: loose data in, typed Go out
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.7
 
 **Decisions:** None: the guide's shape was settled in 2026-0008, and Iain
 approved it on 2026-11-09.

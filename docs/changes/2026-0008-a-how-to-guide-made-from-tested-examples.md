@@ -1,6 +1,6 @@
 # 2026-0008. A how-to guide made from tested examples
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.7
 
 **Decisions:** D1 settled: keep EXAMPLES.md. D2 settled: a scalar test
 first, its general part to docref when grammar follows. D3 settled: the

@@ -1,6 +1,6 @@
 # 2026-0009. The reference covers every function, and agrees with the guide
 
-**Status:** shipped, unreleased
+**Status:** shipped in v0.6.7
 
 **Decisions:** D1 settled: a test checks the reference names every
 exported function, with a list of those covered under another's name.

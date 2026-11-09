@@ -11,6 +11,12 @@ release's entry when `main` is moved to it and tagged
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.6.7 (2026-11-09)
+
+A how-to guide in chapters, every recipe tested beside its plain Go
+
 - `scripts/readme-pdf.sh` refuses an output that isn't a `.pdf`: a
   document named there by mistake, as in `readme-pdf.sh README.md
   docs/EXAMPLES.md`, would be written over with a PDF.
